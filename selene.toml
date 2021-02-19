@@ -1,0 +1,3 @@
+std = "roblox+testez"
+[rules]
+multiple_statements = "allow"

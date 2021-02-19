@@ -1,0 +1,27 @@
+{
+	"name": "Components",
+	"tree": {
+		"$className": "DataModel",
+
+		"ReplicatedStorage": {
+			"$ignoreUnknownInstances": true,
+			"Components": {
+				"$path": "src/Components"
+			}
+		},
+	
+		"TestService": {
+			"$ignoreUnknownInstances": true,
+			"$properties": {
+				"ExecuteWithStudioRun": true
+			},
+
+			"TestEZ": {
+				"$path": "modules/TestEZ"
+			},
+			"componentsRun": {
+				"$path": "src/runTests.server.lua"
+			}
+		}
+	}
+}

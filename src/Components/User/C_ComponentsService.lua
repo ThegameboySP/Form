@@ -35,33 +35,11 @@ function ClientComponentsService:AddManager(manName)
 	local addCompRemote = entryFdr:WaitForChild("ComponentAdded")
 	local removeCompRemote = entryFdr:WaitForChild("ComponentRemoved")
 
-	man.ComponentAdded:Connect(function(instance, name)
-		local cloneProfile = man:getCloneProfile(instance)
-		local prototype = cloneProfile.prototype.instance
-		if not CollectionService:HasTag(prototype, "ServerComponent") then return end
-
-		-- Since replication happens in order, we should never have to wait for this.
-		local fdr = prototype.ComponentsPublic
-		local stateFdr = fdr:FindFirstChild(name)
-
-		ComponentsUtils.subscribeState(stateFdr, function(property, value)
-			man:SetState(instance, name, {[property.Name] = value})
-		end)
-
-		ComponentsUtils.subscribeGroups(prototype, function(group, exists)
-			if exists then
-				print("Adding group", instance, group.Name)
-				man:AddToGroup(instance, group.Name)
-			else
-				print("Removing group", instance, group.Name)
-				man:RemoveFromGroup(instance, group.Name)
-			end
-		end)
-	end)
-
 	addCompRemote.OnClientEvent:Connect(function(instance, name, props, groups)
 		print("Added", instance, name)
-		instance.Parent = game.ReplicatedStorage
+
+		-- Since replication happens in order, and ComponentAdded fires last, 
+		-- we should never have to wait for required instances.
 		man:AddComponent(instance, name, props, groups, true)
 	end)
 

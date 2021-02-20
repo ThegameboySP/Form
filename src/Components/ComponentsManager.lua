@@ -85,9 +85,14 @@ function ComponentsManager:Destruct()
 		holder:Clear()
 	end
 
+	for _, destruct in next, self._destructToCloneProfile do
+		destruct()
+	end
+
 	table.clear(self._cloneProfiles)
 	table.clear(self._prototypes)
 	table.clear(self._prototypeToClone)
+	table.clear(self._groups)
 end
 
 
@@ -100,16 +105,16 @@ function ComponentsManager:Init(root)
 
 	for instance, prototype in next, prototypes do
 		-- Check if it's a local clone, as otherwise we may screw up replication or other managers.
-		if self:getCloneProfile(instance) then continue end
+		if self:GetCloneProfile(instance) then continue end
 		if self._prototypes[instance] then continue end
 
 		CollectionService:AddTag(instance, "Prototype")
 		self._prototypes[instance] = prototype
-		instance.Parent = nil
 
-		if CollectionService:HasTag(instance, "ComponentsSyncronized") then
+		if instance:FindFirstChild("ComponentsSyncronized") then
 			self:_newCloneProfile(instance, prototype, true, prototype.groups)
 		else
+			instance.Parent = nil
 			local clone = instance:Clone()
 			self:_newCloneProfile(clone, prototype, false, prototype.groups)
 		end
@@ -132,7 +137,7 @@ function ComponentsManager:RegisterComponent(src)
 	self._componentHolders[name] = holder
 
 	holder.ComponentAdded:Connect(function(clone, props)
-		self.ComponentAdded:Fire(clone, name, props, self:getCloneProfile(clone).prototype.groups)
+		self.ComponentAdded:Fire(clone, name, props, self:GetCloneProfile(clone).prototype.groups)
 	end)
 
 	holder.ComponentRemoved:Connect(function(clone)
@@ -147,6 +152,7 @@ function ComponentsManager:Reload(root)
 	assert(next(self._cloneProfiles) == nil, NOT_DESTRUCTED_ERR)
 	assert(next(self._prototypes) == nil, NOT_DESTRUCTED_ERR)
 	assert(next(self._prototypeToClone) == nil, NOT_DESTRUCTED_ERR)
+	assert(next(self._groups) == nil, NOT_DESTRUCTED_ERR)
 
 	self._prototypes = self:Init(root)
 end
@@ -180,7 +186,9 @@ function ComponentsManager:RunAndMerge(allowedGroups)
 		local clone = cloneProfile.clone
 		local name = newComponent.componentName
 
-		local props = self._componentHolders[name]:InitComponent(clone, nil)
+		local props = self._componentHolders[name]:InitComponent(
+			clone, nil, clone:FindFirstChild("ComponentsSyncronized")
+		)
 		cloneProfile:AddComponent(name)
 		table.insert(events, {clone = clone, name = name, props = props})
 	end
@@ -207,13 +215,13 @@ function ComponentsManager:DestroyComponents(groups)
 end
 
 
-function ComponentsManager:AddComponent(instance, name, props, groups, sync)
-	local profile = self:_getOrMakeCloneProfile(instance, sync, groups)
+function ComponentsManager:AddComponent(instance, name, props, groups, synced)
+	local profile = self:_getOrMakeCloneProfile(instance, synced, groups)
 	if profile:HasComponent(name) then
 		return
 	end
 
-	self._componentHolders[name]:AddComponent(instance, props)
+	self._componentHolders[name]:AddComponent(instance, props, synced)
 	profile:AddComponent(name)
 
 	return profile
@@ -237,20 +245,28 @@ function ComponentsManager:RemoveComponent(instance, name)
 end
 
 
+function ComponentsManager:HasComponent(instance, name)
+	local profile = self:_getOrMakeCloneProfile(instance, false)
+	return profile:HasComponent(name)
+end
+
+
 function ComponentsManager:AddToGroup(instance, groupName)
-	local profile = self:getCloneProfileOrError(instance)
+	local profile = self:GetCloneProfileOrError(instance)
 	local oldGroupsHash = ComponentsUtils.shallowCopy(profile:GetGroupsHash())
 	profile:AddGroup(groupName)
 	
 	local group = self:_getOrMakeGroup(groupName)
 	group:Add(instance)
 
-	ComponentsUtils.updateGroupValueObjects(instance, profile:GetGroupsHash(), oldGroupsHash)
+	if not profile.synced then
+		ComponentsUtils.updateGroupValueObjects(instance, profile:GetGroupsHash(), oldGroupsHash)
+	end
 end
 
 
 function ComponentsManager:RemoveFromGroup(instance, groupName)
-	local profile = self:getCloneProfileOrError(instance)
+	local profile = self:GetCloneProfileOrError(instance)
 	local oldGroupsHash = ComponentsUtils.shallowCopy(profile:GetGroupsHash())
 	profile:RemoveGroup(groupName)
 
@@ -261,9 +277,19 @@ function ComponentsManager:RemoveFromGroup(instance, groupName)
 
 	if not profile:IsInAGroup() then
 		self:_removeClone(instance)
-	else
+	elseif not profile.synced then
 		ComponentsUtils.updateGroupValueObjects(instance, profile:GetGroupsHash(), oldGroupsHash)
 	end
+end
+
+
+function ComponentsManager:IsInGroup(instance, groupName)
+	local group = self:GetGroup(groupName)
+	if group == nil then
+		return false
+	end
+
+	return group:IsAdded(instance)
 end
 
 
@@ -296,8 +322,18 @@ function ComponentsManager:SetState(instance, name, deltaState)
 end
 
 
+function ComponentsManager:GetState(instance, name)
+	return self._componentHolders[name]:GetState(instance)
+end
+
+
 function ComponentsManager:Subscribe(instance, name, stateName, handler)
 	return self._componentHolders[name]:Subscribe(instance, stateName, handler)
+end
+
+
+function ComponentsManager:IsAdded(instance, name)
+	return self._componentHolders[name]:IsAdded(instance)
 end
 
 
@@ -312,13 +348,13 @@ end
 --/Aliases
 
 
-function ComponentsManager:getCloneProfile(instance)
+function ComponentsManager:GetCloneProfile(instance)
 	return self._cloneProfiles[instance]
 end
 
 
-function ComponentsManager:getCloneProfileOrError(instance)
-	local profile = self:getCloneProfile(instance)
+function ComponentsManager:GetCloneProfileOrError(instance)
+	local profile = self:GetCloneProfile(instance)
 	if profile == nil then
 		error(NO_PROFILE_ERR:format(instance:GetFullName()))
 	end
@@ -327,7 +363,7 @@ function ComponentsManager:getCloneProfileOrError(instance)
 end
 
 
-function ComponentsManager:getCloneProfileFromPrototype(instance)
+function ComponentsManager:GetCloneProfileFromPrototype(instance)
 	local clone = self._prototypeToClone[instance]
 	if clone == nil then
 		return nil
@@ -350,6 +386,8 @@ function ComponentsManager:_removeInstanceFromTables(instance)
 		local group = self:GetGroup(groupName)
 		group:Remove(instance)
 	end
+
+	profile:Destruct()
 end
 
 
@@ -384,6 +422,34 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, groups)
 	for groupName in next, groups do
 		self:_getOrMakeGroup(groupName)
 		self:AddToGroup(clone, groupName)
+	end
+
+	if synced then
+		if not clone:FindFirstChild("ComponentsSyncronized") then
+			local tag = Instance.new("BoolValue")
+			tag.Name = "ComponentsSyncronized"
+			tag.Archivable = false
+			tag.Value = true
+			tag.Parent = clone
+		end
+
+		-- TODO: Disconnect these subscriptions if the clone profile is removed.
+		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeState(
+			ComponentsUtils.getStateFolder(clone), function(compName, stateName, value)
+				if not self:HasComponent(clone, compName) then return end
+				-- print("Setting state ", compName, stateName, value)
+				self:SetState(clone, compName, {[stateName] = value})
+			end))
+
+		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeGroups(clone, function(group, exists)
+			if exists then
+				print("Adding group", clone, group.Name)
+				self:AddToGroup(clone, group.Name)
+			else
+				print("Removing group", clone, group.Name)
+				self:RemoveFromGroup(clone, group.Name)
+			end
+		end))
 	end
 
 	return cloneProfile

@@ -9,6 +9,7 @@ function CloneProfile.new(clone, prototype, synced)
 
 		_components = {};
 		_groups = {};
+		_destructFuncs = {};
 	}, CloneProfile)
 end
 
@@ -60,6 +61,24 @@ end
 
 function CloneProfile:IsInAGroup()
 	return next(self._groups) ~= nil
+end
+
+
+function CloneProfile:AddDestructFunction(func)
+	table.insert(self._destructFuncs, func)
+end
+
+
+function CloneProfile:Destruct()
+	for index, func in next, self._destructFuncs do
+		self._destructFuncs[index] = nil
+		func()
+	end
+end
+
+
+function CloneProfile:GetDestructFunctionsArray()
+	return self._destructFuncs
 end
 
 return CloneProfile

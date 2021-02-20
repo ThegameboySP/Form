@@ -36,10 +36,12 @@ function Components:SetState(instance, deltaState)
 		error(NO_COMPONENT_ERROR:format(instance:GetFullName(), self._name))
 	end
 
-	ComponentsUtils.mergeStateValueObjects(
-		ComponentsUtils.getOrMakeStateFolder(instance, self._name),
-		deltaState
-	)
+	if not comp.__synced then
+		ComponentsUtils.mergeStateValueObjects(
+			ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name),
+			deltaState
+		)
+	end
 
 	for key, value in next, deltaState do
 		comp.state[key] = value
@@ -47,18 +49,31 @@ function Components:SetState(instance, deltaState)
 end
 
 
+function Components:GetState(instance)
+	local comp = self._components[instance]
+	if comp == nil then
+		error(NO_COMPONENT_ERROR:format(instance:GetFullName(), self._name))
+	end
+
+	return ComponentsUtils.shallowCopy(comp.state)
+end
+
+
 function Components:Subscribe(instance, stateName, handler)
-	local stateFdr = ComponentsUtils.getOrMakeStateFolder(instance, self._name)
+	local stateFdr = ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
 	local valueObject = stateFdr:FindFirstChild(stateName)
 	if valueObject == nil then
 		error(("There is no value object under %q named %q!"):format(instance:GetFullName(), stateName))
 	end
 
-	return valueObject.Changed:Connect(handler)
+	return ComponentsUtils.subscribeComponentState(stateFdr, function(name, value)
+		if name ~= stateName then return end
+		handler(value)
+	end)
 end
 
 
-function Components:InitComponent(instance, props)
+function Components:InitComponent(instance, props, synced)
 	props = ComponentsUtils.mergeProps(instance, self._name, props)
 
 	if self._iConfiguration then
@@ -74,14 +89,15 @@ function Components:InitComponent(instance, props)
 	state = state or {}
 	object.manager = self._manager
 	object.state = state
+	object.__synced = synced
 
 	self._components[instance] = object
 	self:SetState(instance, state)
 
-	local stateFdr = ComponentsUtils.getOrMakeStateFolder(instance, self._name)
-	ComponentsUtils.subscribeState(stateFdr, function(property, value)
-		self:SetState(instance, {[property.Name] = value})
-	end)
+	-- local stateFdr = ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
+	-- ComponentsUtils.subscribeState(stateFdr, function(property, value)
+	-- 	self:SetState(instance, {[property.Name] = value})
+	-- end)
 
 	return props
 end
@@ -101,8 +117,8 @@ function Components:RunComponentMain(instance)
 end
 
 
-function Components:AddComponent(instance, props)
-	local newProps = self:InitComponent(instance, props)
+function Components:AddComponent(instance, props, synced)
+	local newProps = self:InitComponent(instance, props, synced)
 	self:RunComponentMain(instance)
 
 	self.ComponentAdded:Fire(instance, newProps)

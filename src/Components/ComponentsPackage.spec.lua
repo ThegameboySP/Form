@@ -109,13 +109,13 @@ return function()
 
 			man:Init(instance)
 
-			local profile = man:getCloneProfileFromPrototype(instance)
+			local profile = man:GetCloneProfileFromPrototype(instance)
 			expect(profile:IsInGroup("Main")).to.equal(true)
 
 			local instance2 = Instance.new("BoolValue")
 			man:AddComponent(instance2, "TestComponent")
 
-			local profile2 = man:getCloneProfile(instance2)
+			local profile2 = man:GetCloneProfile(instance2)
 			expect(profile2:IsInGroup("Main")).to.equal(true)
 		end)
 
@@ -176,21 +176,105 @@ return function()
 
 			local instance = Instance.new("BoolValue", folder)
 			man:AddComponent(instance, "TestComponent")
-			
 			expect(instance.Configuration.Groups.Main.Value).to.equal(true)
 
 			man:AddToGroup(instance, "Test")
-
 			expect(instance.Configuration.Groups.Test.Value).to.equal(true)
 
 			man:RemoveFromGroup(instance, "Main")
-
 			expect(instance.Configuration.Groups:FindFirstChild("Main")).to.equal(nil)
 
 			man:AddToGroup(instance, "Test2")
 			man:RemoveFromGroup(instance, "Test")
 
 			expect(instance.Configuration.Groups:FindFirstChild("Test")).to.equal(nil)
+			expect(instance.Configuration.Groups:FindFirstChild("Test2")).to.be.ok()
+		end)
+
+		-- group subscription, state subscription, etc
+		it("should destruct subscription to external state on removing clone profile", function()
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			local folder = Instance.new("Folder")
+			local instance = Instance.new("BoolValue", folder)
+			CollectionService:AddTag(instance, "TestComponent")
+
+			man:Init(folder)
+			man:RunAndMerge({
+				Main = true;
+			})
+			man:AddToGroup(folder.Value, "Test")
+
+			local tag = Instance.new("BoolValue")
+			tag.Name = "ComponentsSyncronized"
+			tag.Archivable = false
+			tag.Value = true
+			tag.Parent = folder.Value
+
+			expect(man:IsAdded(folder.Value, "TestComponent")).to.equal(true)
+
+			local man2 = ComponentsManager.new()
+			man2:RegisterComponent(TestComponent)
+
+			man2:Init(folder)
+			man2:RunAndMerge({
+				Main = true;
+			})
+
+			local profile = man2:GetCloneProfile(folder.Value)
+			expect(next(profile:GetDestructFunctionsArray())).to.be.ok()
+
+			man2:RemoveComponent(folder.Value, "TestComponent")
+			expect(next(profile:GetDestructFunctionsArray())).to.equal(nil)
+		end)
+
+		it("should allow another manager to immediately syncronize group and state after initialization", function()
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			local folder = Instance.new("Folder")
+			local instance = Instance.new("BoolValue", folder)
+			CollectionService:AddTag(instance, "TestComponent")
+
+			man:Init(folder)
+			man:RunAndMerge({
+				Main = true;
+			})
+			man:AddToGroup(folder.Value, "Test")
+
+			local tag = Instance.new("BoolValue")
+			tag.Name = "ComponentsSyncronized"
+			tag.Archivable = false
+			tag.Value = true
+			tag.Parent = folder.Value
+
+			expect(man:IsAdded(folder.Value, "TestComponent")).to.equal(true)
+
+			local man2 = ComponentsManager.new()
+			man2:RegisterComponent(TestComponent)
+
+			man2:Init(folder)
+			man2:RunAndMerge({
+				Main = true;
+			})
+
+			local state1 = man:GetState(folder.Value, "TestComponent")
+			local state2 = man2:GetState(folder.Value, "TestComponent")
+			expect(ComponentsUtils.shallowCompare(state1, state2)).to.equal(true)
+
+			man:SetState(folder.Value, "TestComponent", {test = true})
+			state1 = man:GetState(folder.Value, "TestComponent")
+			state2 = man2:GetState(folder.Value, "TestComponent")
+			
+			expect(ComponentsUtils.shallowCompare(state1, state2)).to.equal(true)
+			expect(man2:IsInGroup(folder.Value, "Test")).to.equal(true)
+
+			man:RemoveFromGroup(folder.Value, "Test")
+			expect(man2:IsInGroup(folder.Value, "Test")).to.equal(false)
+
+			man:AddToGroup(folder.Value, "Test2")
+			expect(man2:IsInGroup(folder.Value, "Test2")).to.equal(true)
 		end)
 	end)
 
@@ -246,7 +330,7 @@ return function()
 		end)
 	end)
 
-	describe("Components", function()
+	describe("Individual components level", function()
 		local oldNew = TestComponent.new
 		function TestComponent.new(...)
 			return (oldNew(...)), {

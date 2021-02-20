@@ -85,12 +85,34 @@ function ComponentsUtils.mergeGroups(instance, mergeGroups)
 end
 
 
-function ComponentsUtils.getOrMakeStateFolder(instance, name)
-	local fdr = instance:FindFirstChild("ComponentsPublic")
+function ComponentsUtils.getStateFolder(instance)
+	return instance:FindFirstChild("ComponentsPublic")
+end
+
+
+function ComponentsUtils.getComponentStateFolder(instance, name)
+	local fdr = ComponentsUtils.getStateFolder(instance)
+	
+	if fdr == nil then
+		return nil
+	end
+
+	local stateFdr = fdr:FindFirstChild(name)
+	if stateFdr == nil then
+		return nil
+	end
+
+	return stateFdr
+end
+
+
+function ComponentsUtils.getOrMakeComponentStateFolder(instance, name)
+	local fdr = ComponentsUtils.getStateFolder(instance)
 	
 	if fdr == nil then
 		fdr = Instance.new("Folder")
 		fdr.Name = "ComponentsPublic"
+		fdr.Archivable = false
 		fdr.Parent = instance
 	end
 
@@ -157,42 +179,84 @@ end
 
 -- This shouldn't leak memory.
 -- Once a value object or state folder is deparented, there will no longer be any strong
--- references here to it (thanks to .Changed), nor should there be in the callback.
-function ComponentsUtils.subscribeState(stateFdr, callback)
+-- references here to it (thanks to .Changed), nor should there be in the callback,
+-- as long as the destruct function isn't kept around.
+function ComponentsUtils.subscribeComponentState(stateFdr, callback)
+	local connections = {}
+
 	local function onChildAdded(property)
 		local function onChanged(value)
-			callback(property, value)
+			callback(property.Name, value)
 		end
 
-		property.Changed:Connect(onChanged)
+		table.insert(connections, property.Changed:Connect(onChanged))
 		onChanged(property.Value)
 	end
 
-	stateFdr.ChildAdded:Connect(onChildAdded)
+	table.insert(connections, stateFdr.ChildAdded:Connect(onChildAdded))
 	for _, property in next, stateFdr:GetChildren() do
 		onChildAdded(property)
+	end
+
+	return function()
+		for _, con in next, connections do
+			con:Disconnect()
+		end
+	end
+end
+
+
+function ComponentsUtils.subscribeState(fdr, callback)
+	local destruct = {}
+
+	local function onChildAdded(stateFdr)
+		table.insert(destruct, ComponentsUtils.subscribeComponentState(stateFdr, function(propertyName, value)
+			callback(stateFdr.Name, propertyName, value)
+		end))
+	end
+
+	table.insert(destruct, fdr.ChildAdded:Connect(onChildAdded))
+	for _, stateFdr in next, fdr:GetChildren() do
+		onChildAdded(stateFdr)
+	end
+
+	return function()
+		for _, entry in next, destruct do
+			local t = type(entry)
+			if t == "function" then
+				entry()
+			elseif t == "RBXScriptConnection" then
+				entry:Disconnect()
+			end
+		end
 	end
 end
 
 
 function ComponentsUtils.subscribeGroups(instance, callback)
+	local connections = {}
 	local groupFolder = ComponentsUtils.getGroupsFolderFromInstance(instance)
+
 	local function onChildAdded(group)
-		print("childadded", group)
+		-- print("childadded", group)
 		local function onAncestryChanged(thisChild, newParent)
 			if newParent then return end
 			callback(thisChild, false)
 		end
 
-		group.AncestryChanged:Connect(onAncestryChanged)
+		table.insert(connections, group.AncestryChanged:Connect(onAncestryChanged))
 		callback(group, true)
 	end
 
-	instance.Parent = game.ReplicatedStorage
-
-	groupFolder.ChildAdded:Connect(onChildAdded)
+	table.insert(connections, groupFolder.ChildAdded:Connect(onChildAdded))
 	for _, group in next, groupFolder:GetChildren() do
 		onChildAdded(group)
+	end
+
+	return function()
+		for _, con in next, connections do
+			con:Disconnect()
+		end
 	end
 end
 
@@ -202,7 +266,7 @@ function ComponentsUtils.valueObjectFromType(typeOf)
 		return Instance.new("StringValue")
 	elseif typeOf == "number" then
 		return Instance.new("NumberValue")
-	elseif typeOf == "bool" then
+	elseif typeOf == "boolean" then
 		return Instance.new("BoolValue")
 	elseif typeOf == "Vector3" then
 		return Instance.new("Vector3Value")
@@ -251,6 +315,23 @@ function ComponentsUtils.shallowMerge(tbl1, tbl2)
 	end
 	
 	return tbl2
+end
+
+
+function ComponentsUtils.shallowCompare(tbl1, tbl2)
+	for k, v in next, tbl1 do
+		if tbl2[k] ~= v then
+			return false
+		end
+	end
+
+	for k, v in next, tbl2 do
+		if tbl1[k] ~= v then
+			return false
+		end
+	end
+
+	return true
 end
 
 

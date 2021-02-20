@@ -55,7 +55,13 @@ function ServerComponentsService:AddManager(manName)
 	-- Client can get the public members from the instance.
 	man.ComponentAdded:Connect(function(instance, name, props, groups)
 		print("Add replicating", instance, name)
-		CollectionService:AddTag(instance, "ServerComponent")
+
+		local tag = Instance.new("BoolValue")
+		tag.Name = "ServerComponent"
+		tag.Archivable = false
+		tag.Value = true
+		tag.Parent = instance
+		
 		addCompRemote:FireAllClients(instance, name, props, groups)
 	end)
 

@@ -1,7 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CollectionService = game:GetService("CollectionService")
 
 local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
+local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
 
 local ServerComponentsService = {}
 ServerComponentsService.__index = ServerComponentsService
@@ -35,8 +35,8 @@ function ServerComponentsService:AddManager(manName)
 
 	local man = ComponentsManager.new()
 	self._managers[manName] = man
-	for name, src in next, self._srcs do
-		man:RegisterComponent(name, src)
+	for _, src in next, self._srcs do
+		man:RegisterComponent(src)
 	end
 
 	local entryFdr = Instance.new("Folder")
@@ -54,20 +54,26 @@ function ServerComponentsService:AddManager(manName)
 
 	-- Client can get the public members from the instance.
 	man.ComponentAdded:Connect(function(instance, name, props, groups)
-		print("Add replicating", instance, name)
+		local module = self._srcs[name]
+		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
+			print("Add replicating", instance, name)
 
-		local tag = Instance.new("BoolValue")
-		tag.Name = "ServerComponent"
-		tag.Archivable = false
-		tag.Value = true
-		tag.Parent = instance
-		
-		addCompRemote:FireAllClients(instance, name, props, groups)
+			local tag = Instance.new("BoolValue")
+			tag.Name = "ServerComponent"
+			tag.Archivable = false
+			tag.Value = true
+			tag.Parent = instance
+
+			addCompRemote:FireAllClients(instance, name, props, groups)
+		end
 	end)
 
 	man.ComponentRemoved:Connect(function(instance, name)
-		print("Remove replicating", instance, name)
-		removeCompRemote:FireAllClients(instance, name)
+		local module = self._srcs[name]
+		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
+			print("Remove replicating", instance, name)
+			removeCompRemote:FireAllClients(instance, name)
+		end
 	end)
 
 	return man
@@ -77,13 +83,29 @@ end
 function ServerComponentsService:RegisterComponent(src)
 	local name = src.ComponentName
 	assert(name:sub(1, 2) ~= "C_", "Cannot register a client component on the server!")
-	assert(self._srcs[name] == nil, "Already registered component!")
+
+	local compName = ComponentsUtils.getBaseComponentName(name)
+	assert(self._srcs[compName] == nil, "Already registered component!")
 
 	for _, manager in next, self._managers do
 		manager:RegisterComponent(src)
 	end
 
-	self._srcs[name] = src
+	self._srcs[compName] = src
+end
+
+
+function ServerComponentsService:RegisterComponentsInFolder(folder)
+	for _, instance in next, folder:GetChildren() do
+		if instance:IsA("ModuleScript") then
+			local src = require(instance)
+			if src.ComponentName:sub(1, 2) == "C_" then continue end
+
+			self:RegisterComponent(src)
+		elseif instance:IsA("Folder") then
+			self:RegisterComponentsInFolder(instance)
+		end
+	end
 end
 
 return ServerComponentsService.new()

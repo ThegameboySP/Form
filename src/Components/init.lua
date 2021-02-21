@@ -3,5 +3,6 @@ return {
 	C_ComponentsService = require(script.User.C_ComponentsService);
 	BaseComponent = require(script.User.BaseComponent);
 	BouncyComponent = require(script.User.BouncyComponent);
-	S_TestComponent = require(script.User.S_TestComponent);
+
+	DamageComponent = require(script.User.DamageComponent)
 }

@@ -22,6 +22,7 @@ local NO_PROFILE_ERR = "No clone profile for %q!"
 local RESERVED_COMPONENT_NAMES = {
 	Groups = true
 }
+local FALSE = function() return false end
 
 local function isAllowedToSpawn(prototype, allowedGroups)
 	for group in next, prototype.groups do
@@ -48,7 +49,7 @@ local function makePrototype(instance, parent, groups)
 	}
 end
 
-function ComponentsManager.new()
+function ComponentsManager.new(isSyncronizedCallback)
 	return setmetatable({
 		ComponentAdded = Event.new();
 		ComponentRemoved = Event.new();
@@ -61,6 +62,8 @@ function ComponentsManager.new()
 		_prototypes = {};
 		_prototypeToClone = {};
 		_groups = {};
+
+		_isSyncronizedCallback = isSyncronizedCallback or FALSE
 	}, ComponentsManager)
 end
 
@@ -111,7 +114,7 @@ function ComponentsManager:Init(root)
 		CollectionService:AddTag(instance, "Prototype")
 		self._prototypes[instance] = prototype
 
-		if instance:FindFirstChild("ComponentsSyncronized") then
+		if instance:FindFirstChild("ComponentsSyncronized") or self._isSyncronizedCallback(instance) then
 			self:_newCloneProfile(instance, prototype, true, prototype.groups)
 		else
 			instance.Parent = nil
@@ -128,20 +131,22 @@ function ComponentsManager:RegisterComponent(src)
 	local name = src.ComponentName
 	assert(type(name) == "string", "Expected 'string'")
 	assert(type(src) == "table", "Expected 'table'")
-	assert(self._srcs[name] == nil, "Already registered component!")
-	assert(RESERVED_COMPONENT_NAMES[name] == nil, "Name is reserved!")
 
-	self._srcs[name] = src
+	local baseName = ComponentsUtils.getBaseComponentName(name)
+	assert(self._srcs[baseName] == nil, "Already registered component!")
+	assert(RESERVED_COMPONENT_NAMES[baseName] == nil, "Name is reserved!")
 
-	local holder = Components.new(self, src, name)
-	self._componentHolders[name] = holder
+	self._srcs[baseName] = src
+
+	local holder = Components.new(self, src, baseName)
+	self._componentHolders[baseName] = holder
 
 	holder.ComponentAdded:Connect(function(clone, props)
-		self.ComponentAdded:Fire(clone, name, props, self:GetCloneProfile(clone).prototype.groups)
+		self.ComponentAdded:Fire(clone, baseName, props, self:GetCloneProfile(clone).prototype.groups)
 	end)
 
 	holder.ComponentRemoved:Connect(function(clone)
-		self.ComponentRemoved:Fire(clone, name)
+		self.ComponentRemoved:Fire(clone, baseName)
 	end)
 end
 

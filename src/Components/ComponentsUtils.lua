@@ -1,5 +1,15 @@
 local ComponentsUtils = {}
 
+function ComponentsUtils.getBaseComponentName(name)
+	local base = name
+    local prefix = base:sub(1, 2)
+    if prefix == "S_" or prefix == "C_" then
+        base = base:sub(3, -1) 
+    end
+
+	return base
+end
+
 function ComponentsUtils.getPropsFromInstance(instance, name)
 	local props = {}
 	local configuration = instance:FindFirstChild("Configuration")
@@ -217,6 +227,16 @@ function ComponentsUtils.subscribeComponentState(stateFdr, callback)
 			con:Disconnect()
 		end
 	end
+end
+
+
+function ComponentsUtils.getComponentState(stateFdr)
+	local state = {}
+	for _, property in next, stateFdr:GetChildren() do
+		state[property.Name] = property.Value
+	end
+
+	return state
 end
 
 

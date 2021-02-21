@@ -61,10 +61,6 @@ end
 
 function Components:Subscribe(instance, stateName, handler)
 	local stateFdr = ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
-	local valueObject = stateFdr:FindFirstChild(stateName)
-	if valueObject == nil then
-		error(("There is no value object under %q named %q!"):format(instance:GetFullName(), stateName))
-	end
 
 	return ComponentsUtils.subscribeComponentState(stateFdr, function(name, value)
 		if name ~= stateName then return end
@@ -86,13 +82,16 @@ function Components:InitComponent(instance, props, synced)
 	end
 
 	local object, state = self._src.new(instance, props)
-	state = state or {}
 	object.manager = self._manager
-	object.state = state
+	object.state = ComponentsUtils.getComponentState(
+		ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
+	)
 	object.__synced = synced
 
 	self._components[instance] = object
-	self:SetState(instance, state)
+	if state then
+		self:SetState(instance, state)
+	end
 
 	return props
 end

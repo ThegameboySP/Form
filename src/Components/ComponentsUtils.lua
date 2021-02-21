@@ -32,7 +32,7 @@ function ComponentsUtils.mergeProps(instance, name, mergeProps)
 end
 
 
-function ComponentsUtils.getGroupsFolderFromInstance(instance)
+function ComponentsUtils.getGroupsFolder(instance)
 	local configuration = instance:FindFirstChild("Configuration")
 	if configuration == nil then
 		return nil
@@ -43,7 +43,7 @@ function ComponentsUtils.getGroupsFolderFromInstance(instance)
 end
 
 
-function ComponentsUtils.getOrMakeGroupsFolderFromInstance(instance)
+function ComponentsUtils.getOrMakeGroupsFolder(instance)
 	local configuration = instance:FindFirstChild("Configuration")
 	if configuration == nil then
 		configuration = Instance.new("Configuration")
@@ -61,9 +61,9 @@ function ComponentsUtils.getOrMakeGroupsFolderFromInstance(instance)
 end
 
 
-function ComponentsUtils.getGroupsFromInstance(instance)
+function ComponentsUtils.getGroups(instance)
 	local groups = {}
-	local groupsFolder = ComponentsUtils.getGroupsFolderFromInstance(instance)
+	local groupsFolder = ComponentsUtils.getGroupsFolder(instance)
 	if groupsFolder == nil then
 		return {}
 	end
@@ -80,13 +80,26 @@ end
 function ComponentsUtils.mergeGroups(instance, mergeGroups)
 	return ComponentsUtils.shallowMerge(
 		mergeGroups or {},
-		ComponentsUtils.getGroupsFromInstance(instance)
+		ComponentsUtils.getGroups(instance)
 	)
 end
 
 
 function ComponentsUtils.getStateFolder(instance)
 	return instance:FindFirstChild("ComponentsPublic")
+end
+
+
+function ComponentsUtils.getOrMakeStateFolder(instance)
+	local fdr = ComponentsUtils.getStateFolder(instance)
+	if fdr == nil then
+		fdr = Instance.new("Folder")
+		fdr.Name = "ComponentsPublic"
+		fdr.Archivable = false
+		fdr.Parent = instance
+	end
+
+	return fdr
 end
 
 
@@ -149,7 +162,7 @@ end
 
 
 function ComponentsUtils.updateGroupValueObjects(instance, newGroups, oldGroups)
-	local groupsFolder = ComponentsUtils.getOrMakeGroupsFolderFromInstance(instance)
+	local groupsFolder = ComponentsUtils.getOrMakeGroupsFolder(instance)
 
 	for name in next, oldGroups do
 		if not newGroups[name] then
@@ -184,18 +197,19 @@ end
 function ComponentsUtils.subscribeComponentState(stateFdr, callback)
 	local connections = {}
 
-	local function onChildAdded(property)
+	table.insert(connections, stateFdr.ChildAdded:Connect(function(property)
 		local function onChanged(value)
 			callback(property.Name, value)
 		end
 
 		table.insert(connections, property.Changed:Connect(onChanged))
 		onChanged(property.Value)
-	end
+	end))
 
-	table.insert(connections, stateFdr.ChildAdded:Connect(onChildAdded))
 	for _, property in next, stateFdr:GetChildren() do
-		onChildAdded(property)
+		table.insert(connections, property.Changed:Connect(function(value)
+			callback(property.Name, value)
+		end))
 	end
 
 	return function()
@@ -203,6 +217,16 @@ function ComponentsUtils.subscribeComponentState(stateFdr, callback)
 			con:Disconnect()
 		end
 	end
+end
+
+
+function ComponentsUtils.subscribeComponentStateAnd(stateFdr, callback)
+	local destruct = ComponentsUtils.subscribeComponentState(stateFdr, callback)
+	for _, property in next, stateFdr:GetChildren() do
+		callback(property.Name, property.Value)
+	end
+
+	return destruct
 end
 
 
@@ -233,22 +257,35 @@ function ComponentsUtils.subscribeState(fdr, callback)
 end
 
 
-function ComponentsUtils.subscribeGroups(instance, callback)
+function ComponentsUtils.subscribeStateAnd(fdr, callback)
+	local destruct = ComponentsUtils.subscribeState(fdr, callback)
+	for _, stateFdr in next, fdr:GetChildren() do
+		for _, property in next, stateFdr:GetChildren() do
+			callback(stateFdr.Name, property.Name, property.Value)
+		end
+	end
+	
+	return destruct
+end
+
+
+function ComponentsUtils.subscribeGroups(groupFolder, callback)
 	local connections = {}
-	local groupFolder = ComponentsUtils.getGroupsFolderFromInstance(instance)
 
 	local function onChildAdded(group)
-		-- print("childadded", group)
 		local function onAncestryChanged(thisChild, newParent)
 			if newParent then return end
-			callback(thisChild, false)
+			callback(thisChild.Name, false)
 		end
 
 		table.insert(connections, group.AncestryChanged:Connect(onAncestryChanged))
-		callback(group, true)
 	end
 
-	table.insert(connections, groupFolder.ChildAdded:Connect(onChildAdded))
+	table.insert(connections, groupFolder.ChildAdded:Connect(function(group)
+		onChildAdded(group)
+		callback(group.Name, true)
+	end))
+
 	for _, group in next, groupFolder:GetChildren() do
 		onChildAdded(group)
 	end
@@ -258,6 +295,16 @@ function ComponentsUtils.subscribeGroups(instance, callback)
 			con:Disconnect()
 		end
 	end
+end
+
+
+function ComponentsUtils.subscribeGroupsAnd(groupFolder, callback)
+	local destruct = ComponentsUtils.subscribeGroups(groupFolder, callback)
+	for _, group in next, groupFolder:GetChildren() do
+		callback(group.Name, true)
+	end
+
+	return destruct
 end
 
 

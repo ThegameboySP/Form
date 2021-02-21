@@ -94,11 +94,6 @@ function Components:InitComponent(instance, props, synced)
 	self._components[instance] = object
 	self:SetState(instance, state)
 
-	-- local stateFdr = ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
-	-- ComponentsUtils.subscribeState(stateFdr, function(property, value)
-	-- 	self:SetState(instance, {[property.Name] = value})
-	-- end)
-
 	return props
 end
 

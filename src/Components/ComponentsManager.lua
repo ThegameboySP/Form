@@ -433,22 +433,22 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, groups)
 			tag.Parent = clone
 		end
 
-		-- TODO: Disconnect these subscriptions if the clone profile is removed.
-		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeState(
-			ComponentsUtils.getStateFolder(clone), function(compName, stateName, value)
+		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeStateAnd(
+			ComponentsUtils.getOrMakeStateFolder(clone), function(compName, stateName, value)
 				if not self:HasComponent(clone, compName) then return end
 				-- print("Setting state ", compName, stateName, value)
 				self:SetState(clone, compName, {[stateName] = value})
 			end))
 
-		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeGroups(clone, function(group, exists)
-			if exists then
-				print("Adding group", clone, group.Name)
-				self:AddToGroup(clone, group.Name)
-			else
-				print("Removing group", clone, group.Name)
-				self:RemoveFromGroup(clone, group.Name)
-			end
+		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeGroupsAnd(
+			ComponentsUtils.getOrMakeGroupsFolder(clone), function(groupName, exists)
+				if exists then
+					print("Adding group", clone, groupName)
+					self:AddToGroup(clone, groupName)
+				else
+					print("Removing group", clone, groupName)
+					self:RemoveFromGroup(clone, groupName)
+				end
 		end))
 	end
 

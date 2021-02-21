@@ -291,7 +291,7 @@ return function()
 		local components = Components.new({}, comp, "Component", error)
 		local instance = Instance.new("BoolValue")
 
-		it("should throw when inputting wrong props", function()
+		it("should throw when inputting wrong config", function()
 			expect(function()
 				components:AddComponent(Instance.new("BoolValue"), {
 					test = nil;

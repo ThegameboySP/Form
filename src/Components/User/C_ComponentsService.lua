@@ -39,7 +39,7 @@ function ClientComponentsService:AddManager(manName)
 
 	-- Since replication happens in order, and ComponentAdded fires last, 
 	-- we should never have to wait for required instances.
-	addCompRemote.OnClientEvent:Connect(function(instance, name, props, groups)
+	addCompRemote.OnClientEvent:Connect(function(instance, name, config, groups)
 		local compName = ComponentsUtils.getBaseComponentName(name)
 		local clientName = "C_" .. compName
 		local moduleName
@@ -52,7 +52,7 @@ function ClientComponentsService:AddManager(manName)
 		end
 
 		print("Adding", instance, moduleName)
-		man:AddComponent(instance, moduleName, props, groups, true)
+		man:AddComponent(instance, moduleName, config, groups, true)
 	end)
 
 	removeCompRemote.OnClientEvent:Connect(function(instance, name)

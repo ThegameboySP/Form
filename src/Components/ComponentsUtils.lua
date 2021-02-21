@@ -10,34 +10,34 @@ function ComponentsUtils.getBaseComponentName(name)
 	return base
 end
 
-function ComponentsUtils.getPropsFromInstance(instance, name)
-	local props = {}
+function ComponentsUtils.getConfigFromInstance(instance, name)
+	local config = {}
 	local configuration = instance:FindFirstChild("Configuration")
 	if configuration == nil then
-		return props
+		return config
 	end
 
 	local configFolder = configuration:FindFirstChild(name)
 	if configFolder == nil then
-		return props
+		return config
 	end
 
 	for _, child in next, configFolder:GetChildren() do
 		if child:IsA("ValueBase") then
-			props[child.Name] = child.Value
+			config[child.Name] = child.Value
 		else
-			props[child.Name] = child
+			config[child.Name] = child
 		end
 	end
 
-	return props
+	return config
 end
 
 
-function ComponentsUtils.mergeProps(instance, name, mergeProps)
+function ComponentsUtils.mergeConfig(instance, name, mergeConfig)
 	return ComponentsUtils.shallowMerge(
-		mergeProps or {},
-		ComponentsUtils.getPropsFromInstance(instance, name)
+		mergeConfig or {},
+		ComponentsUtils.getConfigFromInstance(instance, name)
 	)
 end
 

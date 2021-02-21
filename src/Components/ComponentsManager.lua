@@ -141,8 +141,8 @@ function ComponentsManager:RegisterComponent(src)
 	local holder = Components.new(self, src, baseName)
 	self._componentHolders[baseName] = holder
 
-	holder.ComponentAdded:Connect(function(clone, props)
-		self.ComponentAdded:Fire(clone, baseName, props, self:GetCloneProfile(clone).prototype.groups)
+	holder.ComponentAdded:Connect(function(clone, config)
+		self.ComponentAdded:Fire(clone, baseName, config, self:GetCloneProfile(clone).prototype.groups)
 	end)
 
 	holder.ComponentRemoved:Connect(function(clone)
@@ -191,11 +191,11 @@ function ComponentsManager:RunAndMerge(allowedGroups)
 		local clone = cloneProfile.clone
 		local name = newComponent.componentName
 
-		local props = self._componentHolders[name]:InitComponent(
+		local config = self._componentHolders[name]:InitComponent(
 			clone, nil, clone:FindFirstChild("ComponentsSyncronized")
 		)
 		cloneProfile:AddComponent(name)
-		table.insert(events, {clone = clone, name = name, props = props})
+		table.insert(events, {clone = clone, name = name, config = config})
 	end
 	
 	for _, newComponent in ipairs(newComponents) do
@@ -207,7 +207,7 @@ function ComponentsManager:RunAndMerge(allowedGroups)
 	end
 
 	for _, event in ipairs(events) do
-		self.ComponentAdded:Fire(event.clone, event.name, event.props)
+		self.ComponentAdded:Fire(event.clone, event.name, event.config)
 	end
 end
 
@@ -220,13 +220,13 @@ function ComponentsManager:DestroyComponents(groups)
 end
 
 
-function ComponentsManager:AddComponent(instance, name, props, groups, synced)
+function ComponentsManager:AddComponent(instance, name, config, groups, synced)
 	local profile = self:_getOrMakeCloneProfile(instance, synced, groups)
 	if profile:HasComponent(name) then
 		return
 	end
 
-	self._componentHolders[name]:AddComponent(instance, props, synced)
+	self._componentHolders[name]:AddComponent(instance, config, synced)
 	profile:AddComponent(name)
 
 	return profile

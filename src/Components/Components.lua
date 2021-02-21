@@ -69,11 +69,11 @@ function Components:Subscribe(instance, stateName, handler)
 end
 
 
-function Components:InitComponent(instance, props, synced)
-	props = ComponentsUtils.mergeProps(instance, self._name, props)
+function Components:InitComponent(instance, config, synced)
+	config = ComponentsUtils.mergeConfig(instance, self._name, config)
 
 	if self._iConfiguration then
-		local ok, err = self._iConfiguration(props)
+		local ok, err = self._iConfiguration(config)
 		if not ok then
 			error(
 				("Bad configuration for component %q under %q:\n%s"):format(self._name, instance:GetFullName(), err)
@@ -81,7 +81,7 @@ function Components:InitComponent(instance, props, synced)
 		end
 	end
 
-	local object, state = self._src.new(instance, props)
+	local object, state = self._src.new(instance, config)
 	object.manager = self._manager
 	object.state = ComponentsUtils.getComponentState(
 		ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
@@ -93,7 +93,7 @@ function Components:InitComponent(instance, props, synced)
 		self:SetState(instance, state)
 	end
 
-	return props
+	return config
 end
 
 
@@ -111,13 +111,13 @@ function Components:RunComponentMain(instance)
 end
 
 
-function Components:AddComponent(instance, props, synced)
-	local newProps = self:InitComponent(instance, props, synced)
+function Components:AddComponent(instance, config, synced)
+	local newConfig = self:InitComponent(instance, config, synced)
 	self:RunComponentMain(instance)
 
-	self.ComponentAdded:Fire(instance, newProps)
+	self.ComponentAdded:Fire(instance, newConfig)
 
-	return newProps
+	return newConfig
 end
 
 

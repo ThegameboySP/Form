@@ -53,7 +53,7 @@ function ServerComponentsService:AddManager(manName)
 	entryFdr.Parent = self._manFdr
 
 	-- Client can get the public members from the instance.
-	man.ComponentAdded:Connect(function(instance, name, props, groups)
+	man.ComponentAdded:Connect(function(instance, name, config, groups)
 		local module = self._srcs[name]
 		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
 			print("Add replicating", instance, name)
@@ -64,7 +64,7 @@ function ServerComponentsService:AddManager(manName)
 			tag.Value = true
 			tag.Parent = instance
 
-			addCompRemote:FireAllClients(instance, name, props, groups)
+			addCompRemote:FireAllClients(instance, name, config, groups)
 		end
 	end)
 

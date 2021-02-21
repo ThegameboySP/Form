@@ -15,7 +15,7 @@ function BaseComponent.getInterfaces()
 	return {}
 end
 
-function BaseComponent.new(instance, props)
+function BaseComponent.new(instance, config)
 	local remoteEvents = instance:FindFirstChild("RemoteEvents")
 	if remoteEvents == nil then
 		remoteEvents = Instance.new("Folder")
@@ -26,7 +26,7 @@ function BaseComponent.new(instance, props)
 	return setmetatable({
 		instance = instance;
 		maid = Maid.new();
-		props = props;
+		config = config;
 
 		_remoteEvents = remoteEvents;
 	}, BaseComponent)

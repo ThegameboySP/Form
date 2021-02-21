@@ -13,8 +13,8 @@ function BouncyComponent.getInterfaces(t)
 end
 
 
-function BouncyComponent.new(instance, props)
-	return setmetatable(BaseComponent.new(instance, props), BouncyComponent)
+function BouncyComponent.new(instance, config)
+	return setmetatable(BaseComponent.new(instance, config), BouncyComponent)
 end
 
 
@@ -23,7 +23,7 @@ function BouncyComponent:Main()
 		local char = part.Parent
 		if not char:FindFirstChild("Humanoid") then return end
 
-		char.Humanoid.JumpPower = self.props.jumpPower or 100
+		char.Humanoid.JumpPower = self.config.jumpPower or 100
 		char.Humanoid.Jump = true
 		char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	end)

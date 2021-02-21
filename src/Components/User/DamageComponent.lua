@@ -13,8 +13,8 @@ function DamageComponent.getInterfaces(t)
 end
 
 
-function DamageComponent.new(instance, props)
-	return setmetatable(BaseComponent.new(instance, props), DamageComponent)
+function DamageComponent.new(instance, config)
+	return setmetatable(BaseComponent.new(instance, config), DamageComponent)
 end
 
 
@@ -23,7 +23,7 @@ function DamageComponent:Main()
 		local hum = part.Parent:FindFirstChild("Humanoid")
 		if hum == nil then return end
 
-		hum.Health -= self.props.Damage
+		hum.Health -= self.config.Damage
 	end)
 end
 

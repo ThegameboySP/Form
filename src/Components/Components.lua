@@ -82,7 +82,7 @@ function Components:InitComponent(instance, config, synced)
 	end
 
 	local object, state = self._src.new(instance, config)
-	object.manager = self._manager
+	object.man = self._manager
 	object.state = ComponentsUtils.getComponentState(
 		ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
 	)
@@ -91,6 +91,10 @@ function Components:InitComponent(instance, config, synced)
 	self._components[instance] = object
 	if state then
 		self:SetState(instance, state)
+	end
+
+	if object.Init then
+		object:Init()
 	end
 
 	return config
@@ -131,6 +135,20 @@ function Components:RemoveComponent(instance)
 
 	if not ok then
 		error(ERRORED:format(instance:GetFullName(), err, ":Destroy"))
+	end
+end
+
+
+function Components:FireEvent(instance, eventName, ...)
+	if not self:IsAdded(instance) then return end
+	
+	local comp = self._components[instance]
+	if comp == nil then
+		error(NO_COMPONENT_ERROR:format(instance:GetFullName(), self._name))
+	end
+
+	if comp:hasEvent(eventName) then
+		comp:fireEvent(eventName, ...)
 	end
 end
 

@@ -41,10 +41,11 @@ local function getGroups(instance, groups)
 	)
 end
 
-local function makePrototype(instance, parent, groups)
+local function makePrototype(instance, parent, hasTags, groups)
 	return {
 		instance = instance;
 		parent = parent;
+		hasTags = hasTags;
 		groups = groups;
 	}
 end
@@ -71,11 +72,15 @@ end
 function ComponentsManager.generatePrototypesFromRoot(root, tags)
 	local prototypes = {}
 
-	for _, tag in next, tags do
-		for _, instance in next, {root, unpack( root:GetDescendants() )} do
+	for _, instance in next, {root, unpack( root:GetDescendants() )} do
+		local hasTags = {}
+		for _, tag in next, tags do
 			if not CollectionService:HasTag(instance, tag) then continue end
+			hasTags[tag] = true
+		end
 
-			prototypes[instance] = makePrototype(instance, instance.Parent, getGroups(instance, nil))
+		if next(hasTags) then
+			prototypes[instance] = makePrototype(instance, instance.Parent, hasTags, getGroups(instance, nil))
 		end
 	end
 
@@ -111,6 +116,17 @@ function ComponentsManager:Init(root)
 		if self:GetCloneProfile(instance) then continue end
 		if self._prototypes[instance] then continue end
 
+		for tag in next, prototype.hasTags do
+			local initInstance = self._srcs[tag].initInstance
+			if initInstance then
+				local ret = initInstance(instance)
+
+				if ret == false then
+					continue
+				end
+			end
+		end
+		
 		CollectionService:AddTag(instance, "Prototype")
 		self._prototypes[instance] = prototype
 
@@ -253,6 +269,18 @@ end
 function ComponentsManager:HasComponent(instance, name)
 	local profile = self:_getOrMakeCloneProfile(instance, false)
 	return profile:HasComponent(name)
+end
+
+
+function ComponentsManager:FireInstanceEvent(instance, eventName, ...)
+	for _, holder in next, self._componentHolders do
+		holder:FireEvent(instance, eventName, ...)
+	end
+end
+
+
+function ComponentsManager:FireComponentEvent(instance, compName, eventName, ...)
+	self._componentHolders[compName]:FireEvent(instance, eventName, ...)
 end
 
 
@@ -414,7 +442,7 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, groups)
 
 	if prototype == nil then
 		groups = getGroups(clone, groups)
-		prototype = makePrototype(clone:Clone(), clone.Parent, groups)
+		prototype = makePrototype(clone:Clone(), clone.Parent, {}, groups)
 	elseif groups == nil then
 		groups = ComponentsUtils.shallowMerge(prototype.groups, {Main = true})
 	end
@@ -448,10 +476,10 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, groups)
 		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeGroupsAnd(
 			ComponentsUtils.getOrMakeGroupsFolder(clone), function(groupName, exists)
 				if exists then
-					print("Adding group", clone, groupName)
+					-- print("Adding group", clone, groupName)
 					self:AddToGroup(clone, groupName)
 				else
-					print("Removing group", clone, groupName)
+					-- print("Removing group", clone, groupName)
 					self:RemoveFromGroup(clone, groupName)
 				end
 		end))

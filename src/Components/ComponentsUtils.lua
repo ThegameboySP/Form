@@ -154,7 +154,7 @@ function ComponentsUtils.mergeStateValueObjects(stateFdr, deltaState)
 	for key, value in next, deltaState do
 		local prop = stateFdr:FindFirstChild(key)
 
-		if prop and not prop.ClassName:lower():find( typeof(value):lower() ) then
+		if prop and prop.ClassName ~= ComponentsUtils.getValueObjectClassNameFromType(typeof(value)) then
 			prop:Destroy()
 			prop = nil
 		end
@@ -328,19 +328,28 @@ function ComponentsUtils.subscribeGroupsAnd(groupFolder, callback)
 end
 
 
-function ComponentsUtils.valueObjectFromType(typeOf)
+
+function ComponentsUtils.getValueObjectClassNameFromType(typeOf)
 	if typeOf == "string" then
-		return Instance.new("StringValue")
+		return "StringValue"
 	elseif typeOf == "number" then
-		return Instance.new("NumberValue")
+		return "NumberValue"
 	elseif typeOf == "boolean" then
-		return Instance.new("BoolValue")
+		return "BoolValue"
 	elseif typeOf == "Vector3" then
-		return Instance.new("Vector3Value")
+		return "Vector3Value"
 	elseif typeOf == "CFrame" then
-		return Instance.new("CFrameValue")
+		return "CFrameValue"
 	elseif typeOf == "Color3" then
-		return Instance.new("Color3Value")
+		return "Color3Value"
+	end
+end
+
+
+function ComponentsUtils.valueObjectFromType(typeOf)
+	local className = ComponentsUtils.getValueObjectClassNameFromType(typeOf)
+	if className then
+		return Instance.new(className)
 	else
 		error(("No found Value object for type of: %q"):format(typeOf))
 	end

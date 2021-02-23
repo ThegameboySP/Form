@@ -1,6 +1,7 @@
 local RunService = game:GetService("RunService")
 
 local Maid = require(script.Parent.Parent.Modules.Maid)
+local Event = require(script.Parent.Parent.Modules.Event)
 local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
 local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
 
@@ -29,6 +30,7 @@ function BaseComponent.new(instance, config)
 		config = config;
 
 		_remoteEvents = remoteEvents;
+		_events = {};
 	}, BaseComponent)
 end
 
@@ -38,25 +40,32 @@ function BaseComponent:Destroy()
 end
 
 
+-- For setting up events and all initialization stuff.
+function BaseComponent:Init()
+	-- pass
+end
+
+
+-- For firing events and everything else.
 function BaseComponent:Main()
 	-- pass
 end
 
 
 function BaseComponent:setState(newState)
-	self.manager:SetState(self.instance, ComponentsUtils.getBaseComponentName(self.ComponentName), newState)
+	self.man:SetState(self.instance, ComponentsUtils.getBaseComponentName(self.ComponentName), newState)
 end
 
 
 function BaseComponent:subscribe(state, handler)
-	return self.manager:Subscribe(
+	return self.man:Subscribe(
 		self.instance, ComponentsUtils.getBaseComponentName(self.ComponentName), state, handler
 	)
 end
 
 
 function BaseComponent:subscribeAnd(state, handler)
-	local con = self.manager:Subscribe(
+	local con = self.man:Subscribe(
 		self.instance, ComponentsUtils.getBaseComponentName(self.ComponentName), state, handler
 	)
 	handler(self.state[state])
@@ -64,10 +73,41 @@ function BaseComponent:subscribeAnd(state, handler)
 end
 
 
+function BaseComponent:registerEvents(events)
+	for k, v in next, events do
+		local event = Event.new()
+		
+		if type(v) == "function" then
+			self._events[tostring(k)] = event
+			event:Connect(v)
+		elseif type(v) == "string" then
+			self._events[v] = event
+		end
+	end
+end
+
+
+function BaseComponent:fireEvent(eventName, ...)
+	self._events[eventName]:Fire(...)
+end
+
+
+function BaseComponent:hasEvent(eventName)
+	return self._events[eventName] ~= nil
+end
+
+
 function BaseComponent:registerRemoteEvents(remotes)
-	for _, name in next, remotes do
+	for k, v in next, remotes do
 		local remote = Instance.new("RemoteEvent")
-		remote.Name = name
+
+		if type(v) == "function" then
+			remote.Name = tostring(k)
+			self:connectRemoteEvent(remote.Name, v)
+		elseif type(v) == "string" then
+			remote.Name = v
+		end
+
 		remote.Parent = self._remoteEvents
 	end
 end
@@ -84,28 +124,23 @@ end
 
 
 function BaseComponent:connectRemoteEvent(eventName, handler)
-	local id
-	id = self.maid:GiveTask(RunService.Heartbeat:Connect(function()
-		self.maid[id] = nil
-		
+	return self:spawnNextFrame(function()
 		if IS_SERVER then
 			self.maid:GiveTask(self._remoteEvents:WaitForChild(eventName).OnServerEvent:Connect(handler))
 		else
 			self.maid:GiveTask(self._remoteEvents:WaitForChild(eventName).OnClientEvent:Connect(handler))
 		end
-	end))
-
-	return id
+	end)
 end
 
 
 function BaseComponent:addToGroup(group)
-	self.manager:AddToGroup(self.instance, group)
+	self.man:AddToGroup(self.instance, group)
 end
 
 
 function BaseComponent:removeFromGroup(group)
-	self.manager:RemoveFromGroup(self.instance, group)
+	self.man:RemoveFromGroup(self.instance, group)
 end
 
 
@@ -126,6 +161,17 @@ function BaseComponent:bind(event, handler)
 	local con = self:connect(event, handler)
 	self.maid:GiveTask(con)
 	return con
+end
+
+
+function BaseComponent:spawnNextFrame(handler)
+	local id
+	id = self.maid:GiveTask(RunService.Heartbeat:Connect(function()
+		self.maid[id] = nil
+		handler()
+	end))
+	
+	return id
 end
 
 return BaseComponent

@@ -390,7 +390,7 @@ return function()
 			expect(v2.Value).to.equal(s2)
 		end)
 
-		it("should never throw when changing state value type", function()
+		it("should successfully change state value type", function()
 			local instance2 = Instance.new("BoolValue")
 			local man = ComponentsManager.new()
 
@@ -403,6 +403,10 @@ return function()
 				state1 = "str1";
 				state2 = "str2";
 			})
+
+			local state = ComponentsUtils.getComponentState(ComponentsUtils.getComponentStateFolder(instance2, "TestComponent"))
+			expect(type(state.state1)).to.equal("string")
+			expect(type(state.state2)).to.equal("string")
 		end)
 
 		it("should syncronize external and internal state after changing state value type", function()

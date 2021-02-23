@@ -1,11 +1,11 @@
 {
-	"name": "Components",
+	"name": "Composite",
 	"tree": {
 		"$className": "DataModel",
 
 		"ReplicatedStorage": {
 			"$ignoreUnknownInstances": true,
-			"Components": {
+			"Composite": {
 				"$path": "src/Components"
 			}
 		},

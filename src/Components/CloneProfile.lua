@@ -1,8 +1,13 @@
+local Event = require(script.Parent.Modules.Event)
+
 local CloneProfile = {}
 CloneProfile.__index = CloneProfile
 
 function CloneProfile.new(clone, prototype, synced)
 	return setmetatable({
+		ComponentAdded = Event.new();
+		ComponentRemoved = Event.new();
+
 		clone = clone;
 		prototype = prototype;
 		synced = synced;
@@ -21,11 +26,13 @@ end
 
 function CloneProfile:AddComponent(componentName)
 	self._components[componentName] = true
+	self.ComponentAdded:Fire(componentName)
 end
 
 
 function CloneProfile:RemoveComponent(componentName)
 	self._components[componentName] = nil
+	self.ComponentRemoved:Fire(componentName)
 end
 
 
@@ -74,6 +81,9 @@ function CloneProfile:Destruct()
 		self._destructFuncs[index] = nil
 		func()
 	end
+
+	self.ComponentAdded:Destroy()
+	self.ComponentRemoved:Destroy()
 end
 
 

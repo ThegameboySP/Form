@@ -1,14 +1,17 @@
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
 local Maid = require(script.Parent.Parent.Modules.Maid)
 local Event = require(script.Parent.Parent.Modules.Event)
 local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
 local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
+local UserUtils = require(script.Parent.UserUtils)
 
 local BaseComponent = {}
 BaseComponent.NetworkMode = ComponentsManager.NetworkMode.SERVER_CLIENT
 BaseComponent.ComponentName = "BaseComponent"
 BaseComponent.__index = BaseComponent
+BaseComponent.util = UserUtils
 
 local IS_SERVER = RunService:IsServer()
 
@@ -28,6 +31,7 @@ function BaseComponent.new(instance, config)
 		instance = instance;
 		maid = Maid.new();
 		config = config;
+		player = Players.LocalPlayer;
 
 		_remoteEvents = remoteEvents;
 		_events = {};
@@ -40,13 +44,20 @@ function BaseComponent:Destroy()
 end
 
 
--- For setting up events and all initialization stuff.
+-- For registering events and component-specific initalization.
+function BaseComponent:PreInit()
+	-- pass
+end
+
+
+-- For accessing external things.
 function BaseComponent:Init()
 	-- pass
 end
 
 
--- For firing events and everything else.
+-- For firing events and setting into motion internal processes.
+-- Unlike the others, this has its own coroutine.
 function BaseComponent:Main()
 	-- pass
 end
@@ -92,8 +103,29 @@ function BaseComponent:fireEvent(eventName, ...)
 end
 
 
+function BaseComponent:connectEvent(eventName, handler)
+	return self._events[eventName]:Connect(handler)
+end
+
+
 function BaseComponent:hasEvent(eventName)
 	return self._events[eventName] ~= nil
+end
+
+
+function BaseComponent:fireInstanceEvent(eventName, ...)
+	self.man:FireInstanceEvent(self.instance, eventName, ...)
+end
+
+
+function BaseComponent:connectInstanceEvent(eventName, ...)
+	return self.man:ConnectInstanceEvent(self.instance, eventName, ...)
+end
+
+
+function BaseComponent:fireAll(eventName, ...)
+	self:fireInstanceEvent(eventName, ...)
+	self:fireAllClients(eventName, ...)
 end
 
 
@@ -120,6 +152,16 @@ function BaseComponent:fireAllClients(eventName, ...)
 	end
 
 	remote:FireAllClients(...)
+end
+
+
+function BaseComponent:fireServer(eventName, ...)
+	local remote = self._remoteEvents:FindFirstChild(eventName)
+	if remote == nil then
+		error(("No remote event under %s by name %s!"):format(self.instance:GetFullName(), remote.Name))
+	end
+
+	remote:FireServer(...)
 end
 
 
@@ -172,6 +214,12 @@ function BaseComponent:spawnNextFrame(handler)
 	end))
 	
 	return id
+end
+
+
+function BaseComponent:getConfig(instance, compName)
+	assert(instance, "No instance!")
+	return ComponentsUtils.getConfigFromInstance(instance, compName)
 end
 
 return BaseComponent

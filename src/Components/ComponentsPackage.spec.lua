@@ -44,7 +44,7 @@ return function()
 		CollectionService:AddTag(root, "Test")
 
 		it("should generate 1 prototype from root", function()
-			local prototypes = ComponentsManager.generatePrototypesFromRoot(root, {"Test"})
+			local prototypes = ComponentsManager.generatePrototypesFromRoot({"Test"}, root)
 			local cnt = 0
 			for _ in next, prototypes do
 				cnt += 1
@@ -57,7 +57,7 @@ return function()
 			CollectionService:AddTag( Instance.new("BoolValue", root), "Test" )
 			CollectionService:AddTag( Instance.new("BoolValue", root), "Test" )
 
-			local prototypes = ComponentsManager.generatePrototypesFromRoot(root, {"Test"})
+			local prototypes = ComponentsManager.generatePrototypesFromRoot({"Test"}, root)
 			local cnt = 0
 			for _ in next, prototypes do
 				cnt += 1
@@ -207,7 +207,7 @@ return function()
 			man:AddToGroup(folder.Value, "Test")
 
 			local tag = Instance.new("BoolValue")
-			tag.Name = "ComponentsSyncronized"
+			tag.Name = "CompositeClone"
 			tag.Archivable = false
 			tag.Value = true
 			tag.Parent = folder.Value
@@ -244,7 +244,7 @@ return function()
 			man:AddToGroup(folder.Value, "Test")
 
 			local tag = Instance.new("BoolValue")
-			tag.Name = "ComponentsSyncronized"
+			tag.Name = "CompositeClone"
 			tag.Archivable = false
 			tag.Value = true
 			tag.Parent = folder.Value
@@ -276,6 +276,24 @@ return function()
 			man:AddToGroup(folder.Value, "Test2")
 			expect(man2:IsInGroup(folder.Value, "Test2")).to.equal(true)
 		end)
+
+		it("should never initialize an instance that doesn't fit in IInstance", function()
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			function TestComponent.getInterfaces(t)
+				return {
+					IInstance = t.instanceOf("BasePart");
+				}
+			end
+
+			local instance = Instance.new("Folder")
+			CollectionService:AddTag(instance, "TestComponent")
+			man:Init(instance)
+
+			TestComponent.getInterfaces = nil
+			expect(CollectionService:HasTag(instance, "CompositeInstance")).to.equal(false)
+		end)
 	end)
 
 	describe("Components type", function()
@@ -291,12 +309,11 @@ return function()
 		local components = Components.new({}, comp, "Component", error)
 		local instance = Instance.new("BoolValue")
 
-		it("should throw when inputting wrong config", function()
-			expect(function()
-				components:AddComponent(Instance.new("BoolValue"), {
-					test = nil;
-				})
-			end).to.throw()
+		it("should return nil when inputting wrong config", function()
+			local config = components:AddComponent(Instance.new("BoolValue"), {
+				test = nil;
+			})
+			expect(config).to.equal(nil)
 		end)
 
 		it("should add new component", function()
@@ -437,7 +454,23 @@ return function()
 			expect(v2.Value).to.equal(s2)
 		end)
 	end)
-	-- describe("Components util", function()
-		
-	-- end)
+	describe("Components util", function()
+		-- it("should properly subscribe component state", function()
+		-- 	local instance2 = Instance.new("BoolValue")
+		-- 	local man = ComponentsManager.new()
+		-- 	man:RegisterComponent(TestComponent)
+		-- 	man:AddComponent(instance2, "TestComponent", {
+		-- 		test = true;
+		-- 	})
+
+		-- 	local value
+		-- 	man:Subscribe(instance2, "TestComponent", "Test", function(newValue)
+		-- 		value = newValue
+		-- 	end)
+
+		-- 	man:SetState(instance2, "TestComponent", {Test = true})
+
+		-- 	expect(value).to.equal(true)
+		-- end)
+	end)
 end

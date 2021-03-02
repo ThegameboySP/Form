@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
 
 local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
 local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
@@ -13,6 +14,13 @@ function ServerComponentsService.new()
 		_managers = {};
 		_srcs = {};
 	}, ServerComponentsService)
+end
+
+
+function ServerComponentsService:Clear()
+	for _, man in next, self._managers do
+		man:Clear()
+	end
 end
 
 
@@ -33,7 +41,13 @@ function ServerComponentsService:AddManager(manName)
 		self._manFdr = manFdr
 	end
 
-	local man = ComponentsManager.new()
+	local man = ComponentsManager.new(function(instance, tag)
+		local src = self._srcs[tag]
+		return src.NetworkMode ~= ComponentsManager.NetworkMode.CLIENT
+			and not CollectionService:HasTag(instance, "OnlyClient")
+			and not ComponentsUtils.getAncestorInstanceTag(instance, "OnlyClient")
+	end)
+	
 	self._managers[manName] = man
 	for _, src in next, self._srcs do
 		man:RegisterComponent(src)

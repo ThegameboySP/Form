@@ -1,3 +1,5 @@
+local CollectionService = game:GetService("CollectionService")
+
 local ComponentsUtils = {}
 
 function ComponentsUtils.getBaseComponentName(name)
@@ -9,6 +11,25 @@ function ComponentsUtils.getBaseComponentName(name)
 
 	return base
 end
+
+
+function ComponentsUtils.getAncestorInstanceTag(instance, tag)
+	local currentInstance = instance.Parent
+
+	while currentInstance do
+		if CollectionService:HasTag(currentInstance, tag) then
+			return currentInstance
+		end
+		
+		currentInstance = currentInstance.Parent
+	end
+end
+
+
+function ComponentsUtils.getAncestorCompositeInstance(instance)
+	return ComponentsUtils.getAncestorInstanceTag(instance, "CompositeInstance")
+end
+
 
 function ComponentsUtils.getConfigFromInstance(instance, name)
 	local config = {}
@@ -30,7 +51,30 @@ function ComponentsUtils.getConfigFromInstance(instance, name)
 		end
 	end
 
+	for attributeName, value in next, configFolder:GetAttributes() do
+		config[attributeName] = value
+	end
+
 	return config
+end
+
+
+function ComponentsUtils.getTaggedInstancesFromRoot(tags, root)
+	local instanceToTags = {}
+	
+	local descendants = root:GetDescendants()
+	table.insert(descendants, root)
+	for _, instance in next, descendants do
+		local hasTags = {}
+		instanceToTags[instance] = hasTags
+
+		for _, tag in next, tags do
+			if not CollectionService:HasTag(instance, tag) then continue end
+			hasTags[tag] = true
+		end
+	end
+
+	return instanceToTags
 end
 
 
@@ -342,6 +386,10 @@ function ComponentsUtils.getValueObjectClassNameFromType(typeOf)
 		return "CFrameValue"
 	elseif typeOf == "Color3" then
 		return "Color3Value"
+	elseif typeOf == "Instance" then
+		return "ObjectValue"
+	elseif typeOf == "BrickColor" then
+		return "BrickColorValue"
 	end
 end
 

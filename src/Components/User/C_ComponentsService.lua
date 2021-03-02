@@ -1,16 +1,38 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
 
 local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
+local NetworkMode = ComponentsManager.NetworkMode
 local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
 
 local ClientComponentsService = {}
 ClientComponentsService.__index = ClientComponentsService
 
 function ClientComponentsService.new()
-	return setmetatable({
+	local self
+	self = setmetatable({
 		_managers = {};
 		_srcs = {};
+		_filter = function(instance, tag)
+			local src = self._srcs[tag]
+			local isServerComponent = instance:FindFirstChild("ServerComponent") ~= nil
+			return (isServerComponent and src.NetworkMode == NetworkMode.SERVER_CLIENT)
+				or (not isServerComponent and src.NetworkMode == NetworkMode.SHARED
+				or src.NetworkMode == NetworkMode.CLIENT)
+
+				and not CollectionService:HasTag(instance, "OnlyServer")
+				and not ComponentsUtils.getAncestorInstanceTag(instance, "OnlyServer")
+		end
 	}, ClientComponentsService)
+
+	return self
+end
+
+
+function ClientComponentsService:Clear()
+	for _, man in next, self._managers do
+		man:Clear()
+	end
 end
 
 
@@ -24,9 +46,7 @@ function ClientComponentsService:AddManager(manName)
 		error(("There is already a manager by the name %q!"):format(manName))
 	end
 
-	local man = ComponentsManager.new(function(prototype)
-		return prototype:FindFirstChild("ServerComponent") ~= nil
-	end)
+	local man = ComponentsManager.new(self._filter)
 
 	self._managers[manName] = man
 	for _, src in next, self._srcs do
@@ -41,11 +61,10 @@ function ClientComponentsService:AddManager(manName)
 	-- we should never have to wait for required instances.
 	addCompRemote.OnClientEvent:Connect(function(instance, name, config, groups)
 		local compName = ComponentsUtils.getBaseComponentName(name)
-		local clientName = "C_" .. compName
+		if not self._filter(instance, compName) then return end
+		
 		local moduleName
-		if self._srcs[clientName] then
-			moduleName = clientName
-		elseif compName and self._srcs[compName] then
+		if self._srcs[compName] then
 			moduleName = compName
 		else
 			return
@@ -57,11 +76,8 @@ function ClientComponentsService:AddManager(manName)
 
 	removeCompRemote.OnClientEvent:Connect(function(instance, name)
 		local compName = ComponentsUtils.getBaseComponentName(name)
-		local clientName = "C_" .. compName
 		local moduleName
-		if self._srcs[clientName] then
-			moduleName = clientName
-		elseif self._srcs[compName] then
+		if self._srcs[compName] then
 			moduleName = compName
 		else
 			return
@@ -78,13 +94,14 @@ end
 function ClientComponentsService:RegisterComponent(src)
 	local name = src.ComponentName
 	assert(name:sub(1, 2) ~= "S_", "Cannot register a server component on the client!")
-	assert(self._srcs[name] == nil, "Already registered component!")
+	local compName = ComponentsUtils.getBaseComponentName(name)
+	assert(self._srcs[compName] == nil, "Already registered component!")
 
 	for _, manager in next, self._managers do
 		manager:RegisterComponent(src)
 	end
 
-	self._srcs[name] = src
+	self._srcs[compName] = src
 end
 
 

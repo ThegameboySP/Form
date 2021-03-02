@@ -1,8 +1,15 @@
 return {
-	S_ComponentsService = require(script.User.S_ComponentsService);
-	C_ComponentsService = require(script.User.C_ComponentsService);
-	BaseComponent = require(script.User.BaseComponent);
-	BouncyComponent = require(script.User.BouncyComponent);
+	S_ComponentsService = require(script:WaitForChild("User"):WaitForChild("S_ComponentsService"));
+	C_ComponentsService = require(script:WaitForChild("User"):WaitForChild("C_ComponentsService"));
 
-	DamageComponent = require(script.User.DamageComponent)
+	UserUtils = require(script:WaitForChild("User"):WaitForChild("UserUtils"));
+
+	BaseComponent = require(script:WaitForChild("User"):WaitForChild("BaseComponent"));
+	BouncyComponent = require(script:WaitForChild("User"):WaitForChild("BouncyComponent"));
+	DamageComponent = require(script:WaitForChild("User"):WaitForChild("DamageComponent"));
+	ReferenceComponent = require(script:WaitForChild("User"):WaitForChild("ReferenceComponent"));
+
+	Event = require(script:WaitForChild("Modules"):WaitForChild("Event"));
+	Maid = require(script:WaitForChild("Modules"):WaitForChild("Maid"));
+	t = require(script:WaitForChild("Modules"):WaitForChild("t"));
 }

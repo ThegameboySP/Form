@@ -1,3 +1,5 @@
+local RunService = game:GetService("RunService")
+
 local ComponentsUtils = require(script.Parent.ComponentsUtils)
 local t = require(script.Parent.Modules.t)
 local Event = require(script.Parent.Modules.Event)
@@ -9,6 +11,7 @@ local ERRORED = "%s: Component errored:\n%s\nThis trace: %s"
 local NO_COMPONENT_ERROR = "Instance %q does not have component %q!"
 
 function Components.new(man, src, name)
+	local interfaces = src.getInterfaces(t)
 	return setmetatable({
 		ComponentAdded = Event.new();
 		ComponentRemoved = Event.new();
@@ -16,7 +19,8 @@ function Components.new(man, src, name)
 		_manager = man;
 		_src = src;
 		_name = name or error("No component name!");
-		_iConfiguration = src.getInterfaces(t).IConfiguration;
+		_iConfiguration = interfaces.IConfiguration;
+		_iInstance = interfaces.IInstance;
 
 		_components = {};
 	}, Components)
@@ -62,22 +66,65 @@ end
 function Components:Subscribe(instance, stateName, handler)
 	local stateFdr = ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
 
-	return ComponentsUtils.subscribeComponentState(stateFdr, function(name, value)
+	local handlerCon
+	local cancelSubscribe
+	local subCancelSubscribe
+
+	cancelSubscribe = ComponentsUtils.subscribeComponentState(stateFdr, function(name, value)
 		if name ~= stateName then return end
-		handler(value)
+		-- If there is already an update pending, return early.
+		if handlerCon and handlerCon.Connected then return end
+
+		local recordedValue = value
+		-- State has changed, but delay executing the callback until next frame.
+		-- This is a poor man's state batching, to help guarantee state updates
+		-- are atomic (this fires 1 frame after the internal values are set).
+		handlerCon = RunService.Heartbeat:Connect(function()
+			handlerCon:Disconnect()
+			subCancelSubscribe()
+
+			handler(recordedValue)
+		end)
+
+		-- If the value changes during this time, update the value.
+		subCancelSubscribe = ComponentsUtils.subscribeComponentState(stateFdr, function(thisName, thisValue)
+			if thisName ~= stateName then return end
+			recordedValue = thisValue
+		end)
 	end)
+
+	return function()
+		if handlerCon then
+			handlerCon:Disconnect()
+		end
+		if subCancelSubscribe then
+			subCancelSubscribe()
+		end
+		cancelSubscribe()
+	end
 end
 
 
-function Components:InitComponent(instance, config, synced)
+function Components:NewComponent(instance, config, synced)
 	config = ComponentsUtils.mergeConfig(instance, self._name, config)
 
 	if self._iConfiguration then
 		local ok, err = self._iConfiguration(config)
 		if not ok then
-			error(
+			warn(
 				("Bad configuration for component %q under %q:\n%s"):format(self._name, instance:GetFullName(), err)
 			)
+			return nil
+		end
+	end
+
+	if self._iInstance then
+		local ok, err = self._iInstance(instance)
+		if not ok then
+			warn(
+				("Bad instance for component %q under %q:\n%s"):format(self._name, instance:GetFullName(), err)
+			)
+			return nil
 		end
 	end
 
@@ -93,30 +140,52 @@ function Components:InitComponent(instance, config, synced)
 		self:SetState(instance, state)
 	end
 
+	return config
+end
+
+
+function Components:PreInitComponent(instance)
+	local object = self._components[instance]
+	if object.PreInit then
+		object:PreInit()
+	end
+end
+
+
+function Components:InitComponent(instance)
+	local object = self._components[instance]
 	if object.Init then
 		object:Init()
 	end
-
-	return config
 end
 
 
 function Components:RunComponentMain(instance)
 	if self._src.Main then
 		local object = self._components[instance]
+		if object == nil then
+			warn(("No component called %s for %s"):format(self._name, instance:GetFullName()))
+			return
+		end
 
 		local co = coroutine.create(self._src.Main)
 		local ok, err = coroutine.resume(co, object)
 
 		if not ok then
-			error(ERRORED:format(instance:GetFullName(), err, debug.traceback(co)))
+			warn(ERRORED:format(instance:GetFullName(), err, debug.traceback(co)))
 		end
 	end
 end
 
 
 function Components:AddComponent(instance, config, synced)
-	local newConfig = self:InitComponent(instance, config, synced)
+	local newConfig = self:NewComponent(instance, config, synced)
+	if newConfig == nil then
+		return nil
+	end
+
+	self:PreInitComponent(instance)
+	self:InitComponent(instance)
 	self:RunComponentMain(instance)
 
 	self.ComponentAdded:Fire(instance, newConfig)
@@ -139,17 +208,33 @@ function Components:RemoveComponent(instance)
 end
 
 
+function Components:GetComponent(instance)
+	return self._components[instance]
+end
+
+
 function Components:FireEvent(instance, eventName, ...)
 	if not self:IsAdded(instance) then return end
 	
+	local comp = self._components[instance]
+	if comp:hasEvent(eventName) then
+		comp:fireEvent(eventName, ...)
+	end
+end
+
+
+function Components:ConnectEvent(instance, eventName, handler)
 	local comp = self._components[instance]
 	if comp == nil then
 		error(NO_COMPONENT_ERROR:format(instance:GetFullName(), self._name))
 	end
 
-	if comp:hasEvent(eventName) then
-		comp:fireEvent(eventName, ...)
+	if not comp:hasEvent(eventName) then
+		error("No event by name of %s under instance %s for component %s")
+			:format(eventName, instance:GetFullName(), self._name)
 	end
+
+	return comp:connectEvent(eventName, handler)
 end
 
 

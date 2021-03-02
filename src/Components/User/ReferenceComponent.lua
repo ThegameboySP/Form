@@ -1,11 +1,18 @@
-local RunService = game:GetService("RunService")
-
+local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
 local BaseComponent = require(script.Parent.BaseComponent)
-local Maid = require(script.Parent.Parent.Modules.Maid)
 
 local ReferenceComponent = setmetatable({}, {__index = BaseComponent})
 ReferenceComponent.ComponentName = "ReferenceComponent"
 ReferenceComponent.__index = ReferenceComponent
+ReferenceComponent.NetworkMode = ComponentsManager.NetworkMode.SHARED
+
+--[[
+	Tries to keep an up-to-date value on the current clone of what it's pointing to.	
+	Never use this on both server and client.
+
+	If using on client, make sure what it's pointing to is also client-only, otherwise
+	it can be nil once the player joins and break the component.
+]]
 
 local function resolvePath(str)
 	local instance
@@ -18,18 +25,12 @@ local function resolvePath(str)
 		end
 	end
 
-	local wrapper = Instance.new("ObjectValue")
-	wrapper.Value = instance
-	return wrapper
+	return instance
 end
 
 
-function ReferenceComponent.initInstance(instance, man)
+function ReferenceComponent.initInstance(instance)
 	if not instance:IsA("ObjectValue") or not instance.Value then
-		return false
-	end
-	
-	if not man.filters.isAddable(instance.Value) then
 		return false
 	end
 
@@ -45,82 +46,51 @@ function ReferenceComponent.new(instance, config)
 end
 
 
-function ReferenceComponent:Init()
+function ReferenceComponent:PreInit()
 	self._path = self.instance.Path.Value
-	self:_tryNewInstance()
 
-	self:bind(RunService.Heartbeat, function()
-		if self._tracking.Value == nil then
-			self:_tryNewInstance()
+	local clone = self:_tryResolveOrReturn()
+	self._clone = clone
+	self.instance.Value = clone
+end
+
+
+function ReferenceComponent:TryResolve()
+	if self._clone then
+		return self._clone
+	end
+
+	return self:_tryResolve()
+end
+
+
+function ReferenceComponent:_tryResolve()
+	local profile
+
+	if self.instance.Value then
+		profile = self.man:GetCloneProfileFromPrototype(self.instance.Value)
+			or self.man:GetCloneProfile(self.instance.Value)
+	elseif not self.instance.Value then
+		local resolved = resolvePath(self._path)
+		if resolved == nil then
+			return nil
 		end
-	end)
+
+		profile = self.man:GetCloneProfileFromPrototype(resolved) or self.man:GetCloneProfile(resolved)
+	end
+
+	return profile and profile.clone or nil
 end
 
 
-function ReferenceComponent:_tryNewInstance()
-	self._tracking = resolvePath(self._path)
-
-	if self._tracking then
-		if self.man:GetCloneProfile(self._tracking.Value) then
-			self:_bindComponentPath(self._tracking.Value)
-		else
-			self:_bindNonComponentPath(self._tracking.Value)
-		end
-	else
-		warn(("Lost instance: %s"):format(self._path))
-		self:Destroy()
+function ReferenceComponent:_tryResolveOrReturn()
+	local clone = self:_tryResolve()
+	if clone == nil then
+		warn(("Couldn't find instance at path: %s"):format(self._path))
+		return
 	end
-end
-
-
-function ReferenceComponent:_bindNonComponentPath(instance)
-	local bindMaid = Maid.new()
-	self.maid.bindMaid = bindMaid
-
-	local currentInstance = instance
-	while currentInstance.Parent ~= game do
-		bindMaid:GiveTask(currentInstance.AncestryChanged:Connect(function(_, newParent)
-			if newParent then return end
-
-			-- Assumes the next instance is going to come after some arbitrary yield.
-			self:spawnNextFrame(function()
-
-				if self.man:GetCloneProfile(self._tracking) then
-					self:_bindComponentPath(
-			end)
-		end))
-
-		bindMaid:GiveTask(self.man.ComponentAdded:Connect(function(instance)
-			if instance ~= currentInstance then return end
-
-			
-		end))
-
-		currentInstance = currentInstance.Parent
-	end
-end
-
-
-function ReferenceComponent:_bindComponentPath(instance)
-	local bindMaid = Maid.new()
-	self.maid.bindMaid = bindMaid
-
-	local currentInstance = instance
-	while currentInstance.Parent ~= game do
-		bindMaid:GiveTask(currentInstance.AncestryChanged:Connect(function(_, newParent)
-			if newParent then return end
-
-			-- Assumes the next instance is going to come after some arbitrary yield.
-			self:spawnNextFrame(function()
-				if not self.man:GetCloneProfile(instance) then
-					self._tracking = resolvePath(self._path)
-					self:_bindComponentPath(self._tracking)
-				end
-			end)
-		end))
-
-		currentInstance = currentInstance.Parent
-	end
+	
+	return clone
 end
 
 return ReferenceComponent

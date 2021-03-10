@@ -234,7 +234,7 @@ return function()
 			})
 			man:AddToGroup(folder.Value, "Test")
 
-			CollectionService:AddTag(folder.Value, "CompositeClone")
+			folder.Value:SetAttribute("CompositeClone", true)
 
 			expect(man:IsAdded(folder.Value, "TestComponent")).to.equal(true)
 

@@ -15,11 +15,24 @@ function ComponentsUtils.getBaseComponentName(name)
 end
 
 
-function ComponentsUtils.getAncestorInstanceTag(instance, tag)
-	local currentInstance = instance.Parent
+function ComponentsUtils.getAncestorInstanceAttributeTag(instance, attrName)
+	local currentInstance = instance
 
 	while currentInstance do
-		if CollectionService:HasTag(currentInstance, tag) then
+		if currentInstance:GetAttribute(attrName) then
+			return currentInstance
+		end
+		
+		currentInstance = currentInstance.Parent
+	end
+end
+
+
+function ComponentsUtils.getAncestorInstanceTag(instance, tagName)
+	local currentInstance = instance
+
+	while currentInstance do
+		if CollectionService:HasTag(instance, tagName) then
 			return currentInstance
 		end
 		

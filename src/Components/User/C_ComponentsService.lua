@@ -14,9 +14,7 @@ function ClientComponentsService.new()
 		_managers = {};
 		_srcs = {};
 		_filter = function(instance, tag)
-			if CollectionService:HasTag(instance, "OnlyServer") or
-				ComponentsUtils.getAncestorInstanceTag(instance, "OnlyServer")
-			then
+			if ComponentsUtils.getAncestorInstanceTag(instance, "OnlyServer") then
 				return false
 			end
 

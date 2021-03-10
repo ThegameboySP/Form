@@ -44,7 +44,6 @@ function ServerComponentsService:AddManager(manName)
 	local man = ComponentsManager.new(function(instance, tag)
 		local src = self._srcs[tag]
 		return src.NetworkMode ~= ComponentsManager.NetworkMode.CLIENT
-			and not CollectionService:HasTag(instance, "OnlyClient")
 			and not ComponentsUtils.getAncestorInstanceTag(instance, "OnlyClient")
 	end)
 	

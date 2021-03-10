@@ -15,11 +15,11 @@ local getters = {
 
 local filters = {
 	hasComponent = function(instance, compName)
-		return CollectionService:HasTag(instance, "CompositeClone")
+		return (not not instance:GetAttribute("CompositeClone"))
 			and CollectionService:HasTag(instance, compName)
 	end;
 	hasAComponent = function(instance)
-		return CollectionService:HasTag(instance, "CompositeClone")
+		return not not instance:GetAttribute("CompositeClone")
 	end;
 	isA = function(instance, className)
 		return instance:IsA(className)

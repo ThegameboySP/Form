@@ -143,7 +143,7 @@ function ComponentsManager:Init(root)
 			continue
 		end
 		
-		CollectionService:AddTag(instance, "CompositePrototype")
+		instance:SetAttribute("CompositePrototype", true)
 		self._pInstanceToPrototypes[instance] = prototype
 		newPrototypes[instance] = prototype
 		table.insert(prototypesArray, prototype)
@@ -155,15 +155,15 @@ function ComponentsManager:Init(root)
 	end
 
 	for instance, prototype in next, newPrototypes do
-		local ancestor = ComponentsUtils.getAncestorInstanceTag(instance, "CompositePrototype")
+		local ancestor = ComponentsUtils.getAncestorInstanceAttributeTag(instance.Parent, "CompositePrototype")
 		prototype.ancestorPrototype = ancestor and prototypes[ancestor] or nil
 	end
 
 	for instance in next, newPrototypes do
-		CollectionService:RemoveTag(instance, "CompositePrototype")
+		instance:SetAttribute("CompositePrototype", nil)
 
 		-- Don't set parent to nil if this is a synced instance.
-		if CollectionService:HasTag(instance, "CompositeClone") then continue end
+		if instance:GetAttribute("CompositeClone") then continue end
 		instance.Parent = nil
 	end
 
@@ -221,7 +221,7 @@ function ComponentsManager:_runAndMergePrototypes(prototypes)
 		if clone == nil then
 			local instance = prototype.instance
 			-- If this is a Composite clone, we can safely conclude another manager is at work. Sync.
-			if CollectionService:HasTag(instance, "CompositeClone") then
+			if instance:GetAttribute("CompositeClone") then
 				clone = instance
 				self:_newCloneProfile(instance, prototype, true, true, prototype.groups)
 			else
@@ -316,7 +316,7 @@ end
 function ComponentsManager:RunAndMergeSynced()
 	local prototypes = {}
 	for pInstance, prototype in next, self._pInstanceToPrototypes do
-		if not CollectionService:HasTag(pInstance, "CompositeClone") then continue end
+		if not pInstance:GetAttribute("CompositeClone") then continue end
 
 		table.insert(prototypes, prototype)
 	end
@@ -345,7 +345,7 @@ end
 -- WARNING: If no components were added to this instance before calling, the clean prototype
 -- will be a clone of the instance. This is so it can maintain its identity.
 function ComponentsManager:AddComponent(instance, name, shouldRespawn, config, groups)
-	local synced = CollectionService:HasTag(instance, "CompositeClone")
+	local synced = not not instance:GetAttribute("CompositeClone")
 	local profile = self:_getOrMakeCloneProfile(instance, synced, shouldRespawn, groups)
 	if profile:HasComponent(name) then
 		return
@@ -677,7 +677,7 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, shouldResp
 		self:AddToGroup(clone, groupName)
 	end
 
-	CollectionService:AddTag(clone, "CompositeClone")
+	clone:SetAttribute("CompositeClone", true)
 
 	if synced then
 		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeStateAnd(
@@ -708,7 +708,7 @@ function ComponentsManager:RemoveClone(clone)
 	-- This should not affect replication (i.e instance != nil on remotes fired immediately after).
 	clone.Parent = nil
 
-	CollectionService:RemoveTag(clone, "CompositeClone")
+	clone:SetAttribute("CompositeClone", nil)
 end
 
 

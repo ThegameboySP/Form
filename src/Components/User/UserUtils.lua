@@ -2,20 +2,27 @@ local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 
 local UserUtils = {}
+local EMPTY_TABLE = {}
 
 local getters = {
 	children = function(instance)
 		return instance:GetChildren()
+	end;
+	descendants = function(instance)
+		return instance:GetDescendants()
 	end
 }
 
 local filters = {
 	hasComponent = function(instance, compName)
-		return CollectionService:HasTag(instance, "CompositeInstance")
+		return instance:FindFirstChild("CompositeClone")
 			and CollectionService:HasTag(instance, compName)
 	end;
 	hasAComponent = function(instance)
-		return CollectionService:HasTag(instance, "CompositeInstance")
+		return instance:FindFirstChild("CompositeClone")
+	end;
+	isA = function(instance, className)
+		return instance:IsA(className)
 	end
 }
 
@@ -44,11 +51,43 @@ function UserUtils.findFirstComponent(instance, compName)
 end
 
 
+function UserUtils.hasComponent(instance, compName)
+	return filters.hasComponent(instance, compName)
+end
+
+
+function UserUtils.get(instance)
+	return setmetatable(EMPTY_TABLE, {__index = function(_, getterName)
+		return setmetatable(EMPTY_TABLE, {__index = function(_, filterName)
+			return function(...)
+				local getter = getters[getterName]
+				local filter = filters[filterName]
+				local filtered = getFiltered(getter, filter, instance, ...)
+				
+				if filter(instance, ...) then
+					table.insert(filtered, instance)
+				end
+				return filtered
+			end
+		end})
+	end})
+end
+
+
 function UserUtils.getPlayer(part)
 	local hum = part.Parent and part.Parent:FindFirstChild("Humanoid")
 	if not hum then return end
 
 	return Players:GetPlayerFromCharacter(part.Parent)
+end
+
+
+function UserUtils.isValidCharacter(character)
+	if not character:FindFirstChild("Humanoid") then return false end
+	if character.Humanoid:GetState() == Enum.HumanoidStateType.Dead then return false end
+	if not character:FindFirstChild("Head") then return false end
+
+	return true
 end
 
 

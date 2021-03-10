@@ -3,6 +3,7 @@ local RunService = game:GetService("RunService")
 local ComponentsUtils = require(script.Parent.ComponentsUtils)
 local t = require(script.Parent.Modules.t)
 local Event = require(script.Parent.Modules.Event)
+local TimeCycle = require(script.Parent.TimeCycle)
 
 local Components = {}
 Components.__index = Components
@@ -23,6 +24,7 @@ function Components.new(man, src, name)
 		_iInstance = interfaces.IInstance;
 
 		_components = {};
+		_cycles = {};
 	}, Components)
 end
 
@@ -179,6 +181,8 @@ end
 
 
 function Components:AddComponent(instance, config, synced)
+	if self._components[instance] then return end
+
 	local newConfig = self:NewComponent(instance, config, synced)
 	if newConfig == nil then
 		return nil
@@ -196,6 +200,8 @@ end
 
 function Components:RemoveComponent(instance)
 	local component = self._components[instance]
+	if component == nil then return end
+	
 	local ok, err = pcall(self._src.Destroy, component)
 
 	self._components[instance] = nil
@@ -210,6 +216,35 @@ end
 
 function Components:GetComponent(instance)
 	return self._components[instance]
+end
+
+
+function Components:SetCycle(instance, name, cycleLen)
+	local iCycles = self._cycles[instance]
+	if iCycles == nil then
+		self._cycles[instance] = {}
+		iCycles = self._cycles[instance]
+	end
+
+	local cycle = iCycles[name]
+	if cycle == nil then
+		cycle = TimeCycle.new(cycleLen)
+		iCycles[name] = cycle
+	else
+		cycle:SetLength(cycleLen)
+	end
+
+	return cycle
+end
+
+
+function Components:GetCycle(instance, name)
+	local iCycles = self._cycles[instance]
+	if iCycles == nil then
+		return nil
+	end
+
+	return iCycles[name]
 end
 
 

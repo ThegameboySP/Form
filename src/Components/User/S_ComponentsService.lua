@@ -17,9 +17,9 @@ function ServerComponentsService.new()
 end
 
 
-function ServerComponentsService:Clear()
+function ServerComponentsService:Stop()
 	for _, man in next, self._managers do
-		man:Clear()
+		man:Stop()
 	end
 end
 
@@ -70,7 +70,7 @@ function ServerComponentsService:AddManager(manName)
 	man.ComponentAdded:Connect(function(instance, name, config, groups)
 		local module = self._srcs[name]
 		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
-			print("Add replicating", instance, name)
+			-- print("Add replicating", instance, name)
 
 			local tag = Instance.new("BoolValue")
 			tag.Name = "ServerComponent"
@@ -85,7 +85,7 @@ function ServerComponentsService:AddManager(manName)
 	man.ComponentRemoved:Connect(function(instance, name)
 		local module = self._srcs[name]
 		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
-			print("Remove replicating", instance, name)
+			-- print("Remove replicating", instance, name)
 			removeCompRemote:FireAllClients(instance, name)
 		end
 	end)

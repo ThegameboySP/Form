@@ -26,13 +26,27 @@ function ComponentsUtils.getAncestorInstanceTag(instance, tag)
 end
 
 
-function ComponentsUtils.getAncestorCompositeInstance(instance)
-	return ComponentsUtils.getAncestorInstanceTag(instance, "CompositeInstance")
+function ComponentsUtils.tagInstance(instance, name)
+	if instance:FindFirstChild(name) then return end
+	local tag = Instance.new("BoolValue")
+	tag.Name = name
+	tag.Archivable = false -- Guarantees this tag will not rub off on clones.
+	tag.Parent = instance
+
+	return tag
 end
 
 
 function ComponentsUtils.getConfigFromInstance(instance, name)
 	local config = {}
+	local namespace = name .. "_"
+	local namespaceLen = #namespace
+	for attributeName, value in next, instance:GetAttributes() do
+		if attributeName:sub(1, namespaceLen) == namespace then
+			config[attributeName:sub(namespaceLen + 1, -1)] = value
+		end
+	end
+
 	local configuration = instance:FindFirstChild("Configuration")
 	if configuration == nil then
 		return config
@@ -115,11 +129,19 @@ function ComponentsUtils.getOrMakeGroupsFolder(instance)
 end
 
 
-function ComponentsUtils.getGroups(instance)
+local function getGroupsForInstance(instance)
 	local groups = {}
+	
+	for attributeName, value in next, instance:GetAttributes() do
+		if attributeName:sub(1, 15) == "CompositeGroup_" then
+			if value ~= true then return end
+			groups[attributeName:sub(16, -1)] = true
+		end
+	end
+
 	local groupsFolder = ComponentsUtils.getGroupsFolder(instance)
 	if groupsFolder == nil then
-		return {}
+		return groups
 	end
 
 	for _, child in next, groupsFolder:GetChildren() do
@@ -131,11 +153,19 @@ function ComponentsUtils.getGroups(instance)
 end
 
 
-function ComponentsUtils.mergeGroups(instance, mergeGroups)
-	return ComponentsUtils.shallowMerge(
-		mergeGroups or {},
-		ComponentsUtils.getGroups(instance)
-	)
+function ComponentsUtils.getGroups(instance)
+	local currentInstance = instance
+	local currentGroups = {}
+	while currentInstance do
+		currentGroups = ComponentsUtils.shallowMerge(
+			getGroupsForInstance(currentInstance),
+			currentGroups
+		)
+
+		currentInstance = currentInstance.Parent
+	end
+
+	return currentGroups
 end
 
 
@@ -404,24 +434,6 @@ function ComponentsUtils.valueObjectFromType(typeOf)
 end
 
 
-function ComponentsUtils.searchInstance(instance, ...)
-	if instance == nil then
-		return nil
-	end
-
-	local current = instance
-
-	for _, childName in next, {...} do
-		current = current:FindFirstChild(childName)
-		if not current then
-			return nil
-		end
-	end
-
-	return current
-end
-
-
 function ComponentsUtils.shallowCopy(tbl)
 	local newTbl = {}
 	for k, v in next, tbl do
@@ -463,18 +475,6 @@ function ComponentsUtils.indexTableOrError(name, tbl)
 	return setmetatable(tbl, {__index = function(_, k)
 		error(("%s is not a valid member of %q"):format(k, name), 2)
 	end})
-end
-
-
-function ComponentsUtils.sortHierarchy()
-
-end
-
-
--- Descendants first.
--- To be used for figuring out when to call the constructor / Main depending on hierarchy order.
-function ComponentsUtils.flattenInstanceTree(tree)
-
 end
 
 return ComponentsUtils

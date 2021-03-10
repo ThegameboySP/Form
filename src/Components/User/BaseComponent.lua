@@ -6,12 +6,14 @@ local Event = require(script.Parent.Parent.Modules.Event)
 local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
 local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
 local UserUtils = require(script.Parent.UserUtils)
+local FuncUtils = require(script.Parent.FuncUtils)
 
 local BaseComponent = {}
 BaseComponent.NetworkMode = ComponentsManager.NetworkMode.SERVER_CLIENT
 BaseComponent.ComponentName = "BaseComponent"
 BaseComponent.__index = BaseComponent
 BaseComponent.util = UserUtils
+BaseComponent.func = FuncUtils
 
 local IS_SERVER = RunService:IsServer()
 
@@ -36,6 +38,21 @@ function BaseComponent.new(instance, config)
 		_remoteEvents = remoteEvents;
 		_events = {};
 	}, BaseComponent)
+end
+
+
+function BaseComponent:extend(name)
+	local newClass = setmetatable({
+		ComponentName = name;
+		_baseComponentName = ComponentsUtils.getBaseComponentName(name);
+	}, {__index = self})
+	newClass.__index = newClass
+
+	function newClass.new(instance, config)
+		return setmetatable(self.new(instance, config), newClass)
+	end
+
+	return newClass
 end
 
 
@@ -64,20 +81,20 @@ end
 
 
 function BaseComponent:setState(newState)
-	self.man:SetState(self.instance, ComponentsUtils.getBaseComponentName(self.ComponentName), newState)
+	self.man:SetState(self.instance, self._baseComponentName, newState)
 end
 
 
 function BaseComponent:subscribe(state, handler)
 	return self.man:Subscribe(
-		self.instance, ComponentsUtils.getBaseComponentName(self.ComponentName), state, handler
+		self.instance, self._baseComponentName, state, handler
 	)
 end
 
 
 function BaseComponent:subscribeAnd(state, handler)
 	local con = self.man:Subscribe(
-		self.instance, ComponentsUtils.getBaseComponentName(self.ComponentName), state, handler
+		self.instance, self._baseComponentName, state, handler
 	)
 	handler(self.state[state])
 	return con
@@ -206,6 +223,23 @@ function BaseComponent:bind(event, handler)
 end
 
 
+function BaseComponent:bindMaid(instance)
+	local newMaid = Maid.new()
+	self.maid[instance] = newMaid
+	newMaid:GiveTask(instance.AncestryChanged:Connect(function(_, newParent)
+		if newParent then return end
+		self.maid[instance] = nil
+	end))
+
+	return newMaid
+end
+
+
+function BaseComponent:unbindMaid(instance)
+	self.maid[instance] = nil
+end
+
+
 function BaseComponent:spawnNextFrame(handler)
 	local id
 	id = self.maid:GiveTask(RunService.Heartbeat:Connect(function()
@@ -214,6 +248,45 @@ function BaseComponent:spawnNextFrame(handler)
 	end))
 	
 	return id
+end
+
+
+function BaseComponent:connectPostSimulation(handler)
+	return RunService.Heartbeat:Connect(handler)
+end
+
+
+function BaseComponent:bindPostSimulation(handler)
+	local con = self:connectPostSimulation(handler)
+	self.maid:GiveTask(con)
+	return con
+end
+
+
+function BaseComponent:connectPreRender(handler)
+	return RunService.RenderStepped:Connect(handler)
+end
+
+
+function BaseComponent:bindPreRender(handler)
+	local con = self:connectPreRender(handler)
+	self.maid:GiveTask(con)
+	return con
+end
+
+
+function BaseComponent:getTime()
+	return self.man:GetTime()
+end
+
+
+function BaseComponent:setCycle(name, cycleLen)
+	return self.man:SetCycle(self.instance, self._baseComponentName, name, cycleLen)
+end
+
+
+function BaseComponent:getCycle(name)
+	return self.man:GetCycle(self.instance, self._baseComponentName, name)
 end
 
 

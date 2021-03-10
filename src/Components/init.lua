@@ -3,6 +3,7 @@ return {
 	C_ComponentsService = require(script:WaitForChild("User"):WaitForChild("C_ComponentsService"));
 
 	UserUtils = require(script:WaitForChild("User"):WaitForChild("UserUtils"));
+	FuncUtils = require(script:WaitForChild("User"):WaitForChild("FuncUtils"));
 
 	BaseComponent = require(script:WaitForChild("User"):WaitForChild("BaseComponent"));
 	BouncyComponent = require(script:WaitForChild("User"):WaitForChild("BouncyComponent"));

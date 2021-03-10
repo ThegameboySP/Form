@@ -14,14 +14,25 @@ function ClientComponentsService.new()
 		_managers = {};
 		_srcs = {};
 		_filter = function(instance, tag)
-			local src = self._srcs[tag]
-			local isServerComponent = instance:FindFirstChild("ServerComponent") ~= nil
-			return (isServerComponent and src.NetworkMode == NetworkMode.SERVER_CLIENT)
-				or (not isServerComponent and src.NetworkMode == NetworkMode.SHARED
-				or src.NetworkMode == NetworkMode.CLIENT)
+			if CollectionService:HasTag(instance, "OnlyServer") or
+				ComponentsUtils.getAncestorInstanceTag(instance, "OnlyServer")
+			then
+				return false
+			end
 
-				and not CollectionService:HasTag(instance, "OnlyServer")
-				and not ComponentsUtils.getAncestorInstanceTag(instance, "OnlyServer")
+			local src = self._srcs[tag]
+			if src == nil then return false end
+
+			local isServerComponent = instance:FindFirstChild("ServerComponent") ~= nil
+			if isServerComponent and src.NetworkMode == NetworkMode.SERVER_CLIENT then
+				return true
+			end
+
+			if src.NetworkMode == NetworkMode.SHARED or src.NetworkMode == NetworkMode.CLIENT then
+				return true
+			end
+
+			return false
 		end
 	}, ClientComponentsService)
 
@@ -29,9 +40,9 @@ function ClientComponentsService.new()
 end
 
 
-function ClientComponentsService:Clear()
+function ClientComponentsService:Stop()
 	for _, man in next, self._managers do
-		man:Clear()
+		man:Stop()
 	end
 end
 
@@ -70,8 +81,8 @@ function ClientComponentsService:AddManager(manName)
 			return
 		end
 
-		print("Adding", instance, moduleName)
-		man:AddComponent(instance, moduleName, config, groups, true)
+		-- print("Adding", instance, moduleName)
+		man:AddComponent(instance, moduleName, false, config, groups)
 	end)
 
 	removeCompRemote.OnClientEvent:Connect(function(instance, name)
@@ -83,7 +94,7 @@ function ClientComponentsService:AddManager(manName)
 			return
 		end
 
-		print("Removing", instance, moduleName)
+		-- print("Removing", instance, moduleName)
 		man:RemoveComponent(instance, moduleName)
 	end)
 

@@ -15,15 +15,15 @@ local getters = {
 
 local filters = {
 	hasComponent = function(instance, compName)
-		return instance:FindFirstChild("CompositeClone")
+		return CollectionService:HasTag(instance, "CompositeClone")
 			and CollectionService:HasTag(instance, compName)
 	end;
 	hasAComponent = function(instance)
-		return instance:FindFirstChild("CompositeClone")
+		return CollectionService:HasTag(instance, "CompositeClone")
 	end;
 	isA = function(instance, className)
 		return instance:IsA(className)
-	end
+	end;
 }
 
 local function getFiltered(getter, filter, instance, ...)

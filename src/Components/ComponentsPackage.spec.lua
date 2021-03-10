@@ -205,19 +205,19 @@ return function()
 
 			local instance = Instance.new("BoolValue", folder)
 			man:AddComponent(instance, "TestComponent")
-			expect(instance.Configuration.Groups.Main.Value).to.equal(true)
+			expect(ComponentsUtils.getGroups(instance).Main).to.equal(true)
 
 			man:AddToGroup(instance, "Test")
-			expect(instance.Configuration.Groups.Test.Value).to.equal(true)
+			expect(ComponentsUtils.getGroups(instance).Test).to.equal(true)
 
 			man:RemoveFromGroup(instance, "Main")
-			expect(instance.Configuration.Groups:FindFirstChild("Main")).to.equal(nil)
+			expect(ComponentsUtils.getGroups(instance).Main).to.equal(nil)
 
 			man:AddToGroup(instance, "Test2")
 			man:RemoveFromGroup(instance, "Test")
 
-			expect(instance.Configuration.Groups:FindFirstChild("Test")).to.equal(nil)
-			expect(instance.Configuration.Groups:FindFirstChild("Test2")).to.be.ok()
+			expect(ComponentsUtils.getGroups(instance).Test).to.equal(nil)
+			expect(ComponentsUtils.getGroups(instance).Test2).to.be.ok()
 		end)
 
 		it("should destruct subscription to group and generic state on removing clone profile", function()
@@ -234,11 +234,7 @@ return function()
 			})
 			man:AddToGroup(folder.Value, "Test")
 
-			local tag = Instance.new("BoolValue")
-			tag.Name = "CompositeClone"
-			tag.Archivable = false
-			tag.Value = true
-			tag.Parent = folder.Value
+			CollectionService:AddTag(folder.Value, "CompositeClone")
 
 			expect(man:IsAdded(folder.Value, "TestComponent")).to.equal(true)
 
@@ -297,6 +293,22 @@ return function()
 
 			man:AddToGroup(folder.Value, "Test2")
 			expect(man2:IsInGroup(folder.Value, "Test2")).to.equal(true)
+		end)
+
+		it("RunAndMergeSynced: should sync and run another manager's instance", function()
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			local instance = Instance.new("BoolValue")
+			man:AddComponent(instance, "TestComponent", false)
+
+			local man2 = ComponentsManager.new()
+			man2:RegisterComponent(TestComponent)
+
+			man2:Init(instance)
+			local newComponents = man2:RunAndMergeSynced()
+
+			expect(next(newComponents)).to.be.ok()
 		end)
 
 		it("AddComponent: should add a clone to internal tables", function()
@@ -579,7 +591,7 @@ return function()
 			expect(groups.Test2).to.be.ok()
 		end)
 
-		it("should support tree groups", function()
+		it("should support groups trees", function()
 			local folder = Instance.new("Folder")
 			local folder2 = Instance.new("Folder")
 			folder2.Parent = folder
@@ -588,6 +600,30 @@ return function()
 
 			local groups = ComponentsUtils.getGroups(folder2)
 			expect(groups.Test).to.be.ok()
+		end)
+
+		it("should subscribe to changes in group", function()
+			local folder = Instance.new("Folder")
+			ComponentsUtils.updateInstanceGroups(folder, {Main = true}, {})
+			
+			local groups = {}
+			local destruct = ComponentsUtils.subscribeGroupsAnd(folder, function(groupName, isInGroup)
+				groups[groupName] = isInGroup
+			end)
+
+			expect(groups.Main).to.equal(true)
+
+			ComponentsUtils.updateInstanceGroups(folder, {Main = true, Test = true}, {Main = true})
+
+			expect(groups.Main).to.equal(true)
+			expect(groups.Test).to.equal(true)
+
+			ComponentsUtils.updateInstanceGroups(folder, {}, {Main = true, Test = true})
+
+			expect(groups.Main).to.equal(false)
+			expect(groups.Test).to.equal(false)
+
+			destruct()
 		end)
 	end)
 end

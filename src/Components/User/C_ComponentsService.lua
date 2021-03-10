@@ -23,7 +23,7 @@ function ClientComponentsService.new()
 			local src = self._srcs[tag]
 			if src == nil then return false end
 
-			local isServerComponent = instance:FindFirstChild("ServerComponent") ~= nil
+			local isServerComponent = CollectionService:HasTag(instance, "ServerComponent")
 			if isServerComponent and src.NetworkMode == NetworkMode.SERVER_CLIENT then
 				return true
 			end

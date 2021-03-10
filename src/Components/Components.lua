@@ -1,4 +1,5 @@
 local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
 
 local ComponentsUtils = require(script.Parent.ComponentsUtils)
 local t = require(script.Parent.Modules.t)
@@ -163,6 +164,8 @@ end
 
 
 function Components:RunComponentMain(instance)
+	CollectionService:AddTag(instance, self._name)
+	
 	if self._src.Main then
 		local object = self._components[instance]
 		if object == nil then

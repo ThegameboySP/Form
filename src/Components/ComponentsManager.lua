@@ -163,7 +163,7 @@ function ComponentsManager:Init(root)
 		CollectionService:RemoveTag(instance, "CompositePrototype")
 
 		-- Don't set parent to nil if this is a synced instance.
-		if instance:FindFirstChild("CompositeClone") then continue end
+		if CollectionService:HasTag(instance, "CompositeClone") then continue end
 		instance.Parent = nil
 	end
 
@@ -221,7 +221,7 @@ function ComponentsManager:_runAndMergePrototypes(prototypes)
 		if clone == nil then
 			local instance = prototype.instance
 			-- If this is a Composite clone, we can safely conclude another manager is at work. Sync.
-			if instance:FindFirstChild("CompositeClone") then
+			if CollectionService:HasTag(instance, "CompositeClone") then
 				clone = instance
 				self:_newCloneProfile(instance, prototype, true, true, prototype.groups)
 			else
@@ -293,6 +293,8 @@ function ComponentsManager:_runAndMergePrototypes(prototypes)
 	for _, event in ipairs(events) do
 		self.ComponentAdded:Fire(event.clone, event.name, event.config)
 	end
+
+	return newComponents
 end
 
 
@@ -313,11 +315,10 @@ end
 
 function ComponentsManager:RunAndMergeSynced()
 	local prototypes = {}
-	for prototype, clone in next, self._prototypeToClone do
-		local profile = self._cloneProfiles[clone]
-		if not profile.synced then continue end
+	for pInstance, prototype in next, self._pInstanceToPrototypes do
+		if not CollectionService:HasTag(pInstance, "CompositeClone") then continue end
 
-		table.insert(prototypes, self._pInstanceToPrototypes[prototype])
+		table.insert(prototypes, prototype)
 	end
 
 	return self:_runAndMergePrototypes(prototypes)
@@ -344,7 +345,7 @@ end
 -- WARNING: If no components were added to this instance before calling, the clean prototype
 -- will be a clone of the instance. This is so it can maintain its identity.
 function ComponentsManager:AddComponent(instance, name, shouldRespawn, config, groups)
-	local synced = instance:FindFirstChild("CompositeClone") ~= nil
+	local synced = CollectionService:HasTag(instance, "CompositeClone")
 	local profile = self:_getOrMakeCloneProfile(instance, synced, shouldRespawn, groups)
 	if profile:HasComponent(name) then
 		return
@@ -458,7 +459,7 @@ function ComponentsManager:AddToGroup(instance, groupName)
 	group:Add(profile.prototype)
 
 	if not profile.synced then
-		ComponentsUtils.updateGroupValueObjects(instance, profile:GetGroupsHash(), oldGroupsHash)
+		ComponentsUtils.updateInstanceGroups(instance, profile:GetGroupsHash(), oldGroupsHash)
 	end
 end
 
@@ -476,7 +477,7 @@ function ComponentsManager:RemoveFromGroup(instance, groupName)
 	if not profile:IsInAGroup() then
 		self:RemoveClone(instance)
 	elseif not profile.synced then
-		ComponentsUtils.updateGroupValueObjects(instance, profile:GetGroupsHash(), oldGroupsHash)
+		ComponentsUtils.updateInstanceGroups(instance, profile:GetGroupsHash(), oldGroupsHash)
 	end
 end
 
@@ -676,9 +677,7 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, shouldResp
 		self:AddToGroup(clone, groupName)
 	end
 
-	if not clone:FindFirstChild("CompositeClone") then
-		ComponentsUtils.tagInstance(clone, "CompositeClone")
-	end
+	CollectionService:AddTag(clone, "CompositeClone")
 
 	if synced then
 		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeStateAnd(
@@ -689,7 +688,7 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, shouldResp
 			end))
 
 		cloneProfile:AddDestructFunction(ComponentsUtils.subscribeGroupsAnd(
-			ComponentsUtils.getOrMakeGroupsFolder(clone), function(groupName, exists)
+			clone, function(groupName, exists)
 				if exists then
 					-- print("Adding group", clone, groupName)
 					self:AddToGroup(clone, groupName)
@@ -709,9 +708,7 @@ function ComponentsManager:RemoveClone(clone)
 	-- This should not affect replication (i.e instance != nil on remotes fired immediately after).
 	clone.Parent = nil
 
-	if clone:FindFirstChild("CompositeClone") then
-		clone.CompositeClone:Destroy()
-	end
+	CollectionService:RemoveTag(clone, "CompositeClone")
 end
 
 

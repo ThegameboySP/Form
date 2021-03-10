@@ -2,6 +2,8 @@ local CollectionService = game:GetService("CollectionService")
 
 local ComponentsUtils = {}
 
+local GROUP_PREFIX = "CompositeGroup_"
+
 function ComponentsUtils.getBaseComponentName(name)
 	local base = name
     local prefix = base:sub(1, 2)
@@ -23,17 +25,6 @@ function ComponentsUtils.getAncestorInstanceTag(instance, tag)
 		
 		currentInstance = currentInstance.Parent
 	end
-end
-
-
-function ComponentsUtils.tagInstance(instance, name)
-	if instance:FindFirstChild(name) then return end
-	local tag = Instance.new("BoolValue")
-	tag.Name = name
-	tag.Archivable = false -- Guarantees this tag will not rub off on clones.
-	tag.Parent = instance
-
-	return tag
 end
 
 
@@ -111,29 +102,11 @@ function ComponentsUtils.getGroupsFolder(instance)
 end
 
 
-function ComponentsUtils.getOrMakeGroupsFolder(instance)
-	local configuration = instance:FindFirstChild("Configuration")
-	if configuration == nil then
-		configuration = Instance.new("Configuration")
-		configuration.Parent = instance
-	end
-
-	local groupsFolder = configuration:FindFirstChild("Groups")
-	if groupsFolder == nil then
-		groupsFolder = Instance.new("Folder")
-		groupsFolder.Name = "Groups"
-		groupsFolder.Parent = configuration
-	end
-
-	return groupsFolder
-end
-
-
 local function getGroupsForInstance(instance)
 	local groups = {}
 	
 	for attributeName, value in next, instance:GetAttributes() do
-		if attributeName:sub(1, 15) == "CompositeGroup_" then
+		if attributeName:sub(1, #GROUP_PREFIX) == GROUP_PREFIX then
 			if value ~= true then return end
 			groups[attributeName:sub(16, -1)] = true
 		end
@@ -245,28 +218,16 @@ function ComponentsUtils.mergeStateValueObjects(stateFdr, deltaState)
 end
 
 
-function ComponentsUtils.updateGroupValueObjects(instance, newGroups, oldGroups)
-	local groupsFolder = ComponentsUtils.getOrMakeGroupsFolder(instance)
-
+function ComponentsUtils.updateInstanceGroups(instance, newGroups, oldGroups)
 	for name in next, oldGroups do
 		if not newGroups[name] then
-			local group = groupsFolder:FindFirstChild(name)
-			if group == nil then
-				warn(("Group %q was not found under %q!"):format(name, instance:GetFullName()))
-				continue
-			end
-
-			group:Destroy()
+			instance:SetAttribute(GROUP_PREFIX .. name, nil)
 		end
 	end
 
 	for name in next, newGroups do
-		-- Look for a group entry in instance, for compatibility with external insertion of groups.
-		if not oldGroups[name] and groupsFolder:FindFirstChild(name) == nil then
-			local bool = Instance.new("BoolValue")
-			bool.Name = name
-			bool.Value = true
-			bool.Parent = groupsFolder
+		if not oldGroups[name] then
+			instance:SetAttribute(GROUP_PREFIX .. name, true)
 		end
 	end
 
@@ -363,39 +324,27 @@ function ComponentsUtils.subscribeStateAnd(fdr, callback)
 end
 
 
-function ComponentsUtils.subscribeGroups(groupFolder, callback)
-	local connections = {}
-
-	local function onChildAdded(group)
-		local function onAncestryChanged(thisChild, newParent)
-			if newParent then return end
-			callback(thisChild.Name, false)
-		end
-
-		table.insert(connections, group.AncestryChanged:Connect(onAncestryChanged))
-	end
-
-	table.insert(connections, groupFolder.ChildAdded:Connect(function(group)
-		onChildAdded(group)
-		callback(group.Name, true)
-	end))
-
-	for _, group in next, groupFolder:GetChildren() do
-		onChildAdded(group)
-	end
+function ComponentsUtils.subscribeGroups(instance, callback)
+	local con = instance.AttributeChanged:Connect(function(attrName)
+		if attrName:sub(1, #GROUP_PREFIX) ~= GROUP_PREFIX then return end
+		
+		local isInGroup = not not instance:GetAttribute(attrName)
+		callback(attrName:sub(#GROUP_PREFIX + 1, -1), isInGroup)
+	end)
 
 	return function()
-		for _, con in next, connections do
-			con:Disconnect()
-		end
+		con:Disconnect()
 	end
 end
 
 
-function ComponentsUtils.subscribeGroupsAnd(groupFolder, callback)
-	local destruct = ComponentsUtils.subscribeGroups(groupFolder, callback)
-	for _, group in next, groupFolder:GetChildren() do
-		callback(group.Name, true)
+function ComponentsUtils.subscribeGroupsAnd(instance, callback)
+	local destruct = ComponentsUtils.subscribeGroups(instance, callback)
+	for attrName, value in next, instance:GetAttributes() do
+		if attrName:sub(1, #GROUP_PREFIX) ~= GROUP_PREFIX then return end
+
+		local isInGroup = not not value
+		callback(attrName:sub(#GROUP_PREFIX + 1, -1), isInGroup)
 	end
 
 	return destruct

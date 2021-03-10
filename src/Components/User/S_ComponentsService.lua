@@ -71,12 +71,7 @@ function ServerComponentsService:AddManager(manName)
 		local module = self._srcs[name]
 		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
 			-- print("Add replicating", instance, name)
-
-			local tag = Instance.new("BoolValue")
-			tag.Name = "ServerComponent"
-			tag.Archivable = false
-			tag.Value = true
-			tag.Parent = instance
+			CollectionService:AddTag(instance, "ServerComponent")
 
 			addCompRemote:FireAllClients(instance, name, config, groups)
 		end

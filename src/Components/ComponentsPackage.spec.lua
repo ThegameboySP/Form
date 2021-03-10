@@ -300,7 +300,7 @@ return function()
 			man:RegisterComponent(TestComponent)
 
 			local instance = Instance.new("BoolValue")
-			man:AddComponent(instance, "TestComponent", false)
+			man:AddComponent(instance, "TestComponent", {respawn = false})
 
 			local man2 = ComponentsManager.new()
 			man2:RegisterComponent(TestComponent)
@@ -331,7 +331,7 @@ return function()
 			man:RegisterComponent(TestComponent)
 
 			local instance = Instance.new("BoolValue")
-			man:AddComponent(instance, "TestComponent", true)
+			man:AddComponent(instance, "TestComponent", {respawn = true})
 			local prototype = man:GetCloneProfile(instance).prototype.instance
 
 			man:DestroyClonesInGroups({Main = true})

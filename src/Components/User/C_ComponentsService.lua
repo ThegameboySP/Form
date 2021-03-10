@@ -65,6 +65,7 @@ function ClientComponentsService:AddManager(manName)
 	local entryFdr = ReplicatedStorage:WaitForChild("ComponentsManagers"):WaitForChild(manName)
 	local addCompRemote = entryFdr:WaitForChild("ComponentAdded")
 	local removeCompRemote = entryFdr:WaitForChild("ComponentRemoved")
+	local cloneRemovedRemote = entryFdr:WaitForChild("CloneRemoved")
 
 	-- Since replication happens in order, and ComponentAdded fires last, 
 	-- we should never have to wait for required instances.
@@ -80,7 +81,7 @@ function ClientComponentsService:AddManager(manName)
 		end
 
 		-- print("Adding", instance, moduleName)
-		man:AddComponent(instance, moduleName, false, config, groups)
+		man:AddComponent(instance, moduleName, {respawn = false}, config, groups)
 	end)
 
 	removeCompRemote.OnClientEvent:Connect(function(instance, name)
@@ -94,6 +95,10 @@ function ClientComponentsService:AddManager(manName)
 
 		-- print("Removing", instance, moduleName)
 		man:RemoveComponent(instance, moduleName)
+	end)
+
+	cloneRemovedRemote.OnClientEvent:Connect(function(clone)
+		man:RemoveClone(clone)
 	end)
 
 	return man

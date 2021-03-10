@@ -23,6 +23,8 @@ local RESERVED_COMPONENT_NAMES = {
 	Groups = true;
 }
 local RET_TRUE = function() return true end
+local IS_SERVER = game:GetService("RunService"):IsServer()
+local EMPTY_TABLE = {}
 
 local function getGroups(instance, groups)
 	local instanceGroups = (ComponentsUtils.getGroups(instance) or groups)
@@ -59,6 +61,7 @@ function ComponentsManager.new(filter)
 	return setmetatable({
 		ComponentAdded = Event.new();
 		ComponentRemoved = Event.new();
+		CloneRemoved = Event.new();
 
 		_srcs = {};
 		_componentHolders = {};
@@ -68,6 +71,7 @@ function ComponentsManager.new(filter)
 		_pInstanceToPrototypes = {};
 		_prototypeToClone = {};
 		_groups = {};
+		_unsafeInstanceToOldParent = {};
 
 		_filter = filter or RET_TRUE
 	}, ComponentsManager)
@@ -197,6 +201,11 @@ end
 
 -- Hard resets the manager.
 function ComponentsManager:Reload(root)
+	for instance, oldParent in next, self._unsafeInstanceToOldParent do
+		instance.Parent = oldParent
+	end
+	table.clear(self._unsafeInstanceToOldParent)
+
 	self:Stop()
 
 	assert(next(self._cloneProfiles) == nil, NOT_DESTRUCTED_ERR)
@@ -205,6 +214,37 @@ function ComponentsManager:Reload(root)
 	assert(next(self._groups) == nil, NOT_DESTRUCTED_ERR)
 
 	self:Init(root)
+end
+
+
+-- Fixes any potentially dangerous configurations, such as a server only component with a modulescript.
+function ComponentsManager:PrePass(root)
+	if not IS_SERVER then return end
+
+	local tags = {}
+	for tag in next, self._srcs do
+		table.insert(tags, tag)
+	end
+
+	for instance, iTags in next, ComponentsUtils.getTaggedInstancesFromRoot(tags, root) do
+		if not CollectionService:HasTag(instance, "OnlyServer") then continue end
+		
+		for tag in next, iTags do
+			for _, value in next, ComponentsUtils.getConfigFromInstance(instance, tag) do
+				if typeof(value) == "Instance" and value:IsA("ModuleScript") then
+					local oldParent = value.Parent
+
+					local pointer = Instance.new("ObjectValue")
+					pointer.Value = value
+					pointer.Name = value.Name
+					pointer.Parent = value.Parent
+
+					value.Parent = nil
+					self._unsafeInstanceToOldParent[value] = oldParent
+				end
+			end
+		end
+	end
 end
 
 
@@ -344,11 +384,19 @@ end
 
 -- WARNING: If no components were added to this instance before calling, the clean prototype
 -- will be a clone of the instance. This is so it can maintain its identity.
-function ComponentsManager:AddComponent(instance, name, shouldRespawn, config, groups)
+function ComponentsManager:AddComponent(instance, name, keywords, config, groups)
+	keywords = keywords or EMPTY_TABLE
+
 	local synced = not not instance:GetAttribute("CompositeClone")
-	local profile = self:_getOrMakeCloneProfile(instance, synced, shouldRespawn, groups)
+	local profile = self:_getOrMakeCloneProfile(instance, synced, keywords.respawn, groups)
 	if profile:HasComponent(name) then
 		return
+	end
+
+	if keywords.onlyServer and IS_SERVER then
+		CollectionService:AddTag(instance, "OnlyServer")
+		CollectionService:AddTag(instance, name)
+		self:PrePass(instance)
 	end
 
 	self._componentHolders[name]:AddComponent(instance, config, synced)
@@ -613,30 +661,6 @@ function ComponentsManager:GetCloneProfileFromPrototype(instance)
 end
 
 
-function ComponentsManager:_removeInstanceFromTables(instance)
-	local profile = self._cloneProfiles[instance]
-
-	for compName in next, profile:GetComponentsHash() do
-		self:RemoveComponent(instance, compName)
-	end
-
-	for groupName in next, profile:GetGroupsHash() do
-		local group = self:GetGroup(groupName)
-		group:Remove(instance)
-	end
-
-	self._cloneProfiles[instance] = nil
-	self._prototypeToClone[profile.prototype.instance] = nil
-
-	-- Clear entire instance if it should not be respawned.
-	if not profile.prototype.shouldRespawn then
-		self._pInstanceToPrototypes[profile.prototype.instance] = nil
-	end
-
-	profile:Destruct()
-end
-
-
 function ComponentsManager:_getOrMakeGroup(groupName)
 	local group = self:GetGroup(groupName)
 	if group == nil then
@@ -703,12 +727,39 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, shouldResp
 end
 
 
+function ComponentsManager:_removeInstanceFromTables(instance)
+	local profile = self._cloneProfiles[instance]
+
+	for compName in next, profile:GetComponentsHash() do
+		self:RemoveComponent(instance, compName)
+	end
+
+	for groupName in next, profile:GetGroupsHash() do
+		local group = self:GetGroup(groupName)
+		group:Remove(instance)
+	end
+
+	self._cloneProfiles[instance] = nil
+	self._prototypeToClone[profile.prototype.instance] = nil
+
+	-- Clear entire instance if it should not be respawned.
+	if not profile.prototype.shouldRespawn then
+		self._pInstanceToPrototypes[profile.prototype.instance] = nil
+	end
+
+	profile:Destruct()
+end
+
+
 function ComponentsManager:RemoveClone(clone)
+	if not self._cloneProfiles[clone] then return end
+
 	self:_removeInstanceFromTables(clone)
 	-- This should not affect replication (i.e instance != nil on remotes fired immediately after).
 	clone.Parent = nil
 
 	clone:SetAttribute("CompositeClone", nil)
+	self.CloneRemoved:Fire(clone)
 end
 
 

@@ -63,6 +63,10 @@ function ServerComponentsService:AddManager(manName)
 	removeCompRemote.Name = "ComponentRemoved"
 	removeCompRemote.Parent = entryFdr
 
+	local cloneRemovedRemote = Instance.new("RemoteEvent")
+	cloneRemovedRemote.Name = "CloneRemoved"
+	cloneRemovedRemote.Parent = entryFdr
+
 	entryFdr.Parent = self._manFdr
 
 	-- Client can get the public members from the instance.
@@ -82,6 +86,10 @@ function ServerComponentsService:AddManager(manName)
 			-- print("Remove replicating", instance, name)
 			removeCompRemote:FireAllClients(instance, name)
 		end
+	end)
+
+	man.ComponentRemoved:Connect(function(clone)
+		cloneRemovedRemote:FireAllClients(clone)
 	end)
 
 	return man

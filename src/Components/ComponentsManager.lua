@@ -81,6 +81,11 @@ end
 -- To be used when you aren't using Composite anymore on its area of influence, such as when switching maps.
 -- Completely purges Composite side effects from the DataModel.
 function ComponentsManager:Stop()
+	for instance, oldParent in next, self._unsafeInstanceToOldParent do
+		instance.Parent = oldParent
+	end
+	table.clear(self._unsafeInstanceToOldParent)
+	
 	for instance, profile in next, self._cloneProfiles do
 		for compName in next, profile:GetComponentsHash() do
 			self:RemoveComponent(instance, compName)
@@ -201,11 +206,6 @@ end
 
 -- Hard resets the manager.
 function ComponentsManager:Reload(root)
-	for instance, oldParent in next, self._unsafeInstanceToOldParent do
-		instance.Parent = oldParent
-	end
-	table.clear(self._unsafeInstanceToOldParent)
-
 	self:Stop()
 
 	assert(next(self._cloneProfiles) == nil, NOT_DESTRUCTED_ERR)

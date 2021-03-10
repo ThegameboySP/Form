@@ -104,35 +104,14 @@ function ComponentsUtils.mergeConfig(instance, name, mergeConfig)
 end
 
 
-function ComponentsUtils.getGroupsFolder(instance)
-	local configuration = instance:FindFirstChild("Configuration")
-	if configuration == nil then
-		return nil
-	end
-
-	local groupsFolder = configuration:FindFirstChild("Groups")
-	return groupsFolder
-end
-
-
 local function getGroupsForInstance(instance)
 	local groups = {}
 	
 	for attributeName, value in next, instance:GetAttributes() do
 		if attributeName:sub(1, #GROUP_PREFIX) == GROUP_PREFIX then
 			if value ~= true then return end
-			groups[attributeName:sub(16, -1)] = true
+			groups[attributeName:sub(#GROUP_PREFIX + 1, -1)] = true
 		end
-	end
-
-	local groupsFolder = ComponentsUtils.getGroupsFolder(instance)
-	if groupsFolder == nil then
-		return groups
-	end
-
-	for _, child in next, groupsFolder:GetChildren() do
-		if child.Value ~= true then continue end
-		groups[child.Name] = true
 	end
 
 	return groups

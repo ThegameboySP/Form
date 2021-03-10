@@ -38,10 +38,10 @@ return function()
 			end).to.throw()
 		end)
 
-		local root = Instance.new("BoolValue")
-		CollectionService:AddTag(root, "Test")
-
 		it("should generate 1 prototype from root", function()
+			local root = Instance.new("BoolValue")
+			CollectionService:AddTag(root, "Test")
+
 			local prototypes = ComponentsManager.generatePrototypesFromRoot({"Test"}, root)
 			local cnt = 0
 			for _ in next, prototypes do
@@ -52,6 +52,9 @@ return function()
 		end)
 
 		it("should generate 3 prototypes from root", function()
+			local root = Instance.new("BoolValue")
+			CollectionService:AddTag(root, "Test")
+
 			CollectionService:AddTag( Instance.new("BoolValue", root), "Test" )
 			CollectionService:AddTag( Instance.new("BoolValue", root), "Test" )
 
@@ -401,6 +404,30 @@ return function()
 
 			expect(#CollectionService:GetTags(instance)).to.equal(1)
 			expect(#folder:GetChildren()).to.equal(1)
+		end)
+
+		it("PrePass: should replace ModuleScripts with ObjectValues and put back once :Stop'ped", function()
+			local instance = Instance.new("BoolValue")
+			local config = Instance.new("Configuration")
+			local fdr = Instance.new("Folder")
+			fdr.Name = "TestComponent"
+			fdr.Parent = config
+
+			local module = Instance.new("ModuleScript")
+			module.Parent = fdr
+
+			config.Parent = instance
+
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			man:AddComponent(instance, "TestComponent", {onlyServer = true})
+
+			expect(module.Parent).to.never.equal(fdr)
+
+			man:Stop()
+
+			expect(module.Parent).to.equal(fdr)
 		end)
 	end)
 

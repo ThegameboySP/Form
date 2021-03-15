@@ -44,6 +44,15 @@ function BaseComponent.bindToModule(module, module2)
 end
 
 
+function BaseComponent.getBoundModule(instance, modName)
+	local module = instance:FindFirstChild(modName) or instance.Parent:FindFirstChild(modName)
+	if module == nil then
+		error(("No module found: %s"):format(instance:GetFullName()))
+	end
+	return require(module)
+end
+
+
 function BaseComponent:extend(name)
 	local newClass = setmetatable({
 		ComponentName = name;

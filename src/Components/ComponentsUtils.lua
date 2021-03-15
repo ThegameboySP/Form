@@ -4,6 +4,17 @@ local ComponentsUtils = {}
 
 local GROUP_PREFIX = "CompositeGroup_"
 
+local function getOrMakeGroupFolder(instance)
+	local folder = instance:FindFirstChild("CompositeGroups")
+	if folder == nil then
+		folder = Instance.new("Folder")
+		folder.Name = "CompositeGroups"
+		folder.Parent = instance
+	end
+
+	return folder
+end
+
 function ComponentsUtils.getBaseComponentName(name)
 	local base = name
     local prefix = base:sub(1, 2)
@@ -41,6 +52,25 @@ function ComponentsUtils.getAncestorInstanceTag(instance, tagName)
 end
 
 
+function ComponentsUtils.getOrMakeConfigFolderFromInstance(instance, name)
+	local configuration = instance:FindFirstChild("Configuration")
+	if configuration == nil then
+		configuration = Instance.new("Configuration")
+		configuration.Parent = instance
+		CollectionService:AddTag(configuration, "CompositeCrap")
+	end
+
+	local configFolder = configuration:FindFirstChild(name)
+	if configFolder == nil then
+		configFolder = Instance.new("Folder")
+		configFolder.Name = name
+		configFolder.Parent = configuration
+	end
+
+	return configFolder
+end
+
+
 function ComponentsUtils.getConfigFromInstance(instance, name)
 	local config = {}
 	local namespace = name .. "_"
@@ -74,6 +104,50 @@ function ComponentsUtils.getConfigFromInstance(instance, name)
 	end
 
 	return config
+end
+
+
+function ComponentsUtils.updateInstanceConfig(instance, name, config)
+	local currentConfig = ComponentsUtils.getConfigFromInstance(instance, name)
+	for configName, value in next, currentConfig do
+		if config[configName] ~= nil then continue end
+
+		local typeOf = typeof(value)
+		if typeOf == "Instance" then
+			value:Destroy()
+		elseif typeOf == "CFrame" then
+			instance.Configuration:FindFirstChild(name):FindFirstChild(configName):Destroy()
+		else
+			instance:SetAttribute(configName, nil)
+		end
+	end
+
+	local configFolder
+	for configName, value in next, config do
+		if currentConfig[configName] == value then continue end
+
+		local typeOf = typeof(value)
+		if typeOf == "Instance" then
+			configFolder = configFolder or ComponentsUtils.getOrMakeConfigFolderFromInstance(instance, name)
+
+			local clone = value:Clone()
+			if clone == nil then
+				clone = Instance.new("ObjectValue")
+				clone.Value = value
+			end
+			clone.Name = configName
+			clone.Parent = configFolder
+		elseif typeOf == "CFrame" then
+			configFolder = configFolder or ComponentsUtils.getOrMakeConfigFolderFromInstance(instance, name)
+
+			local CFValue = Instance.new("CFrameValue")
+			CFValue.Name = configName
+			CFValue.Value = value
+			CFValue.Parent = configFolder
+		else
+			instance:SetAttribute(name .. "_" .. configName, value)
+		end
+	end
 end
 
 
@@ -127,6 +201,14 @@ function ComponentsUtils.getGroups(instance)
 			currentGroups
 		)
 
+		local folder = currentInstance:FindFirstChild("CompositeGroups")
+		if folder then
+			currentGroups = ComponentsUtils.shallowMerge(
+				getGroupsForInstance(folder),
+				currentGroups
+			)
+		end
+
 		currentInstance = currentInstance.Parent
 	end
 
@@ -146,6 +228,7 @@ function ComponentsUtils.getOrMakeStateFolder(instance)
 		fdr.Name = "ComponentsPublic"
 		fdr.Archivable = false
 		fdr.Parent = instance
+		CollectionService:AddTag(fdr, "CompositeCrap")
 	end
 
 	return fdr
@@ -176,6 +259,7 @@ function ComponentsUtils.getOrMakeComponentStateFolder(instance, name)
 		fdr.Name = "ComponentsPublic"
 		fdr.Archivable = false
 		fdr.Parent = instance
+		CollectionService:AddTag(fdr, "CompositeCrap")
 	end
 
 	local stateFdr = fdr:FindFirstChild(name)
@@ -211,15 +295,17 @@ end
 
 
 function ComponentsUtils.updateInstanceGroups(instance, newGroups, oldGroups)
+	local folder = getOrMakeGroupFolder(instance)
+
 	for name in next, oldGroups do
 		if not newGroups[name] then
-			instance:SetAttribute(GROUP_PREFIX .. name, nil)
+			folder:SetAttribute(GROUP_PREFIX .. name, nil)
 		end
 	end
 
 	for name in next, newGroups do
 		if not oldGroups[name] then
-			instance:SetAttribute(GROUP_PREFIX .. name, true)
+			folder:SetAttribute(GROUP_PREFIX .. name, true)
 		end
 	end
 
@@ -317,10 +403,11 @@ end
 
 
 function ComponentsUtils.subscribeGroups(instance, callback)
-	local con = instance.AttributeChanged:Connect(function(attrName)
+	local folder = getOrMakeGroupFolder(instance)
+	local con = folder.AttributeChanged:Connect(function(attrName)
 		if attrName:sub(1, #GROUP_PREFIX) ~= GROUP_PREFIX then return end
 		
-		local isInGroup = not not instance:GetAttribute(attrName)
+		local isInGroup = not not folder:GetAttribute(attrName)
 		callback(attrName:sub(#GROUP_PREFIX + 1, -1), isInGroup)
 	end)
 
@@ -332,7 +419,9 @@ end
 
 function ComponentsUtils.subscribeGroupsAnd(instance, callback)
 	local destruct = ComponentsUtils.subscribeGroups(instance, callback)
-	for attrName, value in next, instance:GetAttributes() do
+	local folder = getOrMakeGroupFolder(instance)
+
+	for attrName, value in next, folder:GetAttributes() do
 		if attrName:sub(1, #GROUP_PREFIX) ~= GROUP_PREFIX then return end
 
 		local isInGroup = not not value
@@ -375,6 +464,16 @@ function ComponentsUtils.valueObjectFromType(typeOf)
 end
 
 
+function ComponentsUtils.removeCompositeMutation(instance)
+	local folder = instance:FindFirstChild("CompositeGroups")
+	if folder then
+		folder:Destroy()
+	end
+
+
+end
+
+
 function ComponentsUtils.shallowCopy(tbl)
 	local newTbl = {}
 	for k, v in next, tbl do
@@ -409,6 +508,17 @@ function ComponentsUtils.shallowCompare(tbl1, tbl2)
 	end
 
 	return true
+end
+
+
+function ComponentsUtils.isInTable(tbl, value)
+	for _, v in next, tbl do
+		if v == value then
+			return true
+		end
+	end
+
+	return false
 end
 
 

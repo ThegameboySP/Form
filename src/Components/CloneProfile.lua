@@ -11,6 +11,7 @@ function CloneProfile.new(clone, prototype, synced)
 		clone = clone;
 		prototype = prototype;
 		synced = synced;
+		unsafeConfigMap = {};
 
 		_components = {};
 		_groups = {};

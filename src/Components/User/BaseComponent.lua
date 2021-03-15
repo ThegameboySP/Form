@@ -1,5 +1,6 @@
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
 
 local Maid = require(script.Parent.Parent.Modules.Maid)
 local Event = require(script.Parent.Parent.Modules.Event)
@@ -9,35 +10,37 @@ local UserUtils = require(script.Parent.UserUtils)
 local FuncUtils = require(script.Parent.FuncUtils)
 
 local BaseComponent = {}
-BaseComponent.NetworkMode = ComponentsManager.NetworkMode.SERVER_CLIENT
-BaseComponent.ComponentName = "BaseComponent"
 BaseComponent.__index = BaseComponent
-BaseComponent.util = UserUtils
-BaseComponent.func = FuncUtils
 
 local IS_SERVER = RunService:IsServer()
+local ON_SERVER_ERROR = "Can only be called on the server!"
+local NO_REMOTE_ERROR = "No remote event under %s by name %s!"
+
+BaseComponent.ComponentName = "BaseComponent"
+BaseComponent.NetworkMode = ComponentsManager.NetworkMode.SERVER_CLIENT
+BaseComponent.util = UserUtils
+BaseComponent.func = FuncUtils
+BaseComponent.isServer = IS_SERVER
 
 function BaseComponent.getInterfaces()
 	return {}
 end
 
 function BaseComponent.new(instance, config)
-	local remoteEvents = instance:FindFirstChild("RemoteEvents")
-	if remoteEvents == nil then
-		remoteEvents = Instance.new("Folder")
-		remoteEvents.Name = "RemoteEvents"
-		remoteEvents.Parent = instance
-	end
-
 	return setmetatable({
 		instance = instance;
 		maid = Maid.new();
 		config = config;
 		player = Players.LocalPlayer;
 
-		_remoteEvents = remoteEvents;
 		_events = {};
 	}, BaseComponent)
+end
+
+
+function BaseComponent.bindToModule(module, module2)
+	module2.Parent = module
+	return require(module2)
 end
 
 
@@ -147,6 +150,9 @@ end
 
 
 function BaseComponent:registerRemoteEvents(remotes)
+	assert(IS_SERVER, ON_SERVER_ERROR)
+
+	local folder = getOrMakeRemoteEventFolder(self.instance)
 	for k, v in next, remotes do
 		local remote = Instance.new("RemoteEvent")
 
@@ -157,15 +163,65 @@ function BaseComponent:registerRemoteEvents(remotes)
 			remote.Name = v
 		end
 
-		remote.Parent = self._remoteEvents
+		remote.Parent = folder
 	end
 end
 
 
+function BaseComponent:_getRemoteEventFolderOrSignal()
+	local folder = self.instance:FindFirstChild("RemoteEvents")
+	if folder then
+		return folder
+	end
+
+	local bindable = Instance.new("BindableEvent")
+	local id
+	local con = self.maid:GiveTask(self.instance.ChildAdded:Connect(function(child)
+		if child.Name == "RemoteEvents" and child:IsA("Folder") then
+			bindable:Fire()
+			self.maid[id] = nil
+		end
+	end))
+
+	id = self.maid:GiveTask(function()
+		con:Disconnect()
+		bindable:Destroy()
+	end)
+
+	return bindable.Event
+end
+
+
+function BaseComponent:waitForRemoteEvents()
+	local result = self:_getRemoteEventFolderOrSignal()
+	if result:IsA("Folder") then
+		return result
+	end
+
+	return result:Wait()
+end
+
+
+function BaseComponent:bindOnRemoteEvents(handler)
+	local result = self:_getRemoteEventFolderOrSignal()
+	if result:IsA("Folder") then
+		return handler(result)
+	end
+
+	-- No need to wrap in maid here, since bindable is already maided.
+	result:Connect(handler)
+end
+
+
+function BaseComponent:areRemoteEventsLoaded()
+	return self.instance:FindFirstChild("RemoteEvents") ~= nil
+end
+
+
 function BaseComponent:fireAllClients(eventName, ...)
-	local remote = self._remoteEvents:FindFirstChild(eventName)
+	local remote = getOrMakeRemoteEventFolder(self.instance):FindFirstChild(eventName)
 	if remote == nil then
-		error(("No remote event under %s by name %s!"):format(self.instance:GetFullName(), remote.Name))
+		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), remote.Name))
 	end
 
 	remote:FireAllClients(...)
@@ -173,9 +229,9 @@ end
 
 
 function BaseComponent:fireServer(eventName, ...)
-	local remote = self._remoteEvents:FindFirstChild(eventName)
+	local remote = getRemoteEventFolderOrError(self.instance):FindFirstChild(eventName)
 	if remote == nil then
-		error(("No remote event under %s by name %s!"):format(self.instance:GetFullName(), remote.Name))
+		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), remote.Name))
 	end
 
 	remote:FireServer(...)
@@ -183,11 +239,20 @@ end
 
 
 function BaseComponent:connectRemoteEvent(eventName, handler)
+	-- Wait a frame, as remote event connections can fire immediately if in queue.
 	return self:spawnNextFrame(function()
 		if IS_SERVER then
-			self.maid:GiveTask(self._remoteEvents:WaitForChild(eventName).OnServerEvent:Connect(handler))
+			self.maid:GiveTask(
+				getOrMakeRemoteEventFolder(self.instance)
+				:WaitForChild(eventName)
+				.OnServerEvent:Connect(handler)
+			)
 		else
-			self.maid:GiveTask(self._remoteEvents:WaitForChild(eventName).OnClientEvent:Connect(handler))
+			self.maid:GiveTask(
+				getRemoteEventFolderOrError(self.instance)
+				:WaitForChild(eventName)
+				.OnClientEvent:Connect(handler)
+			)
 		end
 	end)
 end
@@ -291,8 +356,28 @@ end
 
 
 function BaseComponent:getConfig(instance, compName)
-	assert(instance, "No instance!")
+	assert(typeof(instance) == "Instance", "No instance!")
 	return ComponentsUtils.getConfigFromInstance(instance, compName)
+end
+
+function getOrMakeRemoteEventFolder(instance)
+	assert(IS_SERVER, ON_SERVER_ERROR)
+
+	local remoteEvents = instance:FindFirstChild("RemoteEvents")
+	if remoteEvents == nil then
+		remoteEvents = Instance.new("Folder")
+		remoteEvents.Name = "RemoteEvents"
+		remoteEvents.Parent = instance
+		
+		CollectionService:AddTag(remoteEvents, "CompositeCrap")
+	end
+
+	return remoteEvents
+end
+
+function getRemoteEventFolderOrError(instance)
+	local fullName = instance:GetFullName()
+	return instance:FindFirstChild("RemoteEvents") or error("No remote event folder under instance: " .. fullName)
 end
 
 return BaseComponent

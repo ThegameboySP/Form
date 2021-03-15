@@ -21,8 +21,14 @@ local filters = {
 	hasAComponent = function(instance)
 		return not not instance:GetAttribute("CompositeClone")
 	end;
+	hasTag = function(instance, tag)
+		return CollectionService:HasTag(instance, tag)
+	end;
 	isA = function(instance, className)
 		return instance:IsA(className)
+	end;
+	hasProperty = function(instance, name, value)
+		return instance[name] == value
 	end;
 }
 

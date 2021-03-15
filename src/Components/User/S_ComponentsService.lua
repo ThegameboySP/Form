@@ -98,6 +98,7 @@ end
 
 function ServerComponentsService:RegisterComponent(src)
 	local name = src.ComponentName
+	if name == nil then return end
 	assert(name:sub(1, 2) ~= "C_", "Cannot register a client component on the server!")
 
 	local compName = ComponentsUtils.getBaseComponentName(name)
@@ -115,6 +116,7 @@ function ServerComponentsService:RegisterComponentsInFolder(folder)
 	for _, instance in next, folder:GetChildren() do
 		if instance:IsA("ModuleScript") then
 			local src = require(instance)
+			if src.ComponentName == nil then continue end
 			if src.ComponentName:sub(1, 2) == "C_" then continue end
 
 			self:RegisterComponent(src)

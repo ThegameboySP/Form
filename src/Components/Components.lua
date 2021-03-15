@@ -3,7 +3,6 @@ local CollectionService = game:GetService("CollectionService")
 
 local ComponentsUtils = require(script.Parent.ComponentsUtils)
 local t = require(script.Parent.Modules.t)
-local Event = require(script.Parent.Modules.Event)
 local TimeCycle = require(script.Parent.TimeCycle)
 
 local Components = {}
@@ -15,9 +14,6 @@ local NO_COMPONENT_ERROR = "Instance %q does not have component %q!"
 function Components.new(man, src, name)
 	local interfaces = src.getInterfaces(t)
 	return setmetatable({
-		ComponentAdded = Event.new();
-		ComponentRemoved = Event.new();
-
 		_manager = man;
 		_src = src;
 		_name = name or error("No component name!");
@@ -195,8 +191,6 @@ function Components:AddComponent(instance, config, synced)
 	self:InitComponent(instance)
 	self:RunComponentMain(instance)
 
-	self.ComponentAdded:Fire(instance, newConfig)
-
 	return newConfig
 end
 
@@ -208,8 +202,6 @@ function Components:RemoveComponent(instance)
 	local ok, err = pcall(self._src.Destroy, component)
 
 	self._components[instance] = nil
-
-	self.ComponentRemoved:Fire(instance)
 
 	if not ok then
 		error(ERRORED:format(instance:GetFullName(), err, ":Destroy"))

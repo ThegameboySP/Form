@@ -8,6 +8,8 @@ local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
 local ClientComponentsService = {}
 ClientComponentsService.__index = ClientComponentsService
 
+local ADD_COMPONENT_KEYWORDS = {componentMode = "Overlay"}
+
 function ClientComponentsService.new()
 	local self
 	self = setmetatable({
@@ -81,7 +83,7 @@ function ClientComponentsService:AddManager(manName)
 		end
 
 		-- print("Adding", instance, moduleName)
-		man:AddComponent(instance, moduleName, {respawn = false}, config, groups)
+		man:AddComponent(instance, moduleName, config, ADD_COMPONENT_KEYWORDS, groups)
 	end)
 
 	removeCompRemote.OnClientEvent:Connect(function(instance, name)
@@ -107,6 +109,8 @@ end
 
 function ClientComponentsService:RegisterComponent(src)
 	local name = src.ComponentName
+	if name == nil then return end
+	
 	assert(name:sub(1, 2) ~= "S_", "Cannot register a server component on the client!")
 	local compName = ComponentsUtils.getBaseComponentName(name)
 	assert(self._srcs[compName] == nil, "Already registered component!")
@@ -123,6 +127,7 @@ function ClientComponentsService:RegisterComponentsInFolder(folder)
 	for _, instance in next, folder:GetChildren() do
 		if instance:IsA("ModuleScript") then
 			local src = require(instance)
+			if src.ComponentName == nil then continue end
 			if src.ComponentName:sub(1, 2) == "S_" then continue end
 
 			self:RegisterComponent(src)

@@ -81,10 +81,17 @@ end
 
 
 function UserUtils.getPlayer(part)
+	local char = UserUtils.getCharacter(part)
+	if char == nil then return end
+	return Players:GetPlayerFromCharacter(part.Parent)
+end
+
+
+
+function UserUtils.getCharacter(part)
 	local hum = part.Parent and part.Parent:FindFirstChild("Humanoid")
 	if not hum then return end
-
-	return Players:GetPlayerFromCharacter(part.Parent)
+	return part.Parent
 end
 
 

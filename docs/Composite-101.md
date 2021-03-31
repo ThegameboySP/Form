@@ -59,6 +59,7 @@ To share interfaces between the server and client without any code duplication, 
 return {
 	getInterfaces = function(t)
 		return {
+			-- You can also safely use the curly brace syntactic sugar here: choose which style you like best.
 			IConfiguration = t.strictInterface {
 				DespawnTime = t.number;
 			};
@@ -218,15 +219,15 @@ local collection = ManagerCollection.new() -- It's recommended to create only on
 collection:AddManagers(man, man2)
 ```
 
-From here, the collection will receive events from all managers:
+From here, the collection will receive and fire events from all added managers:
 ```lua
-collection:ConnectComponentEvent(instance, "SomeComponent", "Event", print)
-collection:FireComponentEvent(instance, "SomeComponent", "Event", "Hello world!") --> output: Hello world!
+collection:ConnectEvent(instance, "SomeComponent", "Event", print)
+collection:FireEvent(instance, "SomeComponent", "Event", "Hello world!") -- output: Hello world!
 ```
 
-And will grant the ability to get the components of other managers:
+And will grant the ability to get the components of all added managers:
 ```lua
-print(collection:GetComponent(instance, "SomeComponent") ~= nil) --> output: true
+print(collection:GetComponent(instance, "SomeComponent") ~= nil) --> true
 ```
 
 There's a bit of a footnote here, though. If there are multiple managers who provide the same component to the same instance, only the authoritative (i.e. first non-synchronized) one will be returned.

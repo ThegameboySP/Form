@@ -1,132 +1,147 @@
----	Manages the cleaning of events and other things.
--- Useful for encapsulating state and make deconstructors easy
--- @classmod Maid
--- @see Signal
-
 local Maid = {}
 Maid.ClassName = "Maid"
 
---- Returns a new Maid object
--- @constructor Maid.new()
--- @treturn Maid
+local TYPE_TO_DESTRUCT_METHOD = {
+	["function"] = function(task)
+		return task
+	end;
+	["table"] = function(task)
+		return task.Destroy
+	end;
+	["RBXScriptConnection"] = function(task)
+		return task.Disconnect
+	end;
+	["Instance"] = function(task)
+		return task.Destroy
+	end;
+}
+
 function Maid.new()
 	return setmetatable({
-		_tasks = {}
+		_tasks = {};
 	}, Maid)
 end
+
 
 function Maid.isMaid(value)
 	return type(value) == "table" and value.ClassName == "Maid"
 end
 
---- Returns Maid[key] if not part of Maid metatable
--- @return Maid[key] value
-function Maid:__index(index)
-	if Maid[index] then
-		return Maid[index]
+
+function Maid:__index(k)
+	if Maid[k] then return Maid[k] end
+
+	local task = self._tasks[k]
+	return task and task[1] or nil
+end
+
+
+function Maid:__newindex(k, v)
+	if v == nil then
+		self:Remove(k)
 	else
-		return self._tasks[index]
+		self:GiveTask(v, nil, k)
 	end
 end
 
---- Add a task to clean up. Tasks given to a maid will be cleaned when
---  maid[index] is set to a different value.
--- @usage
--- Maid[key] = (function)         Adds a task to perform
--- Maid[key] = (event connection) Manages an event connection
--- Maid[key] = (Maid)             Maids can act as an event connection, allowing a Maid to have other maids to clean up.
--- Maid[key] = (Object)           Maids can cleanup objects with a `Destroy` method
--- Maid[key] = nil                Removes a named task. If the task is an event, it is disconnected. If it is an object,
---                                it is destroyed.
-function Maid:__newindex(index, newTask)
-	if Maid[index] ~= nil then
-		error(("'%s' is reserved"):format(tostring(index)), 2)
-	end
 
-	local tasks = self._tasks
-	local oldTask = tasks[index]
-
-	if oldTask == newTask then
-		return
-	end
-
-	tasks[index] = newTask
-
-	if oldTask then
-		if type(oldTask) == "function" then
-			oldTask()
-		elseif typeof(oldTask) == "RBXScriptConnection" then
-			oldTask:Disconnect()
-		elseif oldTask.Destroy then
-			oldTask:Destroy()
-		end
-	end
-end
-
---- Same as indexing, but uses an incremented number as a key.
--- @param task An item to clean
--- @treturn number taskId
-function Maid:GiveTask(task)
-	if not task then
-		error("Task cannot be false or nil", 2)
-	end
-
-	local taskId = #self._tasks+1
-	self[taskId] = task
-
-	if type(task) == "table" and (not task.Destroy) then
-		warn("[Maid.GiveTask] - Gave table task without .Destroy\n\n" .. debug.traceback())
-	end
-
-	return taskId
-end
-
-function Maid:GivePromise(promise)
-	if not promise:IsPending() then
-		return promise
-	end
-
-	local newPromise = promise.resolved(promise)
-	local id = self:GiveTask(newPromise)
-
-	-- Ensure GC
-	newPromise:Finally(function()
-		self[id] = nil
-	end)
-
-	return newPromise
-end
-
---- Cleans up all tasks.
--- @alias Destroy
+-- Cleans and clears all tasks within the maid.
 function Maid:DoCleaning()
 	local tasks = self._tasks
+	local index = next(tasks)
 
-	-- Disconnect all events first as we know this is safe
-	for index, task in pairs(tasks) do
-		if typeof(task) == "RBXScriptConnection" then
-			tasks[index] = nil
-			task:Disconnect()
-		end
+	-- Removes all tasks from the maid. next(tbl) without the key ensures
+	-- any tasks added to the maid during cleaning will be caught.
+	while index ~= nil do
+		self:Remove(index)
+		index = next(tasks)
 	end
 
-	-- Clear out tasks table completely, even if clean up tasks add more tasks to the maid
-	local index, task = next(tasks)
-	while task ~= nil do
-		tasks[index] = nil
-		if type(task) == "function" then
-			task()
-		elseif typeof(task) == "RBXScriptConnection" then
-			task:Disconnect()
-		elseif task.Destroy then
-			task:Destroy()
-		end
-		index, task = next(tasks)
+	return self
+end
+Maid.Destroy = Maid.DoCleaning
+
+
+-- Adds a task to the maid.
+-- If using id argument and it already exists, the task will be cleaned, unless the old task is equal to the new.
+function Maid:GiveTask(task, destructorName, id)
+	assert(destructorName == nil or type(destructorName) == "string", "Expected nil or string")
+	assert(task ~= self, "Cannot add self to maid")
+
+	local tTypeOf = typeof(task)
+	local tType = type(task)
+	local getDefDestruct = TYPE_TO_DESTRUCT_METHOD[tTypeOf]
+
+	if destructorName and tType ~= "table" and tType ~= "userdata" then
+		error(("Invalid type %q for a manual destructor name"):format(tType), 2)
 	end
+
+	if getDefDestruct == nil then
+		error(("Gave unmaidable type %q"):format(tTypeOf), 2)
+	end
+
+	local resolvedDestruct = (destructorName == nil and getDefDestruct(task)) or (destructorName and task[destructorName])
+	if resolvedDestruct == nil then
+		error(("Task type %q does not have the required destruct function"):format(tTypeOf), 2)
+	end
+
+	if Maid[id] ~= nil then
+		error(("%q is a reserved id"):format(tostring(id)), 2)
+	end
+
+	local tasks = self._tasks
+	local oldTask = id and tasks[id]
+	
+	if oldTask and task == oldTask[1] then return end
+	if oldTask then
+		self:Remove(id)
+	end
+
+	id = id or #tasks + 1
+	tasks[id] = {task, resolvedDestruct}
+
+	return id
 end
 
---- Alias for DoCleaning()
--- @function Destroy
-Maid.Destroy = Maid.DoCleaning
+
+-- Declarative sugar.
+function Maid:Add(task, destructorName, id)
+	self:GiveTask(task, destructorName, id)
+	return task
+end
+
+
+-- Declarative sugar for adding multiple tasks in a go.
+function Maid:GiveTasks(tasks)
+	local ids = {}
+	for key, task in next, tasks do
+		if type(key) == "number" then
+			ids[self:GiveTask(task)] = task
+		else
+			ids[self:GiveTask(task, nil, key)] = task
+		end
+	end
+
+	return self, ids
+end
+
+
+-- Removes and cleans a task from the maid.
+function Maid:Remove(taskId, ...)
+	local entry = self._tasks[taskId]
+	if entry == nil then return end
+
+	local task = entry[1]
+	local destruct = entry[2]
+
+	self._tasks[taskId] = nil
+
+	if destruct == task then
+		return destruct(...)
+	else
+		return destruct(task, ...)
+	end
+end
+Maid.RemoveTask = Maid.Remove
 
 return Maid

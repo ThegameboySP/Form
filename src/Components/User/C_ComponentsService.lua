@@ -52,6 +52,11 @@ function ClientComponentsService:GetManager(manName)
 end
 
 
+function ClientComponentsService:GetManagers()
+	return self._managers
+end
+
+
 function ClientComponentsService:AddManager(manName)
 	if self._managers[manName] then
 		error(("There is already a manager by the name %q!"):format(manName))
@@ -72,6 +77,8 @@ function ClientComponentsService:AddManager(manName)
 	-- Since replication happens in order, and ComponentAdded fires last, 
 	-- we should never have to wait for required instances.
 	addCompRemote.OnClientEvent:Connect(function(instance, name, config, groups)
+		if instance == nil then return end
+
 		local compName = ComponentsUtils.getBaseComponentName(name)
 		if not self._filter(instance, compName) then return end
 		
@@ -87,6 +94,8 @@ function ClientComponentsService:AddManager(manName)
 	end)
 
 	removeCompRemote.OnClientEvent:Connect(function(instance, name)
+		if instance == nil then return end
+		
 		local compName = ComponentsUtils.getBaseComponentName(name)
 		local moduleName
 		if self._srcs[compName] then

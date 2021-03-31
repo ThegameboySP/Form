@@ -260,8 +260,8 @@ function Components:ConnectEvent(instance, eventName, handler)
 	end
 
 	if not comp:hasEvent(eventName) then
-		error("No event by name of %s under instance %s for component %s")
-			:format(eventName, instance:GetFullName(), self._name)
+		error(("No event by name of %s under instance %s for component %s")
+			:format(eventName, instance:GetFullName(), self._name))
 	end
 
 	return comp:connectEvent(eventName, handler)

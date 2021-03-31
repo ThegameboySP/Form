@@ -29,6 +29,11 @@ function ServerComponentsService:GetManager(manName)
 end
 
 
+function ServerComponentsService:GetManagers()
+	return self._managers
+end
+
+
 function ServerComponentsService:AddManager(manName)
 	if self._managers[manName] then
 		error(("There is already a manager by the name %q!"):format(manName))
@@ -72,7 +77,7 @@ function ServerComponentsService:AddManager(manName)
 	-- Client can get the public members from the instance.
 	man.ComponentAdded:Connect(function(instance, name, config, groups)
 		local module = self._srcs[name]
-		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
+		if module.NetworkMode ~= ComponentsManager.NetworkMode.CLIENT then
 			-- print("Add replicating", instance, name)
 			CollectionService:AddTag(instance, "ServerComponent")
 
@@ -82,7 +87,7 @@ function ServerComponentsService:AddManager(manName)
 
 	man.ComponentRemoved:Connect(function(instance, name)
 		local module = self._srcs[name]
-		if module.NetworkMode == ComponentsManager.NetworkMode.SERVER_CLIENT then
+		if module.NetworkMode ~= ComponentsManager.NetworkMode.CLIENT then
 			-- print("Remove replicating", instance, name)
 			removeCompRemote:FireAllClients(instance, name)
 		end

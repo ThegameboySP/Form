@@ -21,4 +21,11 @@ function FuncUtils.filterFirst(map, filter)
 	return nil
 end
 
+
+function FuncUtils.forEach(map, func, ...)
+	for k, value in next, map do
+		func(value, k, ...)
+	end
+end
+
 return FuncUtils

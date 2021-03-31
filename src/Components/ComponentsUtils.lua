@@ -43,7 +43,7 @@ function ComponentsUtils.getAncestorInstanceTag(instance, tagName)
 	local currentInstance = instance
 
 	while currentInstance do
-		if CollectionService:HasTag(instance, tagName) then
+		if CollectionService:HasTag(currentInstance, tagName) then
 			return currentInstance
 		end
 		

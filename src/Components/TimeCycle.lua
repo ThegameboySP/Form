@@ -46,4 +46,9 @@ function TimeCycle:CalculatePercent(baseTime)
 	return ((baseTime * self._multiplier) % self._length) / self._length
 end
 
+
+function TimeCycle:GetIterations(baseTime)
+	return math.floor((baseTime * self._multiplier) / self._length)
+end
+
 return TimeCycle

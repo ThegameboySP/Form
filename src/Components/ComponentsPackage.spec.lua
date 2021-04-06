@@ -42,7 +42,7 @@ return function()
 			local root = Instance.new("BoolValue")
 			CollectionService:AddTag(root, "Test")
 
-			local prototypes = ComponentsManager.generatePrototypesFromRoot({"Test"}, root)
+			local prototypes = ComponentsManager.generatePrototypesFromRoot({"Test"}, root, ComponentsManager.ComponentMode.RESPAWN, {})
 			local cnt = 0
 			for _ in next, prototypes do
 				cnt += 1
@@ -58,7 +58,7 @@ return function()
 			CollectionService:AddTag( Instance.new("BoolValue", root), "Test" )
 			CollectionService:AddTag( Instance.new("BoolValue", root), "Test" )
 
-			local prototypes = ComponentsManager.generatePrototypesFromRoot({"Test"}, root)
+			local prototypes = ComponentsManager.generatePrototypesFromRoot({"Test"}, root, ComponentsManager.ComponentMode.RESPAWN, {})
 			local cnt = 0
 			for _ in next, prototypes do
 				cnt += 1
@@ -67,7 +67,7 @@ return function()
 			expect(cnt).to.equal(3)
 		end)
 
-		it("should make all components have Main group by default", function()
+		it("should make all components have Default group by default", function()
 			local man = ComponentsManager.new()
 			man:RegisterComponent(TestComponent)
 
@@ -78,28 +78,30 @@ return function()
 			man:RunAndMergeAll()
 
 			local profile = man:GetCloneProfileFromPrototype(instance)
-			expect(profile:IsInGroup("Main")).to.equal(true)
+			expect(profile:IsInGroup("Default")).to.equal(true)
 
 			local instance2 = Instance.new("BoolValue")
 			man:AddComponent(instance2, "TestComponent")
 
 			local profile2 = man:GetCloneProfile(instance2)
-			expect(profile2:IsInGroup("Main")).to.equal(true)
+			expect(profile2:IsInGroup("Default")).to.equal(true)
 		end)
 
-		it("should handle _getPrototypesFromGroups correctly", function()
+		it("should handle _getClonesFromGroups correctly", function()
 			local man = ComponentsManager.new()
 			man:RegisterComponent(TestComponent)
 
 			for _, group in next, {"one", "two", "three"} do
-				man:AddToGroup( man:AddComponent(Instance.new("BoolValue"), "TestComponent").clone, group)
+				local instance = Instance.new("BoolValue")
+				man:AddComponent(instance, "TestComponent")
+				man:AddToGroup(instance, group)
 			end
 
-			expect(#man:_getPrototypesFromGroups({one = true})).to.equal(1)
-			expect(#man:_getPrototypesFromGroups({one = true; two = true})).to.equal(2)
-			expect(#man:_getPrototypesFromGroups({one = true; two = true, three = true})).to.equal(3)
-			expect(#man:_getPrototypesFromGroups({Main = true})).to.equal(3)
-			expect(#man:_getPrototypesFromGroups({Main = true; one = true; two = true, three = true})).to.equal(3)
+			expect(#man:_getClonesFromGroups({one = true})).to.equal(1)
+			expect(#man:_getClonesFromGroups({one = true; two = true})).to.equal(2)
+			expect(#man:_getClonesFromGroups({one = true; two = true, three = true})).to.equal(3)
+			expect(#man:_getClonesFromGroups({Default = true})).to.equal(3)
+			expect(#man:_getClonesFromGroups({Default = true; one = true; two = true, three = true})).to.equal(3)
 		end)
 
 		it("should handle repeated AddToGroup and RemoveFromGroup calls without throwing", function()
@@ -129,7 +131,7 @@ return function()
 			man:AddComponent(instance, "TestComponent")
 			man:AddToGroup(instance, "Test")
 
-			man:RemoveFromGroup(instance, "Main")
+			man:RemoveFromGroup(instance, "Default")
 
 			expect(instance.Parent).to.be.ok()
 
@@ -144,13 +146,13 @@ return function()
 
 			local instance = Instance.new("BoolValue", folder)
 			man:AddComponent(instance, "TestComponent")
-			expect(ComponentsUtils.getGroups(instance).Main).to.equal(true)
+			expect(ComponentsUtils.getGroups(instance).Default).to.equal(true)
 
 			man:AddToGroup(instance, "Test")
 			expect(ComponentsUtils.getGroups(instance).Test).to.equal(true)
 
-			man:RemoveFromGroup(instance, "Main")
-			expect(ComponentsUtils.getGroups(instance).Main).to.equal(nil)
+			man:RemoveFromGroup(instance, "Default")
+			expect(ComponentsUtils.getGroups(instance).Default).to.equal(nil)
 
 			man:AddToGroup(instance, "Test2")
 			man:RemoveFromGroup(instance, "Test")
@@ -168,8 +170,8 @@ return function()
 			CollectionService:AddTag(instance, "TestComponent")
 
 			man:Init(folder)
-			man:RunAndMerge({
-				Main = true;
+			man:RunAndMergeInGroups({
+				Default = true;
 			})
 			man:AddToGroup(folder.Value, "Test")
 
@@ -181,8 +183,8 @@ return function()
 			man2:RegisterComponent(TestComponent)
 
 			man2:Init(folder)
-			man2:RunAndMerge({
-				Main = true;
+			man2:RunAndMergeInGroups({
+				Default = true;
 			})
 
 			local profile = man2:GetCloneProfile(folder.Value)
@@ -201,8 +203,8 @@ return function()
 			CollectionService:AddTag(instance, "TestComponent")
 
 			man:Init(folder)
-			man:RunAndMerge({
-				Main = true;
+			man:RunAndMergeInGroups({
+				Default = true;
 			})
 			man:AddToGroup(folder.Value, "Test")
 
@@ -212,8 +214,8 @@ return function()
 			man2:RegisterComponent(TestComponent)
 
 			man2:Init(folder)
-			man2:RunAndMerge({
-				Main = true;
+			man2:RunAndMergeInGroups({
+				Default = true;
 			})
 
 			local state1 = man:GetState(folder.Value, "TestComponent")
@@ -243,29 +245,30 @@ return function()
 			CollectionService:AddTag(instance, "TestComponent")
 
 			man:Init(folder)
-			man:RunAndMerge({
-				Main = true;
+			man:RunAndMergeInGroups({
+				Default = true;
 			})
 
 			expect(instance.Parent).to.equal(nil)
 			expect(folder:FindFirstChild("Value")).to.be.ok()
 		end)
 
-		it("Init: should delete a clone after all components are removed", function()
+		it("Init workflow: should delete a clone after all components are removed", function()
 			local man = ComponentsManager.new()
 			man:RegisterComponent(TestComponent)
 
 			local folder = Instance.new("Folder")
-			local instance = Instance.new("BoolValue", folder)
+			local instance = Instance.new("BoolValue")
+			instance.Name = "Test"
+			instance.Parent = folder
 
-			man:AddComponent(instance, "TestComponent", {
-				test = true;
-			})
-			expect(instance.Parent).to.never.equal(nil)
-			man:RemoveComponent(instance, "TestComponent")
-			expect(instance.Parent).to.equal(nil)
+			CollectionService:AddTag(instance, "TestComponent")
+			man:Init(instance)
+			man:RunAndMergeAll()
 
-			folder:Destroy()
+			expect(folder:FindFirstChild("Test")).to.be.ok()
+			man:Stop({folder.Test})
+			expect(folder:FindFirstChild("Test")).to.equal(nil)
 		end)
 
 		it("Init: should never initialize an instance that doesn't fit in IInstance", function()
@@ -314,18 +317,109 @@ return function()
 			expect(next(newComponents)).to.be.ok()
 		end)
 
+		it("RunAndMergeFilter: should run and merge with a filter", function()
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			local folder = Instance.new("Folder")
+			local instance = Instance.new("BoolValue")
+			instance.Name = "Test1"
+			instance.Parent = folder
+			local instance2 = Instance.new("BoolValue")
+			instance2.Parent = folder
+			instance2.Name = "Test2"
+
+			CollectionService:AddTag(instance, "TestComponent")
+			CollectionService:AddTag(instance2, "TestComponent")
+
+			man:Init(folder)
+			man:RunAndMergeFilter(function(prototype)
+				return prototype.instance.Name == "Test1"
+			end)
+
+			expect(folder:FindFirstChild("Test1")).to.be.ok()
+			expect(folder:FindFirstChild("Test2")).to.never.be.ok()
+
+			man:RunAndMergeFilter(function()
+				return true
+			end)
+
+			expect(folder:FindFirstChild("Test1")).to.be.ok()
+			expect(folder:FindFirstChild("Test2")).to.be.ok()
+		end)
+
+		it("DestroyClonesFilter: should destroy clones with a filter", function()
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			local folder = Instance.new("Folder")
+			local instance = Instance.new("BoolValue")
+			instance.Name = "Test1"
+			instance.Parent = folder
+			local instance2 = Instance.new("BoolValue")
+			instance2.Parent = folder
+			instance2.Name = "Test2"
+
+			man:AddComponent(instance, "TestComponent")
+			man:AddComponent(instance2, "TestComponent")
+
+			man:DestroyClonesFilter(function(clone, prototype)
+				return clone.Name == "Test1" and prototype ~= nil
+			end)
+
+			expect(folder:FindFirstChild("Test1")).to.never.be.ok()
+			expect(folder:FindFirstChild("Test2")).to.be.ok()
+
+			man:DestroyClonesFilter(function()
+				return true
+			end)
+
+			expect(folder:FindFirstChild("Test1")).to.never.be.ok()
+			expect(folder:FindFirstChild("Test2")).to.never.be.ok()
+		end)
+
+		it("RestorePrototypesInGroups: should restore prototypes in groups", function()
+			local man = ComponentsManager.new()
+			man:RegisterComponent(TestComponent)
+
+			local folder = Instance.new("Folder")
+			local instance = Instance.new("BoolValue")
+			instance.Name = "Test1"
+			instance:SetAttribute("CompositeGroup_Testy1", true)
+			instance.Parent = folder
+			local instance2 = Instance.new("BoolValue")
+			instance2.Parent = folder
+			instance2:SetAttribute("CompositeGroup_Testy2", true)
+			instance2.Name = "Test2"
+
+			CollectionService:AddTag(instance, "TestComponent")
+			CollectionService:AddTag(instance2, "TestComponent")
+
+			man:Init(folder)
+			man:RestorePrototypesInGroups({Testy1 = true})
+
+			expect(folder:FindFirstChild("Test1")).to.equal(instance)
+			expect(folder:FindFirstChild("Test2")).to.never.equal(instance2)
+
+			man:RestorePrototypesInGroups({Testy2 = true})
+
+			expect(folder:FindFirstChild("Test1")).to.equal(instance)
+			expect(folder:FindFirstChild("Test2")).to.equal(instance2)
+		end)
+
 		it("AddComponent: should add a clone to internal tables", function()
 			local man = ComponentsManager.new()
 			man:RegisterComponent(TestComponent)
 
 			local folder = Instance.new("Folder")
 			local instance = Instance.new("BoolValue", folder)
-			local profile = man:AddComponent(instance, "TestComponent")
+			local obj, config = man:AddComponent(instance, "TestComponent")
 
-			expect(man:GetCloneProfileFromPrototype(profile.prototype.instance)).to.be.ok()
+			expect(getmetatable(obj)).to.be.equal(TestComponent)
+			expect(type(config)).to.equal("table")
 			expect(man:GetCloneProfile(instance)).to.be.ok()
 			expect(man:GetComponent(instance, "TestComponent")).to.be.ok()
-			expect(man:IsInGroup(instance, "Main")).to.be.ok()
+			expect(man:IsInGroup(instance, "Default")).to.be.ok()
 			expect(instance.Parent).to.be.ok()
 		end)
 
@@ -338,9 +432,9 @@ return function()
 			man:AddComponent(instance, "TestComponent", nil, {componentMode = "Respawn"})
 			local prototype = man:GetCloneProfile(instance).prototype.instance
 
-			man:DestroyClonesInGroups({Main = true})
+			man:DestroyClonesInGroups({Default = true})
 			expect(instance.Parent).to.equal(nil)
-			man:RunAndMerge({Main = true})
+			man:RunAndMergeInGroups({Default = true})
 
 			local profile = man:GetCloneProfileFromPrototype(prototype)
 			expect(profile).to.be.ok()
@@ -355,8 +449,8 @@ return function()
 			man:AddComponent(instance, "TestComponent", nil, {componentMode = "NoRespawn"})
 			local prototype = man:GetCloneProfile(instance).prototype.instance
 
-			man:DestroyClonesInGroups({Main = true})
-			man:RunAndMerge({Main = true})
+			man:DestroyClonesInGroups({Default = true})
+			man:RunAndMergeInGroups({Default = true})
 
 			expect(man:GetCloneProfileFromPrototype(prototype)).to.equal(nil)
 		end)
@@ -371,9 +465,9 @@ return function()
 			man:AddComponent(instance, "TestComponent", nil, {componentMode = "Overlay"})
 			local prototype = man:GetCloneProfile(instance).prototype.instance
 
-			man:DestroyClonesInGroups({Main = true})
+			man:DestroyClonesInGroups({Default = true})
 			expect(instance.Parent).to.be.ok()
-			man:RunAndMerge({Main = true})
+			man:RunAndMergeInGroups({Default = true})
 
 			expect(instance.Parent).to.be.ok()
 			expect(#instance.Parent:GetChildren()).to.equal(1)
@@ -386,14 +480,15 @@ return function()
 
 			local folder = Instance.new("Folder")
 			local instance = Instance.new("BoolValue", folder)
-			local profile = man:AddComponent(instance, "TestComponent")
+			local obj, config = man:AddComponent(instance, "TestComponent")
 
-			man:DestroyClonesInGroups({Main = true})
+			man:DestroyClonesInGroups({Default = true})
 
-			expect(man:GetCloneProfileFromPrototype(profile.prototype.instance)).to.equal(nil)
+			expect(getmetatable(obj)).to.be.equal(TestComponent)
+			expect(type(config)).to.equal("table")
 			expect(man:GetCloneProfile(instance)).to.equal(nil)
 			expect(man:GetComponent(instance, "TestComponent")).to.equal(nil)
-			expect(man:IsInGroup(instance, "Main")).to.equal(false)
+			expect(man:IsInGroup(instance, "Default")).to.equal(false)
 			expect(instance.Parent).to.equal(nil)
 		end)
 
@@ -407,13 +502,13 @@ return function()
 
 			expect(man:GetPrototype(prototype.instance)).to.be.ok()
 
-			man:DestroyClonesInGroups({Main = true})
+			man:DestroyClonesInGroups({Default = true})
 
 			expect(prototype.instance.Parent).to.equal(nil)
 			expect(man:GetPrototype(prototype.instance)).to.be.ok()
 		end)
 
-		it("Stop: should remove all Composite influence from instance prototype and restore it", function()
+		it("should remove all Composite influence from instance prototype and restore it", function()
 			local man = ComponentsManager.new()
 			man:RegisterComponent(TestComponent)
 
@@ -423,12 +518,16 @@ return function()
 			CollectionService:AddTag(instance, "TestComponent")
 
 			man:Init(instance)
-			man:Stop()
+			man:RestorePrototypes()
 
 			expect(#CollectionService:GetTags(instance)).to.equal(1)
 			expect(#instance:GetChildren()).to.equal(0)
 			expect(next(instance:GetAttributes())).to.equal(nil)
 			expect(instance.Parent).to.be.ok()
+
+			for _, group in next, man:_getGroups() do
+				expect(#group:GetAdded()).to.equal(0)
+			end
 		end)
 
 		it("RemoveClone: should remove all Composite influence from ComponentMode.Overlay instance", function()
@@ -446,7 +545,7 @@ return function()
 			expect(next(instance:GetAttributes())).to.equal(nil)
 		end)
 
-		it("PrePass: should replace ModuleScripts with ObjectValues and put back once :Stop'ped", function()
+		it("PrePass: should replace ModuleScripts with ObjectValues and put back once restored", function()
 			local instance = Instance.new("BoolValue")
 			local config = Instance.new("Configuration")
 			local fdr = Instance.new("Folder")
@@ -465,7 +564,8 @@ return function()
 
 			expect(module.Parent).to.never.equal(fdr)
 
-			man:Stop()
+			man:StopAll()
+			man:RestorePrototypes()
 
 			expect(module.Parent).to.equal(fdr)
 			expect(#fdr:GetChildren()).to.equal(1)
@@ -486,10 +586,10 @@ return function()
 		local instance = Instance.new("BoolValue")
 
 		it("should return nil when inputting wrong config", function()
-			local config = components:AddComponent(Instance.new("BoolValue"), {
+			local obj = components:AddComponent(Instance.new("BoolValue"), {
 				test = nil;
 			})
-			expect(config).to.equal(nil)
+			expect(obj).to.equal(nil)
 		end)
 
 		it("should add new component", function()
@@ -672,23 +772,23 @@ return function()
 
 		it("should subscribe to changes in group", function()
 			local folder = Instance.new("Folder")
-			ComponentsUtils.updateInstanceGroups(folder, {Main = true}, {})
+			ComponentsUtils.updateInstanceGroups(folder, {Default = true}, {})
 			
 			local groups = {}
 			local destruct = ComponentsUtils.subscribeGroupsAnd(folder, function(groupName, isInGroup)
 				groups[groupName] = isInGroup
 			end)
 
-			expect(groups.Main).to.equal(true)
+			expect(groups.Default).to.equal(true)
 
-			ComponentsUtils.updateInstanceGroups(folder, {Main = true, Test = true}, {Main = true})
+			ComponentsUtils.updateInstanceGroups(folder, {Default = true, Test = true}, {Default = true})
 
-			expect(groups.Main).to.equal(true)
+			expect(groups.Default).to.equal(true)
 			expect(groups.Test).to.equal(true)
 
-			ComponentsUtils.updateInstanceGroups(folder, {}, {Main = true, Test = true})
+			ComponentsUtils.updateInstanceGroups(folder, {}, {Default = true, Test = true})
 
-			expect(groups.Main).to.equal(false)
+			expect(groups.Default).to.equal(false)
 			expect(groups.Test).to.equal(false)
 
 			destruct()

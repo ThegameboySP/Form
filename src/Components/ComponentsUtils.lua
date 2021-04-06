@@ -1,8 +1,9 @@
 local CollectionService = game:GetService("CollectionService")
 
-local ComponentsUtils = {}
+local ComponentsUtils = {NULL = {}}
 
 local GROUP_PREFIX = "CompositeGroup_"
+local NULL = ComponentsUtils.NULL
 
 local function getOrMakeGroupFolder(instance)
 	local folder = instance:FindFirstChild("CompositeGroups")
@@ -183,7 +184,7 @@ local function getGroupsForInstance(instance)
 	
 	for attributeName, value in next, instance:GetAttributes() do
 		if attributeName:sub(1, #GROUP_PREFIX) == GROUP_PREFIX then
-			if value ~= true then return end
+			if value ~= true then continue end
 			groups[attributeName:sub(#GROUP_PREFIX + 1, -1)] = true
 		end
 	end
@@ -273,22 +274,40 @@ function ComponentsUtils.getOrMakeComponentStateFolder(instance, name)
 end
 
 
+-- TODO: test recursion and NULL
 function ComponentsUtils.mergeStateValueObjects(stateFdr, deltaState)
 	for key, value in next, deltaState do
-		local prop = stateFdr:FindFirstChild(key)
+		if type(value) == "table" and value ~= NULL then
+			local folder = stateFdr:FindFirstChild(key)
+			if folder == nil then
+				folder = Instance.new("Folder")
+				folder.Name = key
+				folder.Parent = stateFdr
+			end
 
-		if prop and prop.ClassName ~= ComponentsUtils.getValueObjectClassNameFromType(typeof(value)) then
-			prop:Destroy()
-			prop = nil
-		end
-
-		if prop == nil then
-			prop = ComponentsUtils.valueObjectFromType(typeof(value))
-			prop.Name = tostring(key)
-			prop.Value = value
-			prop.Parent = stateFdr
+			ComponentsUtils.mergeStateValueObjects(folder, value)
+		elseif value == NULL then
+			local prop = stateFdr:FindFirstChild(key)
+			if prop then
+				prop:Destroy()
+			end
 		else
-			prop.Value = value
+			local prop = stateFdr:FindFirstChild(key)
+
+			if prop and prop.ClassName ~= ComponentsUtils.getValueObjectClassNameFromType(typeof(value)) then
+				CollectionService:AddTag(prop, "Replacing")
+				prop:Destroy()
+				prop = nil
+			end
+
+			if prop == nil then
+				prop = ComponentsUtils.valueObjectFromType(typeof(value))
+				prop.Name = tostring(key)
+				prop.Value = value
+				prop.Parent = stateFdr
+			else
+				prop.Value = value
+			end
 		end
 	end
 end
@@ -313,26 +332,36 @@ function ComponentsUtils.updateInstanceGroups(instance, newGroups, oldGroups)
 end
 
 
--- This shouldn't leak memory.
--- Once a value object or state folder is deparented, there will no longer be any strong
--- references here to it (thanks to .Changed), nor should there be in the callback,
--- as long as the destruct function isn't kept around.
+-- TODO: test nil
 function ComponentsUtils.subscribeComponentState(stateFdr, callback)
 	local connections = {}
 
-	table.insert(connections, stateFdr.ChildAdded:Connect(function(property)
+	local function onChildAdded(property, suppressInitial)
+		local lastValue
 		local function onChanged(value)
+			lastValue = value
 			callback(property.Name, value)
 		end
 
-		table.insert(connections, property.Changed:Connect(onChanged))
-		onChanged(property.Value)
-	end))
+		table.insert(connections, property.Changed:Connect(function(value)
+			if value == lastValue then return end
+			onChanged(value)
+		end))
+
+		table.insert(connections, property.AncestryChanged:Connect(function(child, newParent)
+			if child ~= property or newParent then return end
+			if CollectionService:HasTag(property, "Replacing") then return end
+			callback(property.Name, nil)
+		end))
+
+		if not suppressInitial then
+			onChanged(property.Value)
+		end
+	end
+	table.insert(connections, stateFdr.ChildAdded:Connect(onChildAdded))
 
 	for _, property in next, stateFdr:GetChildren() do
-		table.insert(connections, property.Changed:Connect(function(value)
-			callback(property.Name, value)
-		end))
+		onChildAdded(property, true)
 	end
 
 	return function()
@@ -422,7 +451,7 @@ function ComponentsUtils.subscribeGroupsAnd(instance, callback)
 	local folder = getOrMakeGroupFolder(instance)
 
 	for attrName, value in next, folder:GetAttributes() do
-		if attrName:sub(1, #GROUP_PREFIX) ~= GROUP_PREFIX then return end
+		if attrName:sub(1, #GROUP_PREFIX) ~= GROUP_PREFIX then continue end
 
 		local isInGroup = not not value
 		callback(attrName:sub(#GROUP_PREFIX + 1, -1), isInGroup)
@@ -469,8 +498,6 @@ function ComponentsUtils.removeCompositeMutation(instance)
 	if folder then
 		folder:Destroy()
 	end
-
-
 end
 
 
@@ -519,6 +546,28 @@ function ComponentsUtils.isInTable(tbl, value)
 	end
 
 	return false
+end
+
+
+function ComponentsUtils.arrayToHash(array)
+	local hash = {}
+	for _, value in next, array do
+		hash[value] = true
+	end
+
+	return hash
+end
+
+
+function ComponentsUtils.hashToArray(hash)
+	local array = {}
+	local len = 0
+	for item in next, hash do
+		len += 1
+		array[len] = item
+	end
+
+	return array
 end
 
 

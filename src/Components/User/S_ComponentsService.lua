@@ -93,8 +93,9 @@ function ServerComponentsService:AddManager(manName)
 		end
 	end)
 
-	man.ComponentRemoved:Connect(function(clone)
+	man.CloneRemoved:Connect(function(clone)
 		cloneRemovedRemote:FireAllClients(clone)
+		CollectionService:RemoveTag(clone, "ServerComponent")
 	end)
 
 	return man

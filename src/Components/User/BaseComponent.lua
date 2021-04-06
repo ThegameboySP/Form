@@ -21,6 +21,8 @@ BaseComponent.NetworkMode = ComponentsManager.NetworkMode.SERVER_CLIENT
 BaseComponent.util = UserUtils
 BaseComponent.func = FuncUtils
 BaseComponent.isServer = IS_SERVER
+BaseComponent.player = Players.LocalPlayer
+BaseComponent.null = ComponentsUtils.NULL
 
 function BaseComponent.getInterfaces()
 	return {}
@@ -31,7 +33,6 @@ function BaseComponent.new(instance, config)
 		instance = instance;
 		maid = Maid.new();
 		config = config;
-		player = Players.LocalPlayer;
 
 		_events = {};
 	}, BaseComponent)
@@ -92,9 +93,23 @@ function BaseComponent:Main()
 end
 
 
+function BaseComponent:f(method)
+	return function(...)
+		return method(self, ...)
+	end
+end
+
+
 function BaseComponent:setState(newState)
 	self.man:SetState(self.instance, self._baseComponentName, newState)
 end
+BaseComponent.SetState = BaseComponent.setState
+
+
+function BaseComponent:getState()
+	return self.man:GetState(self.instance, self._baseComponentName)
+end
+BaseComponent.GetState = BaseComponent.getState
 
 
 function BaseComponent:subscribe(state, handler)
@@ -104,6 +119,7 @@ function BaseComponent:subscribe(state, handler)
 	self.maid:GiveTask(destruct)
 	return destruct
 end
+BaseComponent.Subscribe = BaseComponent.subscribe
 
 
 function BaseComponent:subscribeAnd(state, handler)
@@ -117,7 +133,7 @@ function BaseComponent:subscribeAnd(state, handler)
 	
 	return destruct
 end
-
+BaseComponent.SubscribeAnd = BaseComponent.subscribeAnd
 
 function BaseComponent:registerEvents(events)
 	for k, v in next, events do
@@ -141,11 +157,13 @@ end
 function BaseComponent:connectEvent(eventName, handler)
 	return self._events[eventName]:Connect(handler)
 end
+BaseComponent.ConnectEvent = BaseComponent.connectEvent
 
 
 function BaseComponent:hasEvent(eventName)
 	return self._events[eventName] ~= nil
 end
+BaseComponent.HasEvent = BaseComponent.hasEvent
 
 
 function BaseComponent:fireInstanceEvent(eventName, ...)
@@ -156,6 +174,7 @@ end
 function BaseComponent:connectInstanceEvent(eventName, ...)
 	return self.man:ConnectInstanceEvent(self.instance, eventName, ...)
 end
+BaseComponent.ConnectInstanceEvent = BaseComponent.connectInstanceEvent
 
 
 function BaseComponent:fireAll(eventName, ...)
@@ -238,6 +257,7 @@ function BaseComponent:waitForRemoteEvents()
 
 	return result:Wait()
 end
+BaseComponent.WaitForRemoteEvents = BaseComponent.waitForRemoteEvents
 
 
 function BaseComponent:bindOnRemoteEvents(handler)
@@ -254,6 +274,7 @@ end
 function BaseComponent:areRemoteEventsLoaded()
 	return self.instance:FindFirstChild("RemoteEvents") ~= nil
 end
+BaseComponent.AreRemoteEventsLoaded = BaseComponent.areRemoteEventsLoaded
 
 
 function BaseComponent:fireAllClients(eventName, ...)
@@ -320,26 +341,30 @@ end
 function BaseComponent:addToGroup(group)
 	self.man:AddToGroup(self.instance, group)
 end
+BaseComponent.AddToGroup = BaseComponent.addToGroup
 
 
 function BaseComponent:removeFromGroup(group)
 	self.man:RemoveFromGroup(self.instance, group)
 end
-
+BaseComponent.RemoveFromGroup = BaseComponent.removeFromGroup
 
 function BaseComponent:getGroups()
 	return self.man:GetGroups(self.instance)
 end
+BaseComponent.GetGroups = BaseComponent.getGroups
 
 
 function BaseComponent:isInGroup(group)
 	return self.man:IsInGroup(self.instance, group)
 end
+BaseComponent.IsInGroup = BaseComponent.IsInGroup
 
 
 function BaseComponent:isPaused()
 	return false
 end
+BaseComponent.IsPaused = BaseComponent.isPaused
 
 
 function BaseComponent:connect(event, handler)
@@ -422,12 +447,14 @@ end
 function BaseComponent:getCycle(name)
 	return self.man:GetCycle(self.instance, self._baseComponentName, name)
 end
+BaseComponent.GetCycle = BaseComponent.getCycle
 
 
 function BaseComponent:getConfig(instance, compName)
 	assert(typeof(instance) == "Instance", "No instance!")
 	return ComponentsUtils.getConfigFromInstance(instance, compName)
 end
+BaseComponent.GetConfig = BaseComponent.getConfig
 
 function getOrMakeRemoteEventFolder(instance, baseCompName)
 	assert(IS_SERVER, ON_SERVER_ERROR)

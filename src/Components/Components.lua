@@ -10,6 +10,7 @@ Components.__index = Components
 
 local ERRORED = "%s: Component errored:\n%s\nThis trace: %s"
 local NO_COMPONENT_ERROR = "Instance %q does not have component %q!"
+local NULL = ComponentsUtils.NULL
 
 function Components.new(man, src, name)
 	local interfaces = src.getInterfaces(t)
@@ -47,7 +48,11 @@ function Components:SetState(instance, deltaState)
 	end
 
 	for key, value in next, deltaState do
-		comp.state[key] = value
+		if value == NULL then
+			comp.state[key] = nil
+		else
+			comp.state[key] = value
+		end
 	end
 end
 
@@ -127,7 +132,7 @@ function Components:NewComponent(instance, config, synced)
 		end
 	end
 
-	local object, state = self._src.new(instance, config)
+	local object = self._src.new(instance, config)
 	object.man = self._manager
 	object.state = ComponentsUtils.getComponentState(
 		ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
@@ -135,11 +140,8 @@ function Components:NewComponent(instance, config, synced)
 	object.__synced = synced
 
 	self._components[instance] = object
-	if state then
-		self:SetState(instance, state)
-	end
 
-	return config
+	return object, config
 end
 
 
@@ -182,7 +184,7 @@ end
 function Components:AddComponent(instance, config, synced)
 	if self._components[instance] then return end
 
-	local newConfig = self:NewComponent(instance, config, synced)
+	local obj, newConfig = self:NewComponent(instance, config, synced)
 	if newConfig == nil then
 		return nil
 	end
@@ -191,7 +193,7 @@ function Components:AddComponent(instance, config, synced)
 	self:InitComponent(instance)
 	self:RunComponentMain(instance)
 
-	return newConfig
+	return obj, newConfig
 end
 
 

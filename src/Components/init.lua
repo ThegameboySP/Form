@@ -6,8 +6,6 @@ return {
 	FuncUtils = require(script:WaitForChild("User"):WaitForChild("FuncUtils"));
 
 	BaseComponent = require(script:WaitForChild("User"):WaitForChild("BaseComponent"));
-	BouncyComponent = require(script:WaitForChild("User"):WaitForChild("BouncyComponent"));
-	DamageComponent = require(script:WaitForChild("User"):WaitForChild("DamageComponent"));
 	ReferenceComponent = require(script:WaitForChild("User"):WaitForChild("ReferenceComponent"));
 
 	Event = require(script:WaitForChild("Modules"):WaitForChild("Event"));

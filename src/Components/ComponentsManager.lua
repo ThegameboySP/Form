@@ -9,6 +9,7 @@ local t = require(script.Parent.Modules.t)
 
 local ComponentsManager = {}
 ComponentsManager.__index = ComponentsManager
+ComponentsManager.null = ComponentsUtils.NULL
 ComponentsManager.NetworkMode = ComponentsUtils.indexTableOrError("NetworkMode", {
 	SERVER = "Server";
 	CLIENT = "Client";
@@ -26,7 +27,6 @@ local ComponentMode = ComponentsUtils.indexTableOrError("ComponentMode", {
 })
 ComponentsManager.ComponentMode = ComponentMode
 
-local NOT_DESTRUCTED_ERR = "Behavior not fully destructed!"
 local NO_PROFILE_ERR = "No clone profile for %q!"
 local REMOVE_TAG_PREFIX = "CompositeRemove_"
 
@@ -35,9 +35,9 @@ local IS_SERVER = game:GetService("RunService"):IsServer()
 local EMPTY_TABLE = {}
 
 local function getGroups(instance, groups)
-	local instanceGroups = (ComponentsUtils.getGroups(instance) or groups)
+	local instanceGroups = ComponentsUtils.getGroups(instance) or groups
 	if next(instanceGroups) == nil then
-		instanceGroups = {Main = true}
+		instanceGroups = {Default = true}
 	end
 
 	return instanceGroups
@@ -45,6 +45,7 @@ end
 
 local function makePrototype(instance, parent, compMode, isRuntime, hasTags, groups)
 	return {
+		cloneActive = false;
 		instance = instance;
 		parent = parent;
 		compMode = compMode;
@@ -55,13 +56,18 @@ local function makePrototype(instance, parent, compMode, isRuntime, hasTags, gro
 	}
 end
 
-function ComponentsManager.generatePrototypesFromRoot(tags, root, compMode)
+function ComponentsManager.generatePrototypesFromRoot(tags, root, compMode, groups)
 	local prototypes = {}
 
 	for instance, hasTags in next, ComponentsUtils.getTaggedInstancesFromRoot(tags, root) do
 		if next(hasTags) == nil then continue end
+		local prototypeGroups = getGroups(instance, groups)
+		for group in next, groups do
+			prototypeGroups[group] = true
+		end
+
 		prototypes[instance] = makePrototype(instance, instance.Parent,
-			instance:GetAttribute("ComponentMode") or compMode, false, hasTags, getGroups(instance, nil)
+			instance:GetAttribute("Composite_ComponentMode") or compMode, false, hasTags, prototypeGroups
 		)
 	end
 
@@ -90,55 +96,93 @@ function ComponentsManager.new(filter)
 end
 
 
--- To be used when you aren't using Composite anymore on its area of influence, such as when switching maps.
--- Completely purges Composite side effects from the DataModel.
-function ComponentsManager:Stop()
-	for instance, oldParent in next, self._unsafeConfigToOldParent do
-		instance.Parent = oldParent
-	end
-	table.clear(self._unsafeConfigToOldParent)
-
-	for instance in next, self._cloneProfiles do
-		self:RemoveClone(instance)
+function ComponentsManager:Stop(clonesArray)
+	local clonesHash = EMPTY_TABLE
+	if clonesArray ~= nil then
+		clonesHash = ComponentsUtils.arrayToHash(clonesArray)
 	end
 
+	for clone, profile in next, self._cloneProfiles do
+		if clonesHash[profile.clone] == nil then continue end
+		self:RemoveClone(clone)
+	end
+end
+
+
+function ComponentsManager:StopAll()
+	return self:Stop(self:GetClones(RET_TRUE))
+end
+
+
+function ComponentsManager:RestorePrototype(prototype)
+	prototype.instance.Parent = prototype.parent
+	self._pInstanceToPrototypes[prototype.instance] = nil
+end
+
+
+function ComponentsManager:_restorePrototypes(prototypes)
+	for _, prototype in next, prototypes do
+		self:RestorePrototype(prototype)
+	end
+end
+
+
+function ComponentsManager:RestorePrototypes(filter)
+	filter = filter or RET_TRUE
+
+	local prototypes = {}
 	for _, prototype in next, self._pInstanceToPrototypes do
-		prototype.toBeCleared = true
+		if not filter(prototype) then continue end
+		table.insert(prototypes, prototype)
 	end
 
-	table.clear(self._prototypeToClone)
-	table.clear(self._groups)
-
-	assert(next(self._cloneProfiles) == nil, NOT_DESTRUCTED_ERR)
-	assert(next(self._prototypeToClone) == nil, NOT_DESTRUCTED_ERR)
-	assert(next(self._groups) == nil, NOT_DESTRUCTED_ERR)
-	assert(next(self._unsafeConfigToOldParent) == nil, NOT_DESTRUCTED_ERR)
+	return self:_restorePrototypes(prototypes)
 end
 
 
-function ComponentsManager:StopAndRestorePrototypes()
-	self:Stop()
-	self:RestorePrototypes()
-	assert(next(self._pInstanceToPrototypes) == nil, NOT_DESTRUCTED_ERR)
+function ComponentsManager:RestorePrototypesInGroups(groups)
+	local prototypes = {}
+	for _, prototype in next, self:_getPrototypesFromGroups(groups) do
+		table.insert(prototypes, prototype)
+	end
+
+	return self:_restorePrototypes(prototypes)
 end
 
 
-function ComponentsManager:RestorePrototypes()
-	for key, prototype in next, self._pInstanceToPrototypes do
-		if not prototype.toBeCleared then continue end
-		prototype.instance.Parent = prototype.parent
-		self._pInstanceToPrototypes[key] = nil
+function ComponentsManager:GetClones(filter)
+	local clones = {}
+	for _, prototype in next, self._pInstanceToPrototypes do
+		local clone = self._prototypeToClone[prototype.instance]
+		if clone == nil then continue end
+		if not filter(clone, prototype) then continue end
+
+		table.insert(clones, clone)
 	end
+
+	return clones
+end
+
+
+function ComponentsManager:GetPrototypes(filter)
+	local prototypes = {}
+	for _, prototype in next, self._pInstanceToPrototypes do
+		if not filter(prototype) then continue end
+
+		table.insert(prototypes, prototype)
+	end
+
+	return prototypes
 end
 
 
 -- Initializes all prototypes under this root (including the root), then sets their parents to nil for the time being.
-function ComponentsManager:Init(root)
+function ComponentsManager:Init(root, groups)
 	local tags = {}
 	for tag in next, self._srcs do
 		table.insert(tags, tag)
 	end
-	local prototypes = self.generatePrototypesFromRoot(tags, root, ComponentMode.RESPAWN)
+	local prototypes = self.generatePrototypesFromRoot(tags, root, ComponentMode.RESPAWN, groups or {})
 
 	local newPrototypes = {}
 	local prototypesArray = {}
@@ -181,11 +225,6 @@ function ComponentsManager:Init(root)
 		self._pInstanceToPrototypes[instance] = prototype
 		newPrototypes[instance] = prototype
 		table.insert(prototypesArray, prototype)
-
-		for groupName in next, prototype.groups do
-			local group = self:_getOrMakeGroup(groupName)
-			group:Add(prototype)
-		end
 	end
 
 	for instance, prototype in next, newPrototypes do
@@ -221,13 +260,6 @@ function ComponentsManager:RegisterComponent(src)
 end
 
 
--- Hard resets the manager.
-function ComponentsManager:Reload(root)
-	self:Stop()
-	self:Init(root)
-end
-
-
 -- Fixes any potentially dangerous configurations, such as a server only component with a modulescript.
 function ComponentsManager:PrePass(root)
 	if not IS_SERVER then return {} end
@@ -260,6 +292,13 @@ function ComponentsManager:PrePass(root)
 
 	return unsafeInstances
 end
+
+
+-- function ComponentsManager:ForceRespawn(clone)
+-- 	local profile = self:_getCloneProfileOrError(clone)
+-- 	local prototype = profile.prototype
+	
+-- end
 
 
 -- Gives all prototypes clone profiles (if not done so already) and merges components into internal data. Will
@@ -330,7 +369,7 @@ function ComponentsManager:_runAndMergePrototypes(prototypes)
 		local clone = profile.clone
 		local name = newComponent.componentName
 
-		local config = self._componentHolders[name]:NewComponent(clone, nil, profile.synced)
+		local _, config = self._componentHolders[name]:NewComponent(clone, nil, profile.synced)
 		profile:AddComponent(name)
 		table.insert(events, {clone = clone, name = name, config = config, profile = profile})
 	end
@@ -375,7 +414,18 @@ function ComponentsManager:_runAndMergePrototypes(prototypes)
 end
 
 
-function ComponentsManager:RunAndMerge(allowedGroups)
+function ComponentsManager:RunAndMergeFilter(filter)
+	local prototypes = {}
+	for _, prototype in next, self._pInstanceToPrototypes do
+		if not filter(prototype) then continue end
+		table.insert(prototypes, prototype)
+	end
+
+	return self:_runAndMergePrototypes(prototypes)
+end
+
+
+function ComponentsManager:RunAndMergeInGroups(allowedGroups)
 	local prototypes = {}
 	for _, prototype in next, self:_getPrototypesFromGroups(allowedGroups) do
 		table.insert(prototypes, prototype)
@@ -402,33 +452,17 @@ function ComponentsManager:RunAndMergeSynced()
 end
 
 
--- TODO: test
-function ComponentsManager:RunAndMergeFilter(filter)
-	local prototypes = {}
-	for clone, profile in next, self._cloneProfiles do
-		if not filter(clone) then continue end
-		table.insert(prototypes, profile.prototype)
-	end
-
-	return self:_runAndMergePrototypes(prototypes)
-end
-
-
 -- Destroys all clones that exist in any of the groups.
 function ComponentsManager:DestroyClonesInGroups(groups)
-	for _, prototype in next, self:_getPrototypesFromGroups(groups) do
-		local clone = self._prototypeToClone[prototype.instance]
-		if clone == nil then continue end
-
+	for _, clone in next, self:_getClonesFromGroups(groups) do
 		self:RemoveClone(clone)
 	end
 end
 
 
--- TODO: test
 function ComponentsManager:DestroyClonesFilter(filter)
-	for clone in next, self._cloneProfiles do
-		if not filter(clone) then continue end
+	for clone, profile in next, self._cloneProfiles do
+		if not filter(clone, profile.prototype) then continue end
 		self:RemoveClone(clone)
 	end
 end
@@ -444,7 +478,10 @@ end
 function ComponentsManager:AddComponent(instance, name, config, keywords, groups)
 	keywords = keywords or EMPTY_TABLE
 
-	local synced = not not instance:GetAttribute("CompositeClone")
+	local synced = false
+	if instance:GetAttribute("CompositeClone") then
+		synced = not self:GetCloneProfile(instance)
+	end
 	local componentMode = keywords.componentMode or ComponentMode.NO_RESPAWN
 	
 	local profile = self:GetCloneProfile(instance)
@@ -455,7 +492,7 @@ function ComponentsManager:AddComponent(instance, name, config, keywords, groups
 	if not synced and not CollectionService:HasTag(instance, name) then
 		CollectionService:AddTag(instance, name)
 		instance:SetAttribute(REMOVE_TAG_PREFIX .. name, true)
-		instance:SetAttribute("ComponentMode", componentMode)
+		instance:SetAttribute("Composite_ComponentMode", componentMode)
 	end
 
 	if profile == nil then
@@ -481,7 +518,8 @@ function ComponentsManager:AddComponent(instance, name, config, keywords, groups
 		)
 	end
 
-	config = self._componentHolders[name]:AddComponent(instance, config, synced)
+	local obj, newConfig = self._componentHolders[name]:AddComponent(instance, config, synced)
+	config = newConfig
 
 	if not profile.synced then
 		ComponentsUtils.updateInstanceConfig(instance, name, config)
@@ -489,7 +527,7 @@ function ComponentsManager:AddComponent(instance, name, config, keywords, groups
 
 	self.ComponentAdded:Fire(instance, name, config, groups)
 
-	return profile
+	return obj, newConfig
 end
 
 
@@ -510,8 +548,6 @@ function ComponentsManager:RemoveComponent(instance, name)
 	end
 
 	self.ComponentRemoved:Fire(instance, name)
-
-	return self._cloneProfiles[instance]
 end
 
 
@@ -593,7 +629,7 @@ function ComponentsManager:AddToGroup(instance, groupName)
 	profile:AddGroup(groupName)
 	
 	local group = self:_getOrMakeGroup(groupName)
-	group:Add(profile.prototype)
+	group:Add(instance)
 
 	if not profile.synced then
 		ComponentsUtils.updateInstanceGroups(instance, profile:GetGroupsHash(), oldGroupsHash)
@@ -609,7 +645,7 @@ function ComponentsManager:RemoveFromGroup(instance, groupName)
 	local group = self:GetGroup(groupName)
 	if group == nil then return end
 
-	group:Remove(profile.prototype)
+	group:Remove(instance)
 
 	if not profile:IsInAGroup() then
 		self:RemoveClone(instance)
@@ -635,30 +671,38 @@ function ComponentsManager:IsInGroup(instance, groupName)
 		return false
 	end
 
-	return group:IsAdded(profile.prototype)
+	return group:IsAdded(instance)
 end
 
 
-function ComponentsManager:_getPrototypesFromGroups(groups)
-	local cloneProfilesHash = {}
+function ComponentsManager:_getClonesFromGroups(groups)
+	local clonesDict = {}
 
 	for groupName in next, groups do
 		local group = self:GetGroup(groupName)
 		if group == nil then continue end
 
-		for _, prototype in next, group:GetAdded() do
-			cloneProfilesHash[prototype] = true
+		for _, clone in next, group:GetAdded() do
+			clonesDict[clone] = true
 		end
 	end
 
-	local cloneProfilesArray = {}
-	local len = 0
-	for cloneProfile in next, cloneProfilesHash do
-		len += 1
-		cloneProfilesArray[len] = cloneProfile
+	return ComponentsUtils.hashToArray(clonesDict)
+end
+
+
+function ComponentsManager:_getPrototypesFromGroups(groups)
+	local prototypesDict = {}
+
+	for _, prototype in next, self._pInstanceToPrototypes do
+		for group in next, prototype.groups do
+			if groups[group] then
+				prototypesDict[prototype] = true
+			end
+		end
 	end
 
-	return cloneProfilesArray
+	return ComponentsUtils.hashToArray(prototypesDict)
 end
 
 
@@ -781,11 +825,12 @@ function ComponentsManager:_newCloneProfile(clone, prototype, synced, compMode, 
 		groups = getGroups(clone, groups)
 		prototype = makePrototype(clone:Clone(), clone.Parent, compMode, true, {}, groups)
 	elseif prototype ~= nil and groups == nil then
-		groups = ComponentsUtils.shallowMerge(prototype.groups, {Main = true})
+		groups = ComponentsUtils.shallowMerge(prototype.groups, {Default = true})
 	end
 
 	local cloneProfile = CloneProfile.new(clone, prototype, synced)
 
+	prototype.cloneActive = true
 	self._cloneProfiles[clone] = cloneProfile
 	self._prototypeToClone[prototype.instance] = clone
 	self._pInstanceToPrototypes[prototype.instance] = prototype
@@ -819,6 +864,7 @@ end
 
 function ComponentsManager:_removeInstanceFromTables(instance)
 	local profile = self._cloneProfiles[instance]
+	local prototype = profile.prototype
 
 	for compName in next, profile:GetComponentsHash() do
 		self:RemoveComponent(instance, compName)
@@ -830,11 +876,12 @@ function ComponentsManager:_removeInstanceFromTables(instance)
 	end
 
 	self._cloneProfiles[instance] = nil
-	self._prototypeToClone[profile.prototype.instance] = nil
+	self._prototypeToClone[prototype.instance] = nil
+	prototype.cloneActive = false
 
 	-- Clear entire instance if it should not be respawned.
-	if profile.prototype.compMode ~= ComponentMode.RESPAWN then
-		self._pInstanceToPrototypes[profile.prototype.instance] = nil
+	if prototype.compMode ~= ComponentMode.RESPAWN then
+		self._pInstanceToPrototypes[prototype.instance] = nil
 	end
 
 	profile:Destruct()
@@ -852,7 +899,7 @@ function ComponentsManager:RemoveClone(clone)
 		self._unsafeConfigToOldParent[configInstance] = nil
 		local sub = oldParent and oldParent:FindFirstChild(configInstance.Name)
 		if sub and sub ~= configInstance then
-			sub:Destroy()
+			sub.Parent = nil
 		end
 		
 		configInstance.Parent = oldParent
@@ -863,11 +910,11 @@ function ComponentsManager:RemoveClone(clone)
 		clone.Parent = nil
 	elseif not profile.synced then
 		clone:SetAttribute("CompositeClone", nil)
-		clone:SetAttribute("ComponentMode", nil)
+		clone:SetAttribute("Composite_ComponentMode", nil)
 
 		for _, child in next, clone:GetChildren() do
 			if not CollectionService:HasTag(child, "CompositeCrap") then continue end
-			child:Destroy()
+			child.Parent = nil
 		end
 
 		for attrName in next, clone:GetAttributes() do
@@ -885,6 +932,11 @@ end
 
 function ComponentsManager:_getOrMakeCloneProfile(clone, synced, compMode, groups)
 	return self._cloneProfiles[clone] or self:_newCloneProfile(clone, nil, synced, compMode, groups)
+end
+
+
+function ComponentsManager:_getGroups()
+	return self._groups
 end
 
 return ComponentsManager

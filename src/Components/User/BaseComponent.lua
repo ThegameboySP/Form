@@ -4,6 +4,7 @@ local CollectionService = game:GetService("CollectionService")
 
 local Maid = require(script.Parent.Parent.Modules.Maid)
 local Event = require(script.Parent.Parent.Modules.Event)
+local Symbol = require(script.Parent.Parent.Modules.Symbol)
 local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
 local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
 local UserUtils = require(script.Parent.UserUtils)
@@ -18,24 +19,28 @@ local NO_REMOTE_ERROR = "No remote event under %s by name %s!"
 
 BaseComponent.ComponentName = "BaseComponent"
 BaseComponent.NetworkMode = ComponentsManager.NetworkMode.SERVER_CLIENT
+BaseComponent.Maid = Maid
 BaseComponent.util = UserUtils
 BaseComponent.func = FuncUtils
 BaseComponent.isServer = IS_SERVER
 BaseComponent.player = Players.LocalPlayer
-BaseComponent.null = ComponentsUtils.NULL
+BaseComponent.null = Symbol.named("null")
 
 function BaseComponent.getInterfaces()
 	return {}
 end
 
 function BaseComponent.new(instance, config)
-	return setmetatable({
+	local self = setmetatable({
 		instance = instance;
 		maid = Maid.new();
 		config = config;
 
 		_events = {};
 	}, BaseComponent)
+
+	self:RegisterEvent(Symbol.named("stateSet"))
+	return self
 end
 
 
@@ -140,7 +145,7 @@ function BaseComponent:registerEvents(events)
 		local event = Event.new()
 		
 		if type(v) == "function" then
-			self._events[tostring(k)] = event
+			self._events[k] = event
 			event:Connect(v)
 		elseif type(v) == "string" then
 			self._events[v] = event
@@ -251,7 +256,7 @@ end
 
 function BaseComponent:waitForRemoteEvents()
 	local result = self:_getRemoteEventFolderOrSignal()
-	if result:IsA("Folder") then
+	if typeof(result) ~= "RBXScriptSignal" then
 		return result
 	end
 
@@ -262,7 +267,7 @@ BaseComponent.WaitForRemoteEvents = BaseComponent.waitForRemoteEvents
 
 function BaseComponent:bindOnRemoteEvents(handler)
 	local result = self:_getRemoteEventFolderOrSignal()
-	if result:IsA("Folder") then
+	if typeof(result) ~= "RBXScriptSignal" then
 		return handler(result)
 	end
 
@@ -365,6 +370,12 @@ function BaseComponent:isPaused()
 	return false
 end
 BaseComponent.IsPaused = BaseComponent.isPaused
+
+
+function BaseComponent:isSynced()
+	return self.__synced
+end
+BaseComponent.IsSynced = BaseComponent.isSynced
 
 
 function BaseComponent:connect(event, handler)

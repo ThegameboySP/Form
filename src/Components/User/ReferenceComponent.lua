@@ -34,6 +34,10 @@ function ReferenceComponent.initInstance(instance)
 		return false
 	end
 
+	if instance:FindFirstChild("Path") then
+		return
+	end
+	
 	local newValue = Instance.new("StringValue")
 	newValue.Name = "Path"
 	newValue.Value = instance.Value:GetFullName()

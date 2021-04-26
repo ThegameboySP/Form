@@ -111,6 +111,13 @@ function Maid:Add(task, destructorName, id)
 end
 
 
+-- Declarative sugar. Same as :Add but destructor name is default.
+function Maid:AddId(task, id)
+	self:GiveTask(task, nil, id)
+	return task
+end
+
+
 -- Declarative sugar for adding multiple tasks in a go.
 function Maid:GiveTasks(tasks)
 	local ids = {}

@@ -1,9 +1,8 @@
 local CollectionService = game:GetService("CollectionService")
 
-local ComponentsUtils = {NULL = {}}
+local ComponentsUtils = {}
 
 local GROUP_PREFIX = "CompositeGroup_"
-local NULL = ComponentsUtils.NULL
 
 local function getOrMakeGroupFolder(instance)
 	local folder = instance:FindFirstChild("CompositeGroups")
@@ -217,102 +216,6 @@ function ComponentsUtils.getGroups(instance)
 end
 
 
-function ComponentsUtils.getStateFolder(instance)
-	return instance:FindFirstChild("ComponentsPublic")
-end
-
-
-function ComponentsUtils.getOrMakeStateFolder(instance)
-	local fdr = ComponentsUtils.getStateFolder(instance)
-	if fdr == nil then
-		fdr = Instance.new("Folder")
-		fdr.Name = "ComponentsPublic"
-		fdr.Archivable = false
-		fdr.Parent = instance
-		CollectionService:AddTag(fdr, "CompositeCrap")
-	end
-
-	return fdr
-end
-
-
-function ComponentsUtils.getComponentStateFolder(instance, name)
-	local fdr = ComponentsUtils.getStateFolder(instance)
-	
-	if fdr == nil then
-		return nil
-	end
-
-	local stateFdr = fdr:FindFirstChild(name)
-	if stateFdr == nil then
-		return nil
-	end
-
-	return stateFdr
-end
-
-
-function ComponentsUtils.getOrMakeComponentStateFolder(instance, name)
-	local fdr = ComponentsUtils.getStateFolder(instance)
-	
-	if fdr == nil then
-		fdr = Instance.new("Folder")
-		fdr.Name = "ComponentsPublic"
-		fdr.Archivable = false
-		fdr.Parent = instance
-		CollectionService:AddTag(fdr, "CompositeCrap")
-	end
-
-	local stateFdr = fdr:FindFirstChild(name)
-	if stateFdr == nil then
-		stateFdr = Instance.new("Folder")
-		stateFdr.Name = name
-		stateFdr.Parent = fdr
-	end
-
-	return stateFdr
-end
-
-
--- TODO: test recursion and NULL
-function ComponentsUtils.mergeStateValueObjects(stateFdr, deltaState)
-	for key, value in next, deltaState do
-		if type(value) == "table" and value ~= NULL then
-			local folder = stateFdr:FindFirstChild(key)
-			if folder == nil then
-				folder = Instance.new("Folder")
-				folder.Name = key
-				folder.Parent = stateFdr
-			end
-
-			ComponentsUtils.mergeStateValueObjects(folder, value)
-		elseif value == NULL then
-			local prop = stateFdr:FindFirstChild(key)
-			if prop then
-				prop:Destroy()
-			end
-		else
-			local prop = stateFdr:FindFirstChild(key)
-
-			if prop and prop.ClassName ~= ComponentsUtils.getValueObjectClassNameFromType(typeof(value)) then
-				CollectionService:AddTag(prop, "Replacing")
-				prop:Destroy()
-				prop = nil
-			end
-
-			if prop == nil then
-				prop = ComponentsUtils.valueObjectFromType(typeof(value))
-				prop.Name = tostring(key)
-				prop.Value = value
-				prop.Parent = stateFdr
-			else
-				prop.Value = value
-			end
-		end
-	end
-end
-
-
 function ComponentsUtils.updateInstanceGroups(instance, newGroups, oldGroups)
 	local folder = getOrMakeGroupFolder(instance)
 
@@ -329,105 +232,6 @@ function ComponentsUtils.updateInstanceGroups(instance, newGroups, oldGroups)
 	end
 
 	return newGroups
-end
-
-
--- TODO: test nil
-function ComponentsUtils.subscribeComponentState(stateFdr, callback)
-	local connections = {}
-
-	local function onChildAdded(property, suppressInitial)
-		local lastValue
-		local function onChanged(value)
-			lastValue = value
-			callback(property.Name, value)
-		end
-
-		table.insert(connections, property.Changed:Connect(function(value)
-			if value == lastValue then return end
-			onChanged(value)
-		end))
-
-		table.insert(connections, property.AncestryChanged:Connect(function(child, newParent)
-			if child ~= property or newParent then return end
-			if CollectionService:HasTag(property, "Replacing") then return end
-			callback(property.Name, nil)
-		end))
-
-		if not suppressInitial then
-			onChanged(property.Value)
-		end
-	end
-	table.insert(connections, stateFdr.ChildAdded:Connect(onChildAdded))
-
-	for _, property in next, stateFdr:GetChildren() do
-		onChildAdded(property, true)
-	end
-
-	return function()
-		for _, con in next, connections do
-			con:Disconnect()
-		end
-	end
-end
-
-
-function ComponentsUtils.getComponentState(stateFdr)
-	local state = {}
-	for _, property in next, stateFdr:GetChildren() do
-		state[property.Name] = property.Value
-	end
-
-	return state
-end
-
-
-function ComponentsUtils.subscribeComponentStateAnd(stateFdr, callback)
-	local destruct = ComponentsUtils.subscribeComponentState(stateFdr, callback)
-	for _, property in next, stateFdr:GetChildren() do
-		callback(property.Name, property.Value)
-	end
-
-	return destruct
-end
-
-
-function ComponentsUtils.subscribeState(fdr, callback)
-	local destruct = {}
-
-	local function onChildAdded(stateFdr)
-		table.insert(destruct, ComponentsUtils.subscribeComponentState(stateFdr, function(propertyName, value)
-			callback(stateFdr.Name, propertyName, value)
-		end))
-	end
-
-	table.insert(destruct, fdr.ChildAdded:Connect(onChildAdded))
-	for _, stateFdr in next, fdr:GetChildren() do
-		onChildAdded(stateFdr)
-	end
-
-	return function()
-		for _, entry in next, destruct do
-			local t = type(entry)
-			if t == "function" then
-				entry()
-			elseif t == "RBXScriptConnection" then
-				entry:Disconnect()
-			end
-		end
-	end
-end
-
-
-function ComponentsUtils.subscribeStateAnd(fdr, callback)
-	local destruct = ComponentsUtils.subscribeState(fdr, callback)
-	for _, stateFdr in next, fdr:GetChildren() do
-		for _, property in next, stateFdr:GetChildren() do
-			callback(stateFdr.Name, property.Name, property.Value)
-		end
-	end
-	
-	return destruct
 end
 
 
@@ -479,6 +283,8 @@ function ComponentsUtils.getValueObjectClassNameFromType(typeOf)
 		return "ObjectValue"
 	elseif typeOf == "BrickColor" then
 		return "BrickColorValue"
+	elseif typeOf == "Ray" then
+		return "RayValue"
 	end
 end
 
@@ -518,6 +324,24 @@ function ComponentsUtils.shallowMerge(tbl1, tbl2)
 	end
 	
 	return tbl2
+end
+
+
+-- tbl1 -> tbl2
+function ComponentsUtils.deepMerge(tbl1, tbl2)
+	for k, v in next, tbl1 do
+		if type(v) == "table" then
+			local tbl2Value = tbl2[k]
+			if type(tbl2Value) ~= "table" then
+				tbl2Value = {}
+				tbl2[k] = tbl2Value
+			end
+
+			ComponentsUtils.deepMerge(v, tbl2Value)
+		else
+			tbl2[k] = v
+		end
+	end
 end
 
 

@@ -3,6 +3,7 @@ local CollectionService = game:GetService("CollectionService")
 
 local ComponentsUtils = require(script.Parent.ComponentsUtils)
 local t = require(script.Parent.Modules.t)
+local Symbol = require(script.Parent.Modules.Symbol)
 local TimeCycle = require(script.Parent.TimeCycle)
 
 local Components = {}
@@ -10,7 +11,7 @@ Components.__index = Components
 
 local ERRORED = "%s: Component errored:\n%s\nThis trace: %s"
 local NO_COMPONENT_ERROR = "Instance %q does not have component %q!"
-local NULL = ComponentsUtils.NULL
+local NULL = Symbol.named("null")
 
 function Components.new(man, src, name)
 	local interfaces = src.getInterfaces(t)
@@ -40,13 +41,6 @@ function Components:SetState(instance, deltaState)
 		error(NO_COMPONENT_ERROR:format(instance:GetFullName(), self._name))
 	end
 
-	if not comp.__synced then
-		ComponentsUtils.mergeStateValueObjects(
-			ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name),
-			deltaState
-		)
-	end
-
 	for key, value in next, deltaState do
 		if value == NULL then
 			comp.state[key] = nil
@@ -64,48 +58,6 @@ function Components:GetState(instance)
 	end
 
 	return ComponentsUtils.shallowCopy(comp.state)
-end
-
-
-function Components:Subscribe(instance, stateName, handler)
-	local stateFdr = ComponentsUtils.getOrMakeComponentStateFolder(instance, self._name)
-
-	local handlerCon
-	local cancelSubscribe
-	local subCancelSubscribe
-
-	cancelSubscribe = ComponentsUtils.subscribeComponentState(stateFdr, function(name, value)
-		if name ~= stateName then return end
-		-- If there is already an update pending, return early.
-		if handlerCon and handlerCon.Connected then return end
-
-		local recordedValue = value
-		-- State has changed, but delay executing the callback until next frame.
-		-- This is a poor man's state batching, to help guarantee state updates
-		-- are atomic (this fires 1 frame after the internal values are set).
-		handlerCon = RunService.Heartbeat:Connect(function()
-			handlerCon:Disconnect()
-			subCancelSubscribe()
-
-			handler(recordedValue)
-		end)
-
-		-- If the value changes during this time, update the value.
-		subCancelSubscribe = ComponentsUtils.subscribeComponentState(stateFdr, function(thisName, thisValue)
-			if thisName ~= stateName then return end
-			recordedValue = thisValue
-		end)
-	end)
-
-	return function()
-		if handlerCon then
-			handlerCon:Disconnect()
-		end
-		if subCancelSubscribe then
-			subCancelSubscribe()
-		end
-		cancelSubscribe()
-	end
 end
 
 

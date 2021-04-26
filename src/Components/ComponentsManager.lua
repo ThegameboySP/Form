@@ -176,14 +176,7 @@ function ComponentsManager:GetPrototypes(filter)
 end
 
 
--- Initializes all prototypes under this root (including the root), then sets their parents to nil for the time being.
-function ComponentsManager:Init(root, groups)
-	local tags = {}
-	for tag in next, self._srcs do
-		table.insert(tags, tag)
-	end
-	local prototypes = self.generatePrototypesFromRoot(tags, root, ComponentMode.RESPAWN, groups or {})
-
+function ComponentsManager:_initPrototypes(prototypes)
 	local newPrototypes = {}
 	local prototypesArray = {}
 	for instance, prototype in next, prototypes do
@@ -242,6 +235,34 @@ function ComponentsManager:Init(root, groups)
 	end
 
 	return prototypesArray
+end
+
+
+-- Initializes all prototypes under this root (including the root), then sets their parents to nil for the time being.
+function ComponentsManager:InitFilter(root, filter, groups)
+	local tags = {}
+	for tag in next, self._srcs do
+		table.insert(tags, tag)
+	end
+	local prototypes = self.generatePrototypesFromRoot(tags, root, ComponentMode.RESPAWN, groups or {})
+	local usingPrototypes = {}
+	for instance, prototype in next, prototypes do
+		if not filter(prototype) then continue end
+		usingPrototypes[instance] = prototype
+	end
+	
+	return self:_initPrototypes(usingPrototypes)
+end
+
+
+function ComponentsManager:Init(root, groups)
+	local tags = {}
+	for tag in next, self._srcs do
+		table.insert(tags, tag)
+	end
+
+	local prototypes = self.generatePrototypesFromRoot(tags, root, ComponentMode.RESPAWN, groups or {})
+	return self:_initPrototypes(prototypes)
 end
 
 
@@ -720,12 +741,6 @@ function ComponentsManager:GetState(instance, name)
 end
 
 
--- Subscribes to instance's component state name. Errors if no component is present.
-function ComponentsManager:Subscribe(instance, name, stateName, handler)
-	return self._componentHolders[name]:Subscribe(instance, stateName, handler)
-end
-
-
 function ComponentsManager:IsAdded(instance, name)
 	return self._componentHolders[name]:IsAdded(instance)
 end
@@ -768,6 +783,16 @@ end
 -- Not intended to be used much by the end-user. Returns the internal representation of the prototype.
 function ComponentsManager:GetPrototype(instance)
 	return self._pInstanceToPrototypes[instance]
+end
+
+
+function ComponentsManager:GetPrototypeFromClone(clone)
+	local profile = self._cloneProfiles[clone]
+	if profile == nil then
+		return nil
+	end
+
+	return profile.prototype
 end
 
 

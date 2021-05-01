@@ -1,5 +1,5 @@
-local ComponentsUtils = require(script.Parent.ComponentsUtils)
-local ComponentMode = require(script.Parent.ComponentMode)
+local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
+local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection

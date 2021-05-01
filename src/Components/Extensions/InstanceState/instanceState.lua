@@ -1,5 +1,5 @@
 local StateInterfacer = require(script.StateInterfacer)
-local ComponentsUtils = require(script.Parent.Parent.Parent.ComponentsUtils)
+local ComponentsUtils = require(script.Parent.Parent.Parent.Shared.ComponentsUtils)
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 
 local function makeFlush(comp, delta)

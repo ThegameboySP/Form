@@ -1,5 +1,5 @@
 local ComponentCollection = require(script.Parent.ComponentCollection)
-local ComponentsUtils = require(script.Parent.ComponentsUtils)
+local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 
 local instanceConfigHook = require(script.instanceConfigHook)
 

@@ -1,14 +1,13 @@
 return {
-	S_ComponentsService = require(script:WaitForChild("User"):WaitForChild("S_ComponentsService"));
-	C_ComponentsService = require(script:WaitForChild("User"):WaitForChild("C_ComponentsService"));
+	Manager = require(script.Manager);
+	BaseComponent = require(script.User.BaseComponent);
+	ReferenceComponent = require(script.User.ReferenceComponent);
 
-	UserUtils = require(script:WaitForChild("User"):WaitForChild("UserUtils"));
-	FuncUtils = require(script:WaitForChild("User"):WaitForChild("FuncUtils"));
+	Replication = require(script.Extensions.Replicator);
 
-	BaseComponent = require(script:WaitForChild("User"):WaitForChild("BaseComponent"));
-	ReferenceComponent = require(script:WaitForChild("User"):WaitForChild("ReferenceComponent"));
+	UserUtils = require(script.User.UserUtils);
+	FuncUtils = require(script.User.FuncUtils);
 
-	Event = require(script:WaitForChild("Modules"):WaitForChild("Event"));
-	Maid = require(script:WaitForChild("Modules"):WaitForChild("Maid"));
-	t = require(script:WaitForChild("Modules"):WaitForChild("t"));
+	Maid = require(script.Modules.Maid);
+	t = require(script.Modules.t);
 }

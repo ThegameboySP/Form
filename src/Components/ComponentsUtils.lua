@@ -345,6 +345,21 @@ function ComponentsUtils.deepMerge(tbl1, tbl2)
 end
 
 
+-- Assumes non-table keys.
+function ComponentsUtils.deepCopy(t)
+	local nt = {}
+	for k, v in pairs(t) do
+		if type(v) == "table" then
+			nt[k] = ComponentsUtils.deepCopy(v)
+		else
+			nt[k] = v
+		end
+	end
+
+	return nt
+end
+
+
 function ComponentsUtils.shallowCompare(tbl1, tbl2)
 	for k, v in next, tbl1 do
 		if tbl2[k] ~= v then

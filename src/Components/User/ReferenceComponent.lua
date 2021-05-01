@@ -1,10 +1,8 @@
-local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
+local NetworkMode = require(script.Parent.Parent.NetworkMode)
 local BaseComponent = require(script.Parent.BaseComponent)
 
-local ReferenceComponent = setmetatable({}, {__index = BaseComponent})
-ReferenceComponent.ComponentName = "ReferenceComponent"
-ReferenceComponent.__index = ReferenceComponent
-ReferenceComponent.NetworkMode = ComponentsManager.NetworkMode.SHARED
+local ReferenceComponent = BaseComponent:extend("ReferenceComponent")
+ReferenceComponent.NetworkMode = NetworkMode.Shared
 
 --[[
 	Tries to keep an up-to-date value on the current clone of what it's pointing to.	

@@ -1,6 +1,6 @@
 local StateInterfacer = require(script.StateInterfacer)
-local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
-local Symbol = require(script.Parent.Parent.Modules.Symbol)
+local ComponentsUtils = require(script.Parent.Parent.Parent.ComponentsUtils)
+local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 
 local function makeFlush(comp, delta)
 	comp:SetState(delta)
@@ -19,9 +19,10 @@ local function pathToState(stateTbl, path, value)
 	end
 end
 
-return function(man)
-	man:On("ComponentAdded", function(comp)
-		local folder = StateInterfacer.getStateFolder(comp.instance, comp.name)
+-- This is compatible with non-managed units.
+return function(view)
+	view:On("ComponentAdded", function(ref, comp)
+		local folder = StateInterfacer.getStateFolder(ref, comp.name)
 		local delta = {}
 		local flushFunc = makeFlush(comp, delta)
 
@@ -33,7 +34,7 @@ return function(man)
 		comp:ConnectEvent(Symbol.named("stateSet"), function(deltaState)
 			if comp:IsSynced() then return end
 
-			folder = StateInterfacer.getStateFolder(comp.instance, comp.name)
+			folder = StateInterfacer.getStateFolder(ref, comp.name)
 			StateInterfacer.mergeStateValueObjects(folder, deltaState)
 		end)
 	end)

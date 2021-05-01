@@ -5,8 +5,8 @@ local CollectionService = game:GetService("CollectionService")
 local Maid = require(script.Parent.Parent.Modules.Maid)
 local Event = require(script.Parent.Parent.Modules.Event)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
-local ComponentsManager = require(script.Parent.Parent.ComponentsManager)
 local ComponentsUtils = require(script.Parent.Parent.ComponentsUtils)
+local NetworkMode = require(script.Parent.Parent.NetworkMode)
 local UserUtils = require(script.Parent.UserUtils)
 local FuncUtils = require(script.Parent.FuncUtils)
 
@@ -18,7 +18,7 @@ local ON_SERVER_ERROR = "Can only be called on the server!"
 local NO_REMOTE_ERROR = "No remote event under %s by name %s!"
 
 BaseComponent.ComponentName = "BaseComponent"
-BaseComponent.NetworkMode = ComponentsManager.NetworkMode.SERVER_CLIENT
+BaseComponent.NetworkMode = NetworkMode.ServerClient
 BaseComponent.Maid = Maid
 BaseComponent.util = UserUtils
 BaseComponent.func = FuncUtils
@@ -39,7 +39,19 @@ function BaseComponent.new(instance, config)
 		_events = {};
 	}, BaseComponent)
 
-	self:RegisterEvent(Symbol.named("stateSet"))
+	self:registerEvents({"StateSet", "Destroying"})
+
+	return self
+end
+
+
+function BaseComponent.start(instance, config)
+	local self = BaseComponent.new(instance, config)
+
+	self:PreInit()
+	self:Init()
+	self:Start()
+
 	return self
 end
 
@@ -62,8 +74,8 @@ end
 function BaseComponent:extend(name)
 	local newClass = setmetatable({
 		ComponentName = name;
-		_baseComponentName = ComponentsUtils.getBaseComponentName(name);
-	}, {__index = self})
+		BaseName = ComponentsUtils.getBaseComponentName(name);
+	}, BaseComponent)
 	newClass.__index = newClass
 
 	function newClass.new(instance, config)
@@ -92,7 +104,6 @@ end
 
 
 -- For firing events and setting into motion internal processes.
--- Unlike the others, this has its own coroutine.
 function BaseComponent:Main()
 	-- pass
 end
@@ -106,20 +117,20 @@ end
 
 
 function BaseComponent:setState(newState)
-	self.man:SetState(self.instance, self._baseComponentName, newState)
+	self.man:SetState(self.instance, self.BaseName, newState)
 end
 BaseComponent.SetState = BaseComponent.setState
 
 
 function BaseComponent:getState()
-	return self.man:GetState(self.instance, self._baseComponentName)
+	return self.man:GetState(self.instance, self.BaseName)
 end
 BaseComponent.GetState = BaseComponent.getState
 
 
 function BaseComponent:subscribe(state, handler)
 	local destruct = self.man:Subscribe(
-		self.instance, self._baseComponentName, state, handler
+		self.instance, self.BaseName, state, handler
 	)
 	self.maid:GiveTask(destruct)
 	return destruct
@@ -129,7 +140,7 @@ BaseComponent.Subscribe = BaseComponent.subscribe
 
 function BaseComponent:subscribeAnd(state, handler)
 	local destruct = self.man:Subscribe(
-		self.instance, self._baseComponentName, state, handler
+		self.instance, self.BaseName, state, handler
 	)
 	local value = self.state[state]
 	if value ~= nil then
@@ -171,19 +182,8 @@ end
 BaseComponent.HasEvent = BaseComponent.hasEvent
 
 
-function BaseComponent:fireInstanceEvent(eventName, ...)
-	self.man:FireInstanceEvent(self.instance, eventName, ...)
-end
-
-
-function BaseComponent:connectInstanceEvent(eventName, ...)
-	return self.man:ConnectInstanceEvent(self.instance, eventName, ...)
-end
-BaseComponent.ConnectInstanceEvent = BaseComponent.connectInstanceEvent
-
-
 function BaseComponent:fireAll(eventName, ...)
-	self:fireInstanceEvent(eventName, ...)
+	self:fireEvent(eventName, ...)
 	self:fireAllClients(eventName, ...)
 end
 
@@ -191,7 +191,7 @@ end
 function BaseComponent:registerRemoteEvents(remotes)
 	assert(IS_SERVER, ON_SERVER_ERROR)
 
-	local folder = getOrMakeRemoteEventFolder(self.instance, self._baseComponentName)
+	local folder = getOrMakeRemoteEventFolder(self.instance, self.BaseName)
 	for k, v in next, remotes do
 		local remote = Instance.new("RemoteEvent")
 
@@ -219,7 +219,7 @@ function BaseComponent:_getRemoteEventFolderOrSignal()
 		if child.Name ~= "RemoteEvents" or not child:IsA("Folder") then return end
 
 		local function onRemoteFolderAdded(remoteFdr)
-			if remoteFdr.Name ~= self._baseComponentName then return end
+			if remoteFdr.Name ~= self.BaseName then return end
 
 			local function onLoaded()
 				self.maid[id] = nil
@@ -235,7 +235,7 @@ function BaseComponent:_getRemoteEventFolderOrSignal()
 
 		subMaid:GiveTask(child.ChildAdded:Connect(onRemoteFolderAdded))
 
-		local remoteFdr = child:FindFirstChild(self._baseComponentName)
+		local remoteFdr = child:FindFirstChild(self.BaseName)
 		if remoteFdr then
 			return onRemoteFolderAdded(remoteFdr)
 		end
@@ -283,7 +283,7 @@ BaseComponent.AreRemoteEventsLoaded = BaseComponent.areRemoteEventsLoaded
 
 
 function BaseComponent:fireAllClients(eventName, ...)
-	local remote = getOrMakeRemoteEventFolder(self.instance, self._baseComponentName):FindFirstChild(eventName)
+	local remote = getOrMakeRemoteEventFolder(self.instance, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
 	end
@@ -293,7 +293,7 @@ end
 
 
 function BaseComponent:fireServer(eventName, ...)
-	local remote = getRemoteEventFolderOrError(self.instance, self._baseComponentName):FindFirstChild(eventName)
+	local remote = getRemoteEventFolderOrError(self.instance, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
 	end
@@ -316,12 +316,12 @@ function BaseComponent:connectRemoteEvent(eventName, handler)
 
 		if IS_SERVER then
 			maid:Add(
-				(getOrMakeRemoteEventFolder(self.instance, self._baseComponentName)
+				(getOrMakeRemoteEventFolder(self.instance, self.BaseName)
 				:FindFirstChild(eventName) or error("No event named " .. eventName .. "!"))
 				.OnServerEvent:Connect(handler)
 			)
 		else
-			local folder = getRemoteEventFolderOrError(self.instance, self._baseComponentName)
+			local folder = getRemoteEventFolderOrError(self.instance, self.BaseName)
 			local event = folder:FindFirstChild(eventName)
 			if event == nil then
 				maid.childAdded = folder.ChildAdded:Connect(function(child)
@@ -341,41 +341,6 @@ function BaseComponent:connectRemoteEvent(eventName, handler)
 
 	return maid
 end
-
-
-function BaseComponent:addToGroup(group)
-	self.man:AddToGroup(self.instance, group)
-end
-BaseComponent.AddToGroup = BaseComponent.addToGroup
-
-
-function BaseComponent:removeFromGroup(group)
-	self.man:RemoveFromGroup(self.instance, group)
-end
-BaseComponent.RemoveFromGroup = BaseComponent.removeFromGroup
-
-function BaseComponent:getGroups()
-	return self.man:GetGroups(self.instance)
-end
-BaseComponent.GetGroups = BaseComponent.getGroups
-
-
-function BaseComponent:isInGroup(group)
-	return self.man:IsInGroup(self.instance, group)
-end
-BaseComponent.IsInGroup = BaseComponent.IsInGroup
-
-
-function BaseComponent:isPaused()
-	return false
-end
-BaseComponent.IsPaused = BaseComponent.isPaused
-
-
-function BaseComponent:isSynced()
-	return self.__synced
-end
-BaseComponent.IsSynced = BaseComponent.isSynced
 
 
 function BaseComponent:connect(event, handler)
@@ -451,12 +416,12 @@ end
 
 
 function BaseComponent:setCycle(name, cycleLen)
-	return self.man:SetCycle(self.instance, self._baseComponentName, name, cycleLen)
+	return self.man:SetCycle(self.instance, self.BaseName, name, cycleLen)
 end
 
 
 function BaseComponent:getCycle(name)
-	return self.man:GetCycle(self.instance, self._baseComponentName, name)
+	return self.man:GetCycle(self.instance, self.BaseName, name)
 end
 BaseComponent.GetCycle = BaseComponent.getCycle
 

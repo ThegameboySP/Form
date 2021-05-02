@@ -1,5 +1,5 @@
 local NetworkMode = require(script.Parent.Parent.Parent.Shared.NetworkMode)
-local BaseComponent = require(script.Parent.BaseComponent)
+local BaseComponent = require(script.Parent.Parent.BaseComponent)
 
 local ReferenceComponent = BaseComponent:extend("ReferenceComponent")
 ReferenceComponent.NetworkMode = NetworkMode.Shared

@@ -68,7 +68,7 @@ local HOOK_REDUCE = function(array)
 	if type == "table" then
 		local final = {}
 		for _, value in ipairs(array) do
-			ComponentsUtils.shallowMerge(value, final)
+			final = ComponentsUtils.shallowMerge(value, final)
 		end
 
 		return final

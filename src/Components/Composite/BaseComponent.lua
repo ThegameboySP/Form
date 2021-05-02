@@ -2,13 +2,15 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
 
-local Maid = require(script.Parent.Parent.Parent.Modules.Maid)
-local Event = require(script.Parent.Parent.Parent.Modules.Event)
-local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
-local ComponentsUtils = require(script.Parent.Parent.Parent.Shared.ComponentsUtils)
-local NetworkMode = require(script.Parent.Parent.Parent.Shared.NetworkMode)
-local UserUtils = require(script.Parent.UserUtils)
-local FuncUtils = require(script.Parent.FuncUtils)
+local Maid = require(script.Parent.Parent.Modules.Maid)
+local Event = require(script.Parent.Parent.Modules.Event)
+local Symbol = require(script.Parent.Parent.Modules.Symbol)
+local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
+local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
+local UserUtils = require(script.Parent.User.UserUtils)
+local FuncUtils = require(script.Parent.User.FuncUtils)
+
+local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
 
 local BaseComponent = {}
 BaseComponent.__index = BaseComponent
@@ -36,10 +38,15 @@ function BaseComponent.new(instance, config)
 		maid = Maid.new();
 		config = config;
 
+		state = {};
+
 		_events = {};
+		_layers = {};
+		_layerOrder = {};
+		_subscriptions = KeypathSubscriptions.new();
 	}, BaseComponent)
 
-	self:registerEvents({"StateSet", "Destroying"})
+	self:registerEvents({"Destroying"})
 
 	return self
 end
@@ -116,38 +123,111 @@ function BaseComponent:f(method)
 end
 
 
-function BaseComponent:setState(newState)
-	self.man:SetState(self.instance, self.BaseName, newState)
+function BaseComponent:addLayer(key, state, suppressCopy)
+	if self._layers[key] == nil then
+		table.insert(self._layerOrder, key)
+	end
+
+	if not suppressCopy then
+		self._layers[key] = ComponentsUtils.deepCopy(state)
+	else
+		self._layers[key] = state
+	end
+
+	self:_updateState()
+end
+BaseComponent.AddLayer = BaseComponent.addLayer
+
+
+function BaseComponent:mergeLayer(key, delta)
+	local layer = self._layers[key]
+	if layer == nil then
+		self:addLayer(key, delta, false)
+	else
+		self._layers[key] = ComponentsUtils.deepMerge(delta, layer)
+		self:_updateState()
+	end
+end
+BaseComponent.MergeLayer = BaseComponent.mergeLayer
+
+
+function BaseComponent:removeLayer(key)
+	if self._layers[key] == nil then return end
+
+	self._layers[key] = nil
+	table.remove(self._layerOrder, table.find(self._layerOrder, key))
+
+	self:_updateState()
+end
+BaseComponent.RemoveLayer = BaseComponent.removeLayer
+
+
+local RESERVED_LAYER_KEYS = {
+	[Symbol.named("remote")] = true;
+	[Symbol.named("base")] = true;
+}
+function BaseComponent:_updateState()
+	local newState = {}
+
+	local layersToMerge = {self._layers[Symbol.named("remote")]}
+	table.insert(layersToMerge, self._layers[Symbol.named("base")])
+
+	for _, layerKey in ipairs(self._layerOrder) do
+		if RESERVED_LAYER_KEYS[layerKey] then continue end
+		table.insert(layersToMerge, self._layers[layerKey])
+	end
+
+	for _, layer in ipairs(layersToMerge) do
+		newState = ComponentsUtils.deepMerge(layer, newState)
+	end
+
+	local oldState = self.state
+	self.state = newState
+
+	self._subscriptions:FireFromDelta(ComponentsUtils.diff(newState, oldState))
+end
+
+
+function BaseComponent:setState(delta)
+	return self:mergeLayer(Symbol.named("base"), delta)
 end
 BaseComponent.SetState = BaseComponent.setState
 
 
 function BaseComponent:getState()
-	return self.man:GetState(self.instance, self.BaseName)
+	return ComponentsUtils.deepCopy(self.state)
 end
 BaseComponent.GetState = BaseComponent.getState
 
 
-function BaseComponent:subscribe(state, handler)
-	local destruct = self.man:Subscribe(
-		self.instance, self.BaseName, state, handler
-	)
-	self.maid:GiveTask(destruct)
-	return destruct
+function BaseComponent:subscribe(keypath, handler)
+	local disconnect = self._subscriptions:Subscribe(keypath, handler)
+	return self.maid:Add(disconnect)
 end
 BaseComponent.Subscribe = BaseComponent.subscribe
 
 
-function BaseComponent:subscribeAnd(state, handler)
-	local destruct = self.man:Subscribe(
-		self.instance, self.BaseName, state, handler
-	)
-	local value = self.state[state]
+local function getStateByKeypath(state, keypath)
+	local current = state
+	for key in keypath:gmatch("([^.]+)%.?") do
+		current = current[key]
+
+		if current == nil then
+			return nil
+		end
+	end
+
+	return current
+end
+
+function BaseComponent:subscribeAnd(keypath, handler)
+	local disconnect = self:subscribe(keypath, handler)
+	local value = getStateByKeypath(self.state, keypath)
 	if value ~= nil then
 		handler(value)
 	end
 	
-	return destruct
+	return disconnect
 end
 BaseComponent.SubscribeAnd = BaseComponent.subscribeAnd
 

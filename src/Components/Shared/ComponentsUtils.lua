@@ -265,40 +265,6 @@ function ComponentsUtils.subscribeGroupsAnd(instance, callback)
 end
 
 
-
-function ComponentsUtils.getValueObjectClassNameFromType(typeOf)
-	if typeOf == "string" then
-		return "StringValue"
-	elseif typeOf == "number" then
-		return "NumberValue"
-	elseif typeOf == "boolean" then
-		return "BoolValue"
-	elseif typeOf == "Vector3" then
-		return "Vector3Value"
-	elseif typeOf == "CFrame" then
-		return "CFrameValue"
-	elseif typeOf == "Color3" then
-		return "Color3Value"
-	elseif typeOf == "Instance" then
-		return "ObjectValue"
-	elseif typeOf == "BrickColor" then
-		return "BrickColorValue"
-	elseif typeOf == "Ray" then
-		return "RayValue"
-	end
-end
-
-
-function ComponentsUtils.valueObjectFromType(typeOf)
-	local className = ComponentsUtils.getValueObjectClassNameFromType(typeOf)
-	if className then
-		return Instance.new(className)
-	else
-		error(("No found Value object for type of: %q"):format(typeOf))
-	end
-end
-
-
 function ComponentsUtils.removeCompositeMutation(instance)
 	local folder = instance:FindFirstChild("CompositeGroups")
 	if folder then
@@ -319,29 +285,29 @@ end
 
 -- tbl1 -> tbl2
 function ComponentsUtils.shallowMerge(tbl1, tbl2)
+	local c = ComponentsUtils.shallowCopy(tbl2)
 	for k, v in next, tbl1 do
-		tbl2[k] = v
+		c[k] = v
 	end
 	
-	return tbl2
+	return c
 end
 
 
 -- tbl1 -> tbl2
 function ComponentsUtils.deepMerge(tbl1, tbl2)
+	local c = ComponentsUtils.deepCopy(tbl2)
+
 	for k, v in next, tbl1 do
 		if type(v) == "table" then
-			local tbl2Value = tbl2[k]
-			if type(tbl2Value) ~= "table" then
-				tbl2Value = {}
-				tbl2[k] = tbl2Value
-			end
-
-			ComponentsUtils.deepMerge(v, tbl2Value)
+			local ct = type(c[k]) == "table" and c[k] or {}
+			c[k] = ComponentsUtils.deepMerge(v, ct)
 		else
-			tbl2[k] = v
+			c[k] = v
 		end
 	end
+
+	return c
 end
 
 
@@ -357,6 +323,26 @@ function ComponentsUtils.deepCopy(t)
 	end
 
 	return nt
+end
+
+
+function ComponentsUtils.diff(new, old)
+	local delta = {}
+
+	for k, v in pairs(new) do
+		local ov = old[k]
+
+		if type(v) == "table" and type(ov) == "table" then
+			local subDelta = ComponentsUtils.diff(v, ov)
+			if next(subDelta) then
+				delta[k] = subDelta
+			end
+		elseif v ~= ov then
+			delta[k] = v
+		end
+	end
+
+	return delta
 end
 
 

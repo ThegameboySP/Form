@@ -1,5 +1,6 @@
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
+local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
@@ -42,20 +43,6 @@ function ComponentCollection:_resolveOrError(classResolvable)
 end
 
 
-local function runOrWarn(path, func, ...)
-	local co = coroutine.create(func)
-	local ok, err = coroutine.resume(co, ...)
-
-	if not ok then
-		warn(
-			("%s: Component errored:\n%s\nThis trace: %s")
-			:format(path, err, debug.traceback(co))
-		)
-	end
-
-	return ok
-end
-
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
 	assert(typeof(ref) == "Instance")
 
@@ -84,10 +71,10 @@ function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
 		self._modeByRef[ref] = mode
 	end
 
-	local path = ref:GetFullName()
-	local ok = runOrWarn(path, comp.PreInit, comp)
-		and runOrWarn(path, comp.Init, comp)
-		and runOrWarn(path, comp.Main, comp)
+	local format = ref:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
+	local ok = runCoroutineOrWarn(format, comp.PreInit, comp)
+		and runCoroutineOrWarn(format, comp.Init, comp)
+		and runCoroutineOrWarn(format, comp.Main, comp)
 	
 	if ok then
 		self._man:Fire("ComponentAdded", ref, comp, config, keywords)

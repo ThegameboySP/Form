@@ -1,17 +1,50 @@
 local CollectionService = game:GetService("CollectionService")
 
-local Maid = require(script.Parent.Parent.Modules.Maid)
-local Symbol = require(script.Parent.Parent.Modules.Symbol)
+local Maid = require(script.Parent.Parent.Parent.Modules.Maid)
+local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 
 local StateInterfacer = {}
-
 local NULL = Symbol.named("null")
+StateInterfacer.NULL = NULL
 
 local typeOfToValueBase = {
 	Instance = true;
 	CFrame = true;
 	Ray = true;
 }
+
+function StateInterfacer.getValueObjectClassNameFromType(typeOf)
+	if typeOf == "string" then
+		return "StringValue"
+	elseif typeOf == "number" then
+		return "NumberValue"
+	elseif typeOf == "boolean" then
+		return "BoolValue"
+	elseif typeOf == "Vector3" then
+		return "Vector3Value"
+	elseif typeOf == "CFrame" then
+		return "CFrameValue"
+	elseif typeOf == "Color3" then
+		return "Color3Value"
+	elseif typeOf == "Instance" then
+		return "ObjectValue"
+	elseif typeOf == "BrickColor" then
+		return "BrickColorValue"
+	elseif typeOf == "Ray" then
+		return "RayValue"
+	end
+end
+
+
+function StateInterfacer.valueObjectFromType(typeOf)
+	local className = StateInterfacer.getValueObjectClassNameFromType(typeOf)
+	if className then
+		return Instance.new(className)
+	else
+		error(("No found Value object for type of: %q"):format(typeOf))
+	end
+end
+
 
 function StateInterfacer.mergeStateValueObjects(stateFdr, deltaState)
 	for key, value in next, deltaState do

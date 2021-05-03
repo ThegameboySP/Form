@@ -14,7 +14,7 @@ function InstanceWeakTable.new()
 	}, InstanceWeakTable)
 	
 	self._addedCon = CollectionService:GetInstanceAddedSignal(self._tag):Connect(function(i)
-		self._weak[i] = true
+		self._weak[i] = self._weak[i] or true
 		self._strong[i] = true
 	end)
 
@@ -36,20 +36,33 @@ function InstanceWeakTable:Destroy()
 end
 
 
-function InstanceWeakTable:Add(instance)
+function InstanceWeakTable:Add(instance, value)
 	assert(typeof(instance) == "Instance")
+	if value == nil then
+		value = true
+	end
+
+	self._weak[instance] = value
+	self._strong[instance] = true
 	CollectionService:AddTag(instance, self._tag)
 end
 
 
 function InstanceWeakTable:Remove(instance)
 	assert(typeof(instance) == "Instance")
+	self._weak[instance] = nil
+	self._strong[instance] = nil
 	CollectionService:RemoveTag(instance, self._tag)
 end
 
 
 function InstanceWeakTable:IsAdded(instance)
 	return self._weak[instance] ~= nil
+end
+
+
+function InstanceWeakTable:Get(instance)
+	return self._weak[instance]
 end
 
 

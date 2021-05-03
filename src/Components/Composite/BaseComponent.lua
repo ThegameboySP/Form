@@ -5,6 +5,7 @@ local CollectionService = game:GetService("CollectionService")
 local Maid = require(script.Parent.Parent.Modules.Maid)
 local Event = require(script.Parent.Parent.Modules.Event)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
+local bp = require(script.Parent.Parent.Modules.bp)
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
@@ -13,13 +14,19 @@ local FuncUtils = require(script.Parent.User.FuncUtils)
 local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
 
 local BaseComponent = {}
+BaseComponent.ComponentName = "BaseComponent"
+BaseComponent.BaseName = "BaseComponent"
+BaseComponent.isTesting = false
 BaseComponent.__index = BaseComponent
 
 local IS_SERVER = RunService:IsServer()
 local ON_SERVER_ERROR = "Can only be called on the server!"
 local NO_REMOTE_ERROR = "No remote event under %s by name %s!"
+local ERROR_ON_NEWINDEX = function()
+	error("Cannot set new value for component config!", 2)
+end
+local NOOP = function() end
 
-BaseComponent.ComponentName = "BaseComponent"
 BaseComponent.NetworkMode = NetworkMode.ServerClient
 BaseComponent.Maid = Maid
 BaseComponent.util = UserUtils
@@ -27,6 +34,13 @@ BaseComponent.func = FuncUtils
 BaseComponent.isServer = IS_SERVER
 BaseComponent.player = Players.LocalPlayer
 BaseComponent.null = Symbol.named("null")
+
+local function lockConfig(config)
+	return setmetatable({}, {
+		__index = config,
+		__newindex = ERROR_ON_NEWINDEX;
+	})
+end
 
 function BaseComponent.getInterfaces()
 	return {}
@@ -36,8 +50,8 @@ function BaseComponent.new(instance, config)
 	local self = setmetatable({
 		instance = instance;
 		maid = Maid.new();
-		config = config;
-
+		
+		config = lockConfig(config);
 		state = {};
 
 		_events = {};
@@ -46,14 +60,29 @@ function BaseComponent.new(instance, config)
 		_subscriptions = KeypathSubscriptions.new();
 	}, BaseComponent)
 
-	self:registerEvents({"Destroying"})
+	self:registerEvents("Destroying")
 
 	return self
 end
 
 
+local function transform(comp, config, state)
+	local newState = {}
+	if comp.mapConfig then
+		config = comp.mapConfig(config)
+	end
+
+	if comp.mapState then
+		newState = comp.mapState(config, state)
+	end
+
+	return config, newState
+end
+
+
 function BaseComponent.start(instance, config)
 	local self = BaseComponent.new(instance, config)
+	self.config, self.state = transform(self, self.config, self.state)
 
 	self:PreInit()
 	self:Init()
@@ -93,6 +122,7 @@ function BaseComponent:extend(name)
 end
 
 
+-- isReloading: bool
 function BaseComponent:Destroy()
 	self.maid:DoCleaning()
 end
@@ -113,6 +143,18 @@ end
 -- For firing events and setting into motion internal processes.
 function BaseComponent:Main()
 	-- pass
+end
+
+
+function BaseComponent:reload(config)
+	self:Destroy(true)
+
+	local newConfig = config and lockConfig(config) or self.config
+	self.config, self.state = transform(self, newConfig, self.state)
+
+	self:PreInit()
+	self:Init()
+	self:Start()
 end
 
 
@@ -231,8 +273,8 @@ function BaseComponent:subscribeAnd(keypath, handler)
 end
 BaseComponent.SubscribeAnd = BaseComponent.subscribeAnd
 
-function BaseComponent:registerEvents(events)
-	for k, v in next, events do
+function BaseComponent:registerEvents(...)
+	for k, v in next, {...} do
 		local event = Event.new()
 		
 		if type(v) == "function" then
@@ -268,11 +310,11 @@ function BaseComponent:fireAll(eventName, ...)
 end
 
 
-function BaseComponent:registerRemoteEvents(remotes)
-	assert(IS_SERVER, ON_SERVER_ERROR)
+function BaseComponent:registerRemoteEvents(...)
+	assert(self.isServer, ON_SERVER_ERROR)
 
 	local folder = getOrMakeRemoteEventFolder(self.instance, self.BaseName)
-	for k, v in next, remotes do
+	for k, v in next, {...} do
 		local remote = Instance.new("RemoteEvent")
 
 		if type(v) == "function" then
@@ -289,77 +331,18 @@ function BaseComponent:registerRemoteEvents(remotes)
 end
 
 
-function BaseComponent:_getRemoteEventFolderOrSignal()
-	local subMaid = Maid.new()
-	local bindable = Instance.new("BindableEvent")
-	subMaid:GiveTask(bindable)
-	local id = self.maid:GiveTask(subMaid)
-
-	local function onInstanceChildAdded(child)
-		if child.Name ~= "RemoteEvents" or not child:IsA("Folder") then return end
-
-		local function onRemoteFolderAdded(remoteFdr)
-			if remoteFdr.Name ~= self.BaseName then return end
-
-			local function onLoaded()
-				self.maid[id] = nil
-				bindable:Fire(remoteFdr)
-				return remoteFdr
-			end
-			
-			subMaid:GiveTask(remoteFdr:GetAttributeChangedSignal("Loaded"):Connect(onLoaded))
-			if remoteFdr:GetAttribute("Loaded") then
-				return onLoaded()
-			end
-		end
-
-		subMaid:GiveTask(child.ChildAdded:Connect(onRemoteFolderAdded))
-
-		local remoteFdr = child:FindFirstChild(self.BaseName)
-		if remoteFdr then
-			return onRemoteFolderAdded(remoteFdr)
-		end
-	end
-
-	local folder = self.instance:FindFirstChild("RemoteEvents")
-	if folder then
-		local remoteFdr = onInstanceChildAdded(folder)
-		if remoteFdr then
-			return remoteFdr
-		end
-	end
-
-	subMaid:GiveTask(self.instance.ChildAdded:Connect(onInstanceChildAdded))
-	return bindable.Event
+function BaseComponent:_getRemoteEventSchema(func)
+	return bp.new(self.instance, {
+		[bp.childNamed("RemoteEvents")] = {
+			[bp.childNamed(self.BaseName)] = {
+				[bp.attribute("Loaded", true)] = func or function(context)
+					local remoteFdr = context.source.instance
+					return remoteFdr
+				end
+			}
+		}
+	})
 end
-
-
-function BaseComponent:waitForRemoteEvents()
-	local result = self:_getRemoteEventFolderOrSignal()
-	if typeof(result) ~= "RBXScriptSignal" then
-		return result
-	end
-
-	return result:Wait()
-end
-BaseComponent.WaitForRemoteEvents = BaseComponent.waitForRemoteEvents
-
-
-function BaseComponent:bindOnRemoteEvents(handler)
-	local result = self:_getRemoteEventFolderOrSignal()
-	if typeof(result) ~= "RBXScriptSignal" then
-		return handler(result)
-	end
-
-	-- No need to wrap in maid here, since bindable is already maided.
-	result:Connect(handler)
-end
-
-
-function BaseComponent:areRemoteEventsLoaded()
-	return self.instance:FindFirstChild("RemoteEvents") ~= nil
-end
-BaseComponent.AreRemoteEventsLoaded = BaseComponent.areRemoteEventsLoaded
 
 
 function BaseComponent:fireAllClients(eventName, ...)
@@ -391,33 +374,27 @@ function BaseComponent:connectRemoteEvent(eventName, handler)
 	local maid = Maid.new()
 	
 	-- Wait a frame, as remote event connections can fire immediately if in queue.
-	local id = self:spawnNextFrame(function()
-		maid.id = nil
-
-		if IS_SERVER then
+	maid:Add(self:spawnNextFrame(function()
+		if self.isServer then
 			maid:Add(
 				(getOrMakeRemoteEventFolder(self.instance, self.BaseName)
 				:FindFirstChild(eventName) or error("No event named " .. eventName .. "!"))
 				.OnServerEvent:Connect(handler)
 			)
 		else
-			local folder = getRemoteEventFolderOrError(self.instance, self.BaseName)
-			local event = folder:FindFirstChild(eventName)
-			if event == nil then
-				maid.childAdded = folder.ChildAdded:Connect(function(child)
-					if child.Name ~= eventName then return end
-					maid.childAdded = nil
-					maid:Add(child.OnClientEvent:Connect(handler))
-				end)
-			else
-				maid:Add(event.OnClientEvent:Connect(handler))
-			end
-		end
-	end)
+			local schema = maid:Add(self:_getRemoteEventSchema(function()
+				return false, {
+					[bp.childNamed(eventName)] = function(context)
+						return context.instance
+					end
+				}
+			end))
 
-	maid.id = function()
-		self.maid[id] = nil
-	end
+			schema:OnMatched(function(remote)
+				maid:Add(remote.OnClientEvent:Connect(handler))
+			end)
+		end
+	end))
 
 	return maid
 end
@@ -455,14 +432,22 @@ function BaseComponent:unbindMaid(instance)
 end
 
 
-function BaseComponent:spawnNextFrame(handler)
-	local id
-	id = self.maid:GiveTask(RunService.Heartbeat:Connect(function()
-		self.maid[id] = nil
+function BaseComponent:spawnNextFrame(handler, ...)
+	if not self.isTesting then
+		local args = {...}
+		local argLen = #args
+
+		local id
+		id = self.maid:GiveTask(RunService.Heartbeat:Connect(function()
+			self.maid[id] = nil
+			handler(table.unpack(args, 1, argLen))
+		end))
+		
+		return id
+	else
 		handler()
-	end))
-	
-	return id
+		return NOOP
+	end
 end
 
 
@@ -505,16 +490,7 @@ function BaseComponent:getCycle(name)
 end
 BaseComponent.GetCycle = BaseComponent.getCycle
 
-
-function BaseComponent:getConfig(instance, compName)
-	assert(typeof(instance) == "Instance", "No instance!")
-	return ComponentsUtils.getConfigFromInstance(instance, compName)
-end
-BaseComponent.GetConfig = BaseComponent.getConfig
-
 function getOrMakeRemoteEventFolder(instance, baseCompName)
-	assert(IS_SERVER, ON_SERVER_ERROR)
-
 	local remoteEvents = instance:FindFirstChild("RemoteEvents")
 	if remoteEvents == nil then
 		remoteEvents = Instance.new("Folder")

@@ -283,6 +283,19 @@ function ComponentsUtils.shallowCopy(tbl)
 end
 
 
+function ComponentsUtils.union(...)
+	local to = {}
+
+	for _, from in ipairs({...}) do
+		for k, v in pairs(from) do
+			to[k] = v
+		end
+	end
+
+	return to
+end
+
+
 -- tbl1 -> tbl2
 function ComponentsUtils.shallowMerge(tbl1, tbl2)
 	local c = ComponentsUtils.shallowCopy(tbl2)

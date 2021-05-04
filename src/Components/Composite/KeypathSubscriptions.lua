@@ -49,6 +49,7 @@ end
 
 function KeypathSubscriptions:FireFromDelta(delta)
 	local paths = deltaToPaths(delta)
+	
 	for path, value in pairs(paths) do
 		local subscriptions = self._subscriptionsByPath[path]
 		if subscriptions == nil then continue end

@@ -12,6 +12,8 @@ local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
 
 local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
+local StateMetatable = require(script.StateMetatable)
+local Utils = require(script.Utils)
 
 local BaseComponent = {}
 BaseComponent.ComponentName = "BaseComponent"
@@ -22,24 +24,31 @@ BaseComponent.__index = BaseComponent
 local IS_SERVER = RunService:IsServer()
 local ON_SERVER_ERROR = "Can only be called on the server!"
 local NO_REMOTE_ERROR = "No remote event under %s by name %s!"
-local ERROR_ON_NEWINDEX = function()
-	error("Cannot set new value for component config!", 2)
-end
 local NOOP = function() end
 
 BaseComponent.NetworkMode = NetworkMode.ServerClient
 BaseComponent.Maid = Maid
-BaseComponent.util = UserUtils
+BaseComponent.inst = UserUtils
+BaseComponent.util = ComponentsUtils
 BaseComponent.func = FuncUtils
 BaseComponent.isServer = IS_SERVER
 BaseComponent.player = Players.LocalPlayer
 BaseComponent.null = Symbol.named("null")
 
-local function lockConfig(config)
-	return setmetatable({}, {
-		__index = config,
-		__newindex = ERROR_ON_NEWINDEX;
-	})
+local op = function(func)
+	return function(n)
+		return function(c)
+			return func(c, n)
+		end
+	end
+end
+BaseComponent.add = op(function(c, n) return (c or 0) + n end)
+BaseComponent.sub = op(function(c, n) return (c or 0) - n end)
+BaseComponent.mul = op(function(c, n) return (c or 0) * n end)
+BaseComponent.div = op(function(c, n) return (c or 0) / n end)
+
+local function setStateMt(state)
+	return setmetatable(state, StateMetatable)
 end
 
 function BaseComponent.getInterfaces()
@@ -51,10 +60,11 @@ function BaseComponent.new(instance, config)
 		instance = instance;
 		maid = Maid.new();
 		
-		config = lockConfig(config);
-		state = {};
+		config = config;
+		state = setStateMt({});
 
 		_events = {};
+		_listeners = {};
 		_layers = {};
 		_layerOrder = {};
 		_subscriptions = KeypathSubscriptions.new();
@@ -69,26 +79,31 @@ end
 local function transform(comp, config, state)
 	local newState = {}
 	if comp.mapConfig then
-		config = comp.mapConfig(config)
+		config = config
 	end
 
+	-- When reloading, this should be run on each layer of state, then merged together.
+	-- When calling :newLayer, state is equal to the union of all state.
+	-- When calling :start(), state is an empty table.
 	if comp.mapState then
-		newState = comp.mapState(config, state)
+		newState = setStateMt(comp.mapState(config, state))
 	end
 
 	return config, newState
 end
 
 
-function BaseComponent.start(instance, config)
-	local self = BaseComponent.new(instance, config)
-	self.config, self.state = transform(self, self.config, self.state)
+function BaseComponent:start(instance, config)
+	local comp = self.new(instance, config)
+	local newConfig, newState = transform(comp, comp.config, setStateMt({}))
+	self.config = newConfig
+	comp:addLayer(Symbol.named("base"), newState)
 
-	self:PreInit()
-	self:Init()
-	self:Start()
+	comp:PreInit()
+	comp:Init()
+	comp:Main()
 
-	return self
+	return comp
 end
 
 
@@ -122,7 +137,7 @@ function BaseComponent:extend(name)
 end
 
 
--- isReloading: bool
+-- isReloading: bool?
 function BaseComponent:Destroy()
 	self.maid:DoCleaning()
 end
@@ -149,12 +164,11 @@ end
 function BaseComponent:reload(config)
 	self:Destroy(true)
 
-	local newConfig = config and lockConfig(config) or self.config
-	self.config, self.state = transform(self, newConfig, self.state)
+	self.config, self.state = transform(self, config or self.config, self.state)
 
 	self:PreInit()
 	self:Init()
-	self:Start()
+	self:Main()
 end
 
 
@@ -165,17 +179,12 @@ function BaseComponent:f(method)
 end
 
 
-function BaseComponent:addLayer(key, state, suppressCopy)
+function BaseComponent:addLayer(key, state)
 	if self._layers[key] == nil then
 		table.insert(self._layerOrder, key)
 	end
 
-	if not suppressCopy then
-		self._layers[key] = ComponentsUtils.deepCopy(state)
-	else
-		self._layers[key] = state
-	end
-
+	self._layers[key] = Utils.deepCopyState(state)
 	self:_updateState()
 end
 BaseComponent.AddLayer = BaseComponent.addLayer
@@ -183,10 +192,11 @@ BaseComponent.AddLayer = BaseComponent.addLayer
 
 function BaseComponent:mergeLayer(key, delta)
 	local layer = self._layers[key]
+
 	if layer == nil then
-		self:addLayer(key, delta, false)
+		return self:addLayer(key, delta)
 	else
-		self._layers[key] = ComponentsUtils.deepMerge(delta, layer)
+		self._layers[key] = Utils.deepMergeLayer(delta, layer)
 		self:_updateState()
 	end
 end
@@ -209,24 +219,28 @@ local RESERVED_LAYER_KEYS = {
 	[Symbol.named("base")] = true;
 }
 function BaseComponent:_updateState()
-	local newState = {}
-
 	local layersToMerge = {self._layers[Symbol.named("remote")]}
 	table.insert(layersToMerge, self._layers[Symbol.named("base")])
 
 	for _, layerKey in ipairs(self._layerOrder) do
-		if RESERVED_LAYER_KEYS[layerKey] then continue end
-		table.insert(layersToMerge, self._layers[layerKey])
+		if RESERVED_LAYER_KEYS[layerKey] == nil then
+			table.insert(layersToMerge, self._layers[layerKey])
+		end
 	end
 
+	local newState = {}
 	for _, layer in ipairs(layersToMerge) do
-		newState = ComponentsUtils.deepMerge(layer, newState)
+		Utils.deepMergeState(layer, newState)
+	end
+	
+	for _, layer in ipairs(layersToMerge) do
+		Utils.runStateFunctions(layer, newState)
 	end
 
 	local oldState = self.state
-	self.state = newState
+	self.state = setStateMt(newState)
 
-	self._subscriptions:FireFromDelta(ComponentsUtils.diff(newState, oldState))
+	self._subscriptions:FireFromDelta(Utils.stateDiff(newState, oldState))
 end
 
 
@@ -237,7 +251,7 @@ BaseComponent.SetState = BaseComponent.setState
 
 
 function BaseComponent:getState()
-	return ComponentsUtils.deepCopy(self.state)
+	return Utils.deepCopyState(self.state)
 end
 BaseComponent.GetState = BaseComponent.getState
 
@@ -282,6 +296,34 @@ function BaseComponent:registerEvents(...)
 			event:Connect(v)
 		elseif type(v) == "string" then
 			self._events[v] = event
+		end
+	end
+end
+
+
+function BaseComponent:on(name, handler)
+	self._listeners[name] = self._listeners[name] or {}
+	local listeners = self._listeners[name]
+	table.insert(listeners, handler)
+
+	return function()
+		local i = table.find(listeners, handler)
+		if i == nil then return end
+		table.remove(listeners, i)
+	end
+end
+
+
+function BaseComponent:fire(name, ...)
+	local listeners = self._listeners[name]
+	if listeners == nil then return end
+
+	for _, handler in ipairs(listeners) do
+		local co = coroutine.create(handler)
+		local ok, err = coroutine.resume(co, ...)
+
+		if not ok then
+			warn(("Listener errored at %s\n%s"):format(debug.traceback(co), err))
 		end
 	end
 end

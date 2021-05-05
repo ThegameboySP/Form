@@ -1,5 +1,6 @@
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local UserUtils = {}
 local EMPTY_TABLE = {}
@@ -199,6 +200,20 @@ function UserUtils.makeTranslationHandle(children)
 			return currentCF
 		end;
 	}
+end
+
+function UserUtils.callOnReplicated(ref, maid, callback)
+	if not ref:IsDescendantOf(workspace) and not ref:IsDescendantOf(ReplicatedStorage) then
+		local id
+		id = maid:GiveTask(ref.AncestryChanged:Connect(function(_, newParent)
+			if newParent ~= workspace and newParent ~= ReplicatedStorage then return end
+
+			maid:Remove(id)
+			callback()
+		end))
+	else
+		callback()
+	end
 end
 
 return UserUtils

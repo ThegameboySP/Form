@@ -3,9 +3,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local NetworkMode = require(script.Parent.Parent.Parent.Shared.NetworkMode)
 
 local function networkModeFilter(class)
-	return class.NetworkMode == NetworkMode.SERVER_CLIENT
-		or class.NetworkMode == NetworkMode.SHARED
-		or class.NetworkMode == NetworkMode.CLIENT
+	return class.NetworkMode == NetworkMode.ServerClient
+		or class.NetworkMode == NetworkMode.Shared
+		or class.NetworkMode == NetworkMode.Client
 end
 
 return function(man)

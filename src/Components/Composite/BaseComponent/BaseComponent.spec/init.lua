@@ -93,6 +93,7 @@ return function()
 
 		it("should remove existing layer", function()
 			local c = make()
+			c:setState({test1 = false})
 			c:addLayer("test", {
 				test1 = true;
 			})
@@ -101,7 +102,7 @@ return function()
 
 			c:removeLayer("test")
 
-			expect(c.state.test1).to.equal(nil)
+			expect(c.state.test1).to.equal(false)
 		end)
 	end)
 
@@ -251,7 +252,25 @@ return function()
 			end)
 
 			s:registerRemoteEvents("Test")
+			expect(#values).to.equal(0)
 			s:fireAllClients("Test", "test")
+
+			expect(#values).to.equal(1)
+			expect(values[1]).to.equal("test")
+		end)
+
+		it("should fire server remote event once it's visible", function()
+			local i = new("Folder")
+			local s = make(i)
+			local c = make(i)
+			c.isServer = false
+
+			c:fireServer("Test", "test")
+			local values = {}
+			s:bindRemoteEvent("Test", function(_, value)
+				table.insert(values, value)
+			end)
+			s:registerRemoteEvents("Test")
 
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal("test")
@@ -259,23 +278,47 @@ return function()
 	end)
 
 	describe("Reloading", function()
-		-- it("should persist state", function()
-		-- 	local i = new("Folder")
-		-- 	local c = start(Reloadable, i, {Time = 1})
+		it("should persist state", function()
+			local i = new("Folder")
+			local c = start(Reloadable, i, {Time = 1})
 			
-		-- 	c:fire("TimeElapsed")
+			c:fire("TimeElapsed")
 
-		-- 	-- lol
-		-- 	local called = {}
-		-- 	c:on("Bark!", function()
-		-- 		table.insert(called, true)
-		-- 	end)
+			-- lol
+			local called = {}
+			c:on("Bark!", function()
+				table.insert(called, true)
+			end)
 
-		-- 	c:reload({ShouldBark = false})
+			c:reload({ShouldBark = true})
 
-		-- 	expect(c.state.State.Name).to.equal("Next")
-		-- 	expect(c.state.IsBarking).to.equal(false)
-		-- 	expect(#called).to.equal(1)
-		-- end)
+			expect(c.state.State.Name).to.equal("Next")
+			expect(c.state.IsBarking).to.equal(true)
+			expect(#called).to.equal(1)
+		end)
+	end)
+
+	describe("Mirror layers", function()
+		it("should create a mirror layer, pointing to component", function()
+			local c = make()
+			c:setState({test = true})
+
+			local layer = c:newMirror()
+			expect(layer.Destroy).to.never.equal(c.Destroy)
+			expect(function()
+				layer:Destroy()
+			end).never.to.throw()
+			expect(layer:getState().test).to.equal(true)
+		end)
+
+		it("should reload the component when provided with config and when destroying", function()
+			local c = start(Reloadable)
+			expect(c.state.IsBarking).to.equal(false)
+			local layer = c:newMirror({ShouldBark = true})
+			expect(c.state.IsBarking).to.equal(true)
+
+			layer:Destroy()
+			expect(c.state.IsBarking).to.equal(false)
+		end)
 	end)
 end

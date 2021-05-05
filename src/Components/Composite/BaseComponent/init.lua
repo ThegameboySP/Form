@@ -10,6 +10,7 @@ local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
+local Reducers = require(script.Parent.Parent.Shared.Reducers)
 
 local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
 local StateMetatable = require(script.StateMetatable)
@@ -64,6 +65,7 @@ function BaseComponent.new(instance, config)
 		state = setStateMt({});
 
 		_events = {};
+		_configLayers = {};
 		_listeners = {};
 		_layers = {};
 		_layerOrder = {};
@@ -79,14 +81,17 @@ end
 local function transform(comp, config, state)
 	local newState = {}
 	if comp.mapConfig then
-		config = config
+		config = comp.mapConfig(config)
 	end
 
 	-- When reloading, this should be run on each layer of state, then merged together.
-	-- When calling :newLayer, state is equal to the union of all state.
+	-- When calling :newMirror, state is equal to the union of all state.
 	-- When calling :start(), state is an empty table.
 	if comp.mapState then
-		newState = setStateMt(comp.mapState(config, state))
+		newState = setStateMt(
+			comp.mapState(ComponentsUtils.deepCopy(config),
+			setStateMt(state))
+		)
 	end
 
 	return config, newState
@@ -95,7 +100,7 @@ end
 
 function BaseComponent:start(instance, config)
 	local comp = self.new(instance, config)
-	local newConfig, newState = transform(comp, comp.config, setStateMt({}))
+	local newConfig, newState = transform(comp, comp.config, {})
 	self.config = newConfig
 	comp:addLayer(Symbol.named("base"), newState)
 
@@ -164,7 +169,25 @@ end
 function BaseComponent:reload(config)
 	self:Destroy(true)
 
-	self.config, self.state = transform(self, config or self.config, self.state)
+	self.config = config
+	if self.mapConfig then
+		self.config = self.mapConfig(config)
+	end
+
+	if self.mapState then
+		local layerKeys = self:_getLayers()
+		local newLayers = {}
+
+		for _, key in ipairs(layerKeys) do
+			self._layers[key] = setStateMt(self.mapState(
+				ComponentsUtils.deepCopy(self.config),
+				self._layers[key]
+			))
+			table.insert(newLayers, key)
+		end
+
+		self:_mergeLayers(newLayers)
+	end
 
 	self:PreInit()
 	self:Init()
@@ -180,12 +203,16 @@ end
 
 
 function BaseComponent:addLayer(key, state)
+	key = key or #self._layers + 1
+
 	if self._layers[key] == nil then
 		table.insert(self._layerOrder, key)
 	end
 
-	self._layers[key] = Utils.deepCopyState(state)
+	self._layers[key] = setStateMt(Utils.deepCopyState(state))
 	self:_updateState()
+
+	return key
 end
 BaseComponent.AddLayer = BaseComponent.addLayer
 
@@ -196,7 +223,7 @@ function BaseComponent:mergeLayer(key, delta)
 	if layer == nil then
 		return self:addLayer(key, delta)
 	else
-		self._layers[key] = Utils.deepMergeLayer(delta, layer)
+		self._layers[key] = setStateMt(Utils.deepMergeLayer(delta, layer))
 		self:_updateState()
 	end
 end
@@ -218,29 +245,43 @@ local RESERVED_LAYER_KEYS = {
 	[Symbol.named("remote")] = true;
 	[Symbol.named("base")] = true;
 }
-function BaseComponent:_updateState()
-	local layersToMerge = {self._layers[Symbol.named("remote")]}
-	table.insert(layersToMerge, self._layers[Symbol.named("base")])
-
-	for _, layerKey in ipairs(self._layerOrder) do
-		if RESERVED_LAYER_KEYS[layerKey] == nil then
-			table.insert(layersToMerge, self._layers[layerKey])
+function BaseComponent:_getLayers()
+	local layersToMerge = {}
+	for _, key in pairs({Symbol.named("remote"), Symbol.named("base")}) do
+		if self._layers[key] then
+			table.insert(layersToMerge, key)
 		end
 	end
 
+	for _, layerKey in ipairs(self._layerOrder) do
+		if RESERVED_LAYER_KEYS[layerKey] == nil then
+			table.insert(layersToMerge, layerKey)
+		end
+	end
+
+	return layersToMerge
+end
+
+
+function BaseComponent:_mergeLayers(layerKeys)
 	local newState = {}
-	for _, layer in ipairs(layersToMerge) do
-		Utils.deepMergeState(layer, newState)
+	for _, key in ipairs(layerKeys) do
+		Utils.deepMergeState(self._layers[key], newState)
 	end
 	
-	for _, layer in ipairs(layersToMerge) do
-		Utils.runStateFunctions(layer, newState)
+	for _, key in ipairs(layerKeys) do
+		Utils.runStateFunctions(self._layers[key], newState)
 	end
 
 	local oldState = self.state
 	self.state = setStateMt(newState)
 
 	self._subscriptions:FireFromDelta(Utils.stateDiff(newState, oldState))
+end
+
+
+function BaseComponent:_updateState()
+	return self:_mergeLayers(self:_getLayers())
 end
 
 
@@ -286,6 +327,34 @@ function BaseComponent:subscribeAnd(keypath, handler)
 	return disconnect
 end
 BaseComponent.SubscribeAnd = BaseComponent.subscribeAnd
+
+function BaseComponent:newMirror(config)
+	local id = self:addLayer(nil, {})
+	
+	if config then
+		table.insert(self._configLayers, config)
+		self:reload(Reducers.merge(self._configLayers))
+	end
+
+	local destroyed = false
+	return setmetatable({
+		Destroy = function(_, isReloading)
+			if destroyed then return end
+
+			if isReloading then
+				self:Destroy(true)
+			else
+				destroyed = true
+				self:removeLayer(id)
+
+				if config then
+					table.remove(self._configLayers, table.find(self._configLayers, config))
+					self:reload(Reducers.merge(self._configLayers))
+				end
+			end
+		end
+	}, {__index = self})
+end
 
 function BaseComponent:registerEvents(...)
 	for k, v in next, {...} do
@@ -386,24 +455,55 @@ function BaseComponent:_getRemoteEventSchema(func)
 	})
 end
 
-
 function BaseComponent:fireAllClients(eventName, ...)
 	local remote = getOrMakeRemoteEventFolder(self.instance, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
 	end
 
-	remote:FireAllClients(...)
+	if not self.isTesting then
+		local args = {...}
+		UserUtils.callOnReplicated(self.instance, self.maid, function()
+			remote:FireAllClients(table.unpack(args, 1, #args))
+		end)
+	else
+		remote:FireAllClients(...)
+	end
 end
 
 
-function BaseComponent:fireServer(eventName, ...)
-	local remote = getRemoteEventFolderOrError(self.instance, self.BaseName):FindFirstChild(eventName)
+function BaseComponent:fireClient(eventName, client, ...)
+	local remote = getOrMakeRemoteEventFolder(self.instance, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
 	end
 
-	remote:FireServer(...)
+	if not self.isTesting then
+		local args = {...}
+		UserUtils.callOnReplicated(self.instance, self.maid, function()
+			remote:FireClient(client, table.unpack(args, 1, #args))
+		end)
+	else
+		remote:FireClient(client, ...)
+	end
+end
+
+
+function BaseComponent:fireServer(eventName, ...)
+	local maid, id = self.maid:Add(Maid.new())
+	local schema = maid:Add(self:_getRemoteEventSchema(function()
+		return false, {
+			[bp.childNamed(eventName)] = function(context)
+				return context.instance
+			end
+		}
+	end))
+
+	local args = {...}
+	schema:OnMatched(function(remote)
+		self.maid:Remove(id)
+		remote:FireServer(table.unpack(args, 1, #args))
+	end)
 end
 
 
@@ -417,13 +517,14 @@ function BaseComponent:connectRemoteEvent(eventName, handler)
 	
 	-- Wait a frame, as remote event connections can fire immediately if in queue.
 	maid:Add(self:spawnNextFrame(function()
-		if self.isServer then
+		if self.isServer and not self.isTesting then
 			maid:Add(
 				(getOrMakeRemoteEventFolder(self.instance, self.BaseName)
 				:FindFirstChild(eventName) or error("No event named " .. eventName .. "!"))
 				.OnServerEvent:Connect(handler)
 			)
 		else
+			local bind = self.isServer and "OnServerEvent" or "OnClientEvent"
 			local schema = maid:Add(self:_getRemoteEventSchema(function()
 				return false, {
 					[bp.childNamed(eventName)] = function(context)
@@ -433,7 +534,8 @@ function BaseComponent:connectRemoteEvent(eventName, handler)
 			end))
 
 			schema:OnMatched(function(remote)
-				maid:Add(remote.OnClientEvent:Connect(handler))
+				maid:DoCleaning()
+				maid:Add(remote[bind]:Connect(handler))
 			end)
 		end
 	end))
@@ -454,23 +556,6 @@ function BaseComponent:bind(event, handler)
 	local con = self:connect(event, handler)
 	self.maid:GiveTask(con)
 	return con
-end
-
-
-function BaseComponent:bindMaid(instance)
-	local newMaid = Maid.new()
-	self.maid[instance] = newMaid
-	newMaid:GiveTask(instance.AncestryChanged:Connect(function(_, newParent)
-		if newParent then return end
-		self.maid[instance] = nil
-	end))
-
-	return newMaid
-end
-
-
-function BaseComponent:unbindMaid(instance)
-	self.maid[instance] = nil
 end
 
 

@@ -2,20 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local Maid = require(script.Parent.Parent.Parent.Modules.Maid)
-
-local function callOnReplicated(ref, maid, callback)
-	if not ref:IsDescendantOf(workspace) and not ref:IsDescendantOf(ReplicatedStorage) then
-		local id
-		id = maid:GiveTask(ref.AncestryChanged:Connect(function(_, newParent)
-			if newParent ~= workspace and newParent ~= ReplicatedStorage then return end
-
-			maid:Remove(id)
-			callback()
-		end))
-	else
-		callback()
-	end
-end
+local UserUtils = require(script.Parent.Parent.Parent.Composite.User.UserUtils)
 
 local function makeInstances(name)
 	local folder = ReplicatedStorage:FindFirstChild("CompositeReplication")
@@ -67,7 +54,7 @@ return function(man)
 		local maid = comp.maid:Add(Maid.new())
 
 		local function onPlayerAdded(player)
-			callOnReplicated(ref, maid, function()
+			UserUtils.callOnReplicated(ref, maid, function()
 				if Replicator.blacklist[comp] then return end
 				addedRemote:FireClient(player, ref, comp.BaseName, config)
 			end)

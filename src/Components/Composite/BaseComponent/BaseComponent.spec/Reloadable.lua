@@ -2,8 +2,10 @@ local BaseComponent = require(script.Parent.Parent)
 local Reloadable = BaseComponent:extend("Reloadable")
 
 function Reloadable.mapState(config, state)
+	config.Time = config.Time or 1
+
 	return {
-		IsBarking = config.ShouldBark;
+		IsBarking = not not config.ShouldBark;
 		State = state.State or {
 			Name = "Default";
 			TimeLeft = math.min(state:get("State", "TimeLeft") or config.Time, config.Time);
@@ -56,6 +58,7 @@ end
 
 function Reloadable:NextState()
 	local maid = self.maid:AddId(self.Maid.new(), "state")
+	
 	maid:Add(self:subscribeAnd("IsBarking", function(isBarking)
 		if isBarking then
 			self:fire("Bark!")

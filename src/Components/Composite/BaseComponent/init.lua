@@ -101,7 +101,9 @@ end
 function BaseComponent:start(instance, config)
 	local comp = self.new(instance, config)
 	local newConfig, newState = transform(comp, comp.config, {})
-	self.config = newConfig
+	comp.config = newConfig
+	comp._baseConfig = newConfig
+	table.insert(comp._configLayers, newConfig)
 	comp:addLayer(Symbol.named("base"), newState)
 
 	comp:PreInit()
@@ -169,9 +171,17 @@ end
 function BaseComponent:reload(config)
 	self:Destroy(true)
 
-	self.config = config
+	if config then
+		local baseConfig = self._baseConfig
+		table.remove(self._configLayers, table.find(self._configLayers, baseConfig))
+		table.insert(self._configLayers, config)
+		
+		self._baseConfig = config
+	end
+	
+	self.config = Reducers.merge(self._configLayers)
 	if self.mapConfig then
-		self.config = self.mapConfig(config)
+		self.config = self.mapConfig(self.config)
 	end
 
 	if self.mapState then
@@ -333,7 +343,7 @@ function BaseComponent:newMirror(config)
 	
 	if config then
 		table.insert(self._configLayers, config)
-		self:reload(Reducers.merge(self._configLayers))
+		self:reload()
 	end
 
 	local destroyed = false
@@ -349,10 +359,17 @@ function BaseComponent:newMirror(config)
 
 				if config then
 					table.remove(self._configLayers, table.find(self._configLayers, config))
-					self:reload(Reducers.merge(self._configLayers))
+					self:reload()
 				end
 			end
-		end
+		end;
+
+		reload = function(_, newConfig)
+			table.remove(self._configLayers, table.find(self._configLayers, config))
+			table.insert(self._configLayers, newConfig)
+			self:reload()
+			config = newConfig
+		end;
 	}, {__index = self})
 end
 

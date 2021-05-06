@@ -311,14 +311,22 @@ return function()
 			expect(layer:getState().test).to.equal(true)
 		end)
 
-		it("should reload the component when provided with config and when destroying", function()
-			local c = start(Reloadable)
+		it("should replace mirror config when destroying and reloading", function()
+			local c = start(Reloadable, {}, {ShouldBark = false})
 			expect(c.state.IsBarking).to.equal(false)
+			expect(c.config.ShouldBark).to.equal(false)
+
 			local layer = c:newMirror({ShouldBark = true})
 			expect(c.state.IsBarking).to.equal(true)
+			expect(c.config.ShouldBark).to.equal(true)
+
+			layer:reload({ShouldBark = false})
+			expect(c.state.IsBarking).to.equal(false)
+			expect(c.config.ShouldBark).to.equal(false)
 
 			layer:Destroy()
 			expect(c.state.IsBarking).to.equal(false)
+			expect(c.config.ShouldBark).to.equal(false)
 		end)
 	end)
 end

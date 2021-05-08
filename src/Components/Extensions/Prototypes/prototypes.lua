@@ -1,4 +1,4 @@
--- Remove all component tags on clone, so client doesn't think it's static.
+-- TODO? Remove all component tags on clone, so client doesn't think it's static.
 
 local PrototypesExtension = require(script.Parent.PrototypesExtension)
 

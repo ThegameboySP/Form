@@ -111,6 +111,18 @@ function PrototypesExtension:Stop(clonesArray)
 	end
 end
 
+function PrototypesExtension:RemoveClone(clone)
+	local profile = self._cloneProfiles[clone]
+	assert(profile, "Not a clone!")
+	
+	self._man:RemoveRef(clone)
+	self._cloneProfiles[clone] = nil
+	self._prototypeToClone[profile.prototype.instance] = nil
+	profile.prototype.cloneActive = false
+
+	clone.Parent = nil
+end
+
 function PrototypesExtension:StopAll()
 	return self:Stop(self:GetClones(PASS))
 end

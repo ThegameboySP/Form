@@ -52,6 +52,11 @@ function Manager:HasComponent(ref, classResolvable)
 end
 
 
+function Manager:RemoveRef(ref)
+	return self._collection:RemoveRef(ref)
+end
+
+
 function Manager:RegisterHook(name, hook)
 	self._hooks[name] = self._hooks[name] or {}
 	table.insert(self._hooks[name], hook)

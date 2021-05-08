@@ -151,7 +151,7 @@ function ComponentCollection:RemoveRef(ref)
 	local comps = self._componentsByRef[ref]
 	if comps == nil then return end
 
-	for comp in next, comps do
+	for _, comp in next, comps do
 		comp:Destroy()
 		comps[comp] = nil
 	end

@@ -151,25 +151,6 @@ function ComponentsUtils.updateInstanceConfig(instance, name, config)
 end
 
 
-function ComponentsUtils.getTaggedInstancesFromRoot(tags, root)
-	local instanceToTags = {}
-	
-	local descendants = root:GetDescendants()
-	table.insert(descendants, root)
-	for _, instance in next, descendants do
-		local hasTags = {}
-		instanceToTags[instance] = hasTags
-
-		for _, tag in next, tags do
-			if not CollectionService:HasTag(instance, tag) then continue end
-			hasTags[tag] = true
-		end
-	end
-
-	return instanceToTags
-end
-
-
 function ComponentsUtils.mergeConfig(instance, name, mergeConfig)
 	return ComponentsUtils.shallowMerge(
 		mergeConfig or {},

@@ -15,9 +15,9 @@ end
 function ManagerCollection:Add(man)
 	self._managers[man] = true
 
-	man:OnAny(function(...)
-		self:Fire(...)
-	end)
+	-- man:OnAny(function(...)
+	-- 	self:Fire(...)
+	-- end)
 end
 
 

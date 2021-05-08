@@ -44,13 +44,17 @@ end
 
 
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
+	local comp = self:_newComponent(ref, classResolvable, keywords)
+	self:_runComponent(comp, keywords)
+	return comp
+end
+
+
+function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	assert(typeof(ref) == "Instance")
 
 	local class = self:_resolveOrError(classResolvable)
-	if
-		self._componentsByRef[ref]
-		and self._componentsByRef[ref][class]
-	then
+	if self:HasComponent(ref, class) then
 		return self._componentsByRef[ref][class]
 	end
 
@@ -71,16 +75,75 @@ function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
 		self._modeByRef[ref] = mode
 	end
 
-	local format = ref:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
-	local ok = runCoroutineOrWarn(format, comp.PreInit, comp)
-		and runCoroutineOrWarn(format, comp.Init, comp)
-		and runCoroutineOrWarn(format, comp.Main, comp)
-	
-	if ok then
-		self._man:Fire("ComponentAdded", ref, comp, config, keywords)
+	return comp
+end
+
+
+function ComponentCollection:HasComponent(ref, classResolvable)
+	local class = self:_resolveOrError(classResolvable)
+
+	if
+		self._componentsByRef[ref]
+		and self._componentsByRef[ref][class]
+	then
+		return true
 	end
 
-	return comp
+	return false
+end
+
+
+local function errored(_, comp)
+	return comp.instance:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
+end
+
+
+function ComponentCollection:_runComponent(comp, keywords)
+	local instance = comp.instance
+	local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
+		and runCoroutineOrWarn(errored, comp.Init, comp)
+		and runCoroutineOrWarn(errored, comp.Main, comp)
+	
+	if ok then
+		self._man:Fire("ComponentAdded", instance, comp, comp.config, keywords)
+	end
+end
+
+
+function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
+	local comps = {}
+
+	for i, ref in ipairs(refs) do
+		if self:HasComponent(ref, classResolvables[i]) then continue end
+		local class = self:_resolveOrError(classResolvables[i])
+		table.insert(comps, self:_newComponent(ref, class, keywords[i]))
+	end
+
+	local comps2 = {}
+	for _, comp in ipairs(comps) do
+		local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
+		if ok then
+			table.insert(comps2, comp)
+		end
+	end
+
+	local comps3 = {}
+	for _, comp in ipairs(comps2) do
+		local ok = runCoroutineOrWarn(errored, comp.Init, comp)
+		if ok then
+			table.insert(comps3, comp)
+		end
+	end
+
+	local comps4 = {}
+	for _, comp in ipairs(comps3) do
+		local ok = runCoroutineOrWarn(errored, comp.Main, comp)
+		if ok then
+			table.insert(comps4, comp)
+		end
+	end
+
+	return comps4
 end
 
 

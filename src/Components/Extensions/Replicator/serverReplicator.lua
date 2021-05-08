@@ -32,7 +32,6 @@ end
 
 return function(man)
 	local Replicator = {}
-	man.Replicator = Replicator
 	local addedRemote, removedRemote = makeInstances(man.Name)
 
 	Replicator.blacklist = setmetatable({}, {__mode = "k"})
@@ -69,4 +68,6 @@ return function(man)
 	man:On("ComponentRemoved", function(ref, comp)
 		removedRemote:FireAllClients(ref, comp.BaseName)
 	end)
+
+	return Replicator
 end

@@ -47,6 +47,11 @@ function KeypathSubscriptions:Subscribe(keyPath, handler)
 end
 
 
+local function errored(_, comp)
+	return comp.instance:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
+end
+
+
 function KeypathSubscriptions:FireFromDelta(delta)
 	local paths = deltaToPaths(delta)
 	

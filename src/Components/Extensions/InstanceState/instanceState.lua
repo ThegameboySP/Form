@@ -15,6 +15,11 @@ end
 
 -- This is compatible with non-managed units.
 return function(view)
+	if view.InstanceState then return end
+	
+	local InstanceState = {}
+	view.InstanceState = InstanceState
+
 	view:On("ComponentAdded", function(ref, comp)
 		local folder = StateInterfacer.getStateFolder(ref, comp.name)
 		local delta = {}

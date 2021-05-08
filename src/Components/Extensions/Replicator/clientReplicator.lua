@@ -10,7 +10,6 @@ end
 
 return function(man)
 	local Replicator = {}
-	man.Replicator = Replicator
 
 	local folder = ReplicatedStorage:WaitForChild("CompositeReplication")
 	local manFdr = folder:WaitForChild(man.Name)
@@ -40,4 +39,6 @@ return function(man)
 		man:DebugPrint("Removing", ref, baseName)
 		man:RemoveComponent(ref, baseName)
 	end)
+
+	return Replicator
 end

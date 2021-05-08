@@ -16,6 +16,7 @@ function Manager.new(name)
 		Name = name;
 
 		_listeners = {};
+		_anyListeners = {};
 		_hooks = {};
 	}, Manager)
 	
@@ -36,8 +37,18 @@ function Manager:GetOrAddComponent(ref, classResolvable, keywords)
 end
 
 
+function Manager:BulkAddComponent(refs, classes, configs)
+	return self._collection:BulkAddComponent(refs, classes, configs)
+end
+
+
 function Manager:RemoveComponent(ref, classResolvable)
 	return self._collection:RemoveComponent(ref, classResolvable)
+end
+
+
+function Manager:HasComponent(ref, classResolvable)
+	return self._collection:HasComponent(ref, classResolvable)
 end
 
 
@@ -96,16 +107,29 @@ function Manager:On(name, handler)
 end
 
 
+function Manager:OnAny(handler)
+	table.insert(self._anyListeners, handler)
+	
+	return function()
+		local i = table.find(self._anyListeners, handler)
+		if i == nil then return end
+		table.remove(self._anyListeners, i)
+	end
+end
+
+
 function Manager:Fire(name, ...)
-	local listeners = self._listeners[name]
-	if listeners == nil then return end
+	local tables = {self._anyListeners}
+	table.insert(tables, 1, self._listeners[name])
 
-	for _, handler in ipairs(listeners) do
-		local co = coroutine.create(handler)
-		local ok, err = coroutine.resume(co, ...)
+	for _, listeners in ipairs(tables) do
+		for _, handler in ipairs(listeners) do
+			local co = coroutine.create(handler)
+			local ok, err = coroutine.resume(co, ...)
 
-		if not ok then
-			warn(("Listener errored at %s\n%s"):format(debug.traceback(co), err))
+			if not ok then
+				warn(("Listener errored at %s\n%s"):format(debug.traceback(co), err))
+			end
 		end
 	end
 end

@@ -48,7 +48,7 @@ end
 function Reloadable:DefaultState()
 	local maid = self.maid:AddId(self.Maid.new(), "state")
 
-	maid:Add(self:on("TimeElapsed", function()
+	maid:Add(self:On("TimeElapsed", function()
 		self:setState({State = {TimeLeft = self.sub(1)}})
 		if self.state.State.TimeLeft <= 0 then
 			self:ChangeState("Next")
@@ -61,17 +61,17 @@ function Reloadable:NextState()
 	
 	maid:Add(self:subscribeAnd("IsBarking", function(isBarking)
 		if isBarking then
-			self:fire("Bark!")
+			self:Fire("Bark!")
 		end
 	end))
 end
 
 function Reloadable:Destroy(isReloading)
 	if isReloading then
-		self.maid:DoCleaning()
+		self.maid:DoCleaning(isReloading)
 	else
-		self.maid:DoCleaning()
-		self.decorMaid:DoCleaning()
+		self.maid:DoCleaning(isReloading)
+		self.decorMaid:DoCleaning(isReloading)
 	end
 end
 

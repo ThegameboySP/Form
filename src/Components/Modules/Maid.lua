@@ -46,14 +46,14 @@ end
 
 
 -- Cleans and clears all tasks within the maid.
-function Maid:DoCleaning()
+function Maid:DoCleaning(...)
 	local tasks = self._tasks
 	local index = next(tasks)
 
 	-- Removes all tasks from the maid. next(tbl) without the key ensures
 	-- any tasks added to the maid during cleaning will be caught.
 	while index ~= nil do
-		self:Remove(index)
+		self:Remove(index, ...)
 		index = next(tasks)
 	end
 

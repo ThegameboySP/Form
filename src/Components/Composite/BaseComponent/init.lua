@@ -11,13 +11,13 @@ local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
 local Reducers = require(script.Parent.Parent.Shared.Reducers)
+local signalMixin = require(script.Parent.signalMixin)
 
 local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
 local StateMetatable = require(script.StateMetatable)
 local Utils = require(script.Utils)
 
 local BaseComponent = {}
-BaseComponent.ComponentName = "BaseComponent"
 BaseComponent.BaseName = "BaseComponent"
 BaseComponent.isTesting = false
 BaseComponent.__index = BaseComponent
@@ -26,6 +26,9 @@ local IS_SERVER = RunService:IsServer()
 local ON_SERVER_ERROR = "Can only be called on the server!"
 local NO_REMOTE_ERROR = "No remote event under %s by name %s!"
 local NOOP = function() end
+local DESTROYED_ERROR = function()
+	error("Cannot run a component that is destroyed!")
+end
 
 BaseComponent.NetworkMode = NetworkMode.ServerClient
 BaseComponent.Maid = Maid
@@ -56,7 +59,7 @@ function BaseComponent.getInterfaces()
 	return {}
 end
 
-function BaseComponent.new(instance, config)
+BaseComponent.new = signalMixin(BaseComponent, function(instance, config)
 	local self = setmetatable({
 		instance = instance;
 		maid = Maid.new();
@@ -66,16 +69,24 @@ function BaseComponent.new(instance, config)
 
 		_events = {};
 		_configLayers = {};
-		_listeners = {};
 		_layers = {};
 		_layerOrder = {};
 		_subscriptions = KeypathSubscriptions.new();
 	}, BaseComponent)
 
-	self:registerEvents("Destroying")
+	self.maid:Add(function(isReloading)
+		if not isReloading then
+			self:Fire("Destroying")
+			self:DisconnectAll()
+			
+			self.PreInit = DESTROYED_ERROR
+			self.Init = DESTROYED_ERROR
+			self.Main = DESTROYED_ERROR
+		end
+	end)
 
 	return self
-end
+end)
 
 
 local function transform(comp, config, state)
@@ -131,8 +142,7 @@ end
 
 function BaseComponent:extend(name)
 	local newClass = setmetatable({
-		ComponentName = name;
-		BaseName = ComponentsUtils.getBaseComponentName(name);
+		BaseName = Utils.getBaseComponentName(name);
 	}, BaseComponent)
 	newClass.__index = newClass
 
@@ -382,34 +392,6 @@ function BaseComponent:registerEvents(...)
 			event:Connect(v)
 		elseif type(v) == "string" then
 			self._events[v] = event
-		end
-	end
-end
-
-
-function BaseComponent:on(name, handler)
-	self._listeners[name] = self._listeners[name] or {}
-	local listeners = self._listeners[name]
-	table.insert(listeners, handler)
-
-	return function()
-		local i = table.find(listeners, handler)
-		if i == nil then return end
-		table.remove(listeners, i)
-	end
-end
-
-
-function BaseComponent:fire(name, ...)
-	local listeners = self._listeners[name]
-	if listeners == nil then return end
-
-	for _, handler in ipairs(listeners) do
-		local co = coroutine.create(handler)
-		local ok, err = coroutine.resume(co, ...)
-
-		if not ok then
-			warn(("Listener errored at %s\n%s"):format(debug.traceback(co), err))
 		end
 	end
 end

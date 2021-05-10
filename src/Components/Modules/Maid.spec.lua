@@ -186,12 +186,31 @@ return function()
 			expect(didCall).to.equal(true)
 		end)
 
+		it("should transfer parameters of :DoCleaning to a function being invoked", function()
+			local maid = Maid.new()
+			local t1
+			maid:Add(function(test)
+				t1 = test
+			end)
+
+			local tbl = {}
+			local t2
+			function tbl:Destroy(test)
+				t2 = test
+			end
+			maid:Add(tbl)
+
+			maid:DoCleaning(true)
+			expect(t1).to.equal(true)
+			expect(t2).to.equal(true)
+		end)
+
 		it("should return the result of a function being :Remove'd", function()
 			local maid = Maid.new()
 			expect( maid:Remove(maid:GiveTask(RET_TRUE)) ).to.equal(true)
 		end)
 
-		it("should transfer the parameters of :Remove to a function being removed", function()
+		it("should transfer the parameters of :Remove to a function being invoked", function()
 			local maid = Maid.new()
 			local parameter
 			expect(maid:Remove(maid:GiveTask(function(p1)

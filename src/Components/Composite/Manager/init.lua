@@ -1,30 +1,64 @@
 local ComponentCollection = require(script.Parent.ComponentCollection)
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
+local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
+local signalMixin = require(script.Parent.signalMixin)
 
 local instanceConfigHook = require(script.instanceConfigHook)
 
 local Manager = {
-	DEBUG = true
+	DEBUG = true;
 }
 Manager.__index = Manager
 
-function Manager.new(name)
+Manager.new = signalMixin(Manager, function(name)
 	assert(type(name) == "string")
 
 	local self = setmetatable({
 		Classes = {};
 		Name = name;
 
-		_listeners = {};
-		_anyListeners = {};
 		_hooks = {};
+		_profiles = {};
 	}, Manager)
 	
 	self:RegisterHook("GetConfig", instanceConfigHook)
 	self._collection = ComponentCollection.new(self)
 
+	self._collection:On("RefAdded", function(ref)
+		self._profiles[ref] = {ref = ref, components = {}, mode = nil}
+		self:Fire("RefAdded", ref)
+	end)
+
+	self._collection:On("RefRemoved", function(ref)
+		local profile = self._profiles[ref]
+		local mode = profile.mode
+		if mode == ComponentMode.Destroy then
+			ref.Parent = nil
+		end
+
+		self:Fire("RefRemoved", ref)
+	end)
+
+	self._collection:On("ComponentAdded", function(ref, comp)
+		local profile = self._profiles[ref]
+		profile.components[comp.BaseName] = true
+		
+		if comp.mode ~= ComponentMode.Default or profile.mode == nil then
+			profile.mode = comp.mode
+		end
+
+		self:Fire("ComponentAdded", ref, comp)
+	end)
+
+	self._collection:On("ComponentRemoved", function(ref, comp)
+		local profile = self._profiles[ref]
+		profile.components[comp.BaseName] = nil
+
+		self:Fire("ComponentRemoved", ref, comp)
+	end)
+
 	return self
-end
+end)
 
 
 function Manager:RegisterComponent(class)
@@ -99,44 +133,8 @@ function Manager:RunHooks(name, ...)
 end
 
 
-function Manager:On(name, handler)
-	self._listeners[name] = self._listeners[name] or {}
-	local listeners = self._listeners[name]
-	table.insert(listeners, handler)
-
-	return function()
-		local i = table.find(listeners, handler)
-		if i == nil then return end
-		table.remove(listeners, i)
-	end
-end
-
-
-function Manager:OnAny(handler)
-	table.insert(self._anyListeners, handler)
-	
-	return function()
-		local i = table.find(self._anyListeners, handler)
-		if i == nil then return end
-		table.remove(self._anyListeners, i)
-	end
-end
-
-
-function Manager:Fire(name, ...)
-	local tables = {self._anyListeners}
-	table.insert(tables, 1, self._listeners[name])
-
-	for _, listeners in ipairs(tables) do
-		for _, handler in ipairs(listeners) do
-			local co = coroutine.create(handler)
-			local ok, err = coroutine.resume(co, ...)
-
-			if not ok then
-				warn(("Listener errored at %s\n%s"):format(debug.traceback(co), err))
-			end
-		end
-	end
+function Manager:GetProfile(ref)
+	return self._profiles[ref]
 end
 
 

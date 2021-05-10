@@ -2,9 +2,9 @@ local ComponentsUtils = require(script.Parent.ComponentsUtils)
 
 return ComponentsUtils.indexTableOrError("ComponentMode", {
 	-- Overlay.
-	DEFAULT = "Default";
+	Default = "Default";
 	-- Once all components are gone, leave the instance.
-	OVERLAY = "Overlay";
+	Overlay = "Overlay";
 	-- Once all components are gone, remove the instance.
-	DESTROY = "Destroy";
+	Destroy = "Destroy";
 })

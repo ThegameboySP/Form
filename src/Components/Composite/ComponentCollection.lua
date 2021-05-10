@@ -1,32 +1,30 @@
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
+local signalMixin = require(script.Parent.signalMixin)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
 
-function ComponentCollection.new(man)
+ComponentCollection.new = signalMixin(ComponentCollection, function(man)
 	return setmetatable({
 		_man = man;
 		
 		_classesByName = {};
 		_classesByRef = {};
 		_componentsByRef = {};
-		_modeByRef = {};
 	}, ComponentCollection)
-end
-
+end)
 
 function ComponentCollection:Register(class)
-	local name = class.ComponentName
+	local name = class.BaseName
 	assert(type(name) == "string", "Expected 'string'")
 	assert(type(class) == "table", "Expected 'table'")
 
-	local baseName = ComponentsUtils.getBaseComponentName(name)
-	assert(self._classesByName[baseName] == nil, "A class already exists by this name!")
+	assert(self._classesByName[name] == nil, "A class already exists by this name!")
 
-	self._man.Classes[baseName] = class
-	self._classesByName[baseName] = class
+	self._man.Classes[name] = class
+	self._classesByName[name] = class
 	self._classesByRef[class] = class
 end
 
@@ -44,23 +42,28 @@ end
 
 
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
-	local comp = self:_newComponent(ref, classResolvable, keywords)
-	self:_runComponent(comp, keywords)
+	local isNew, comp, newKeywords = self:_newComponent(ref, classResolvable, keywords)
+	if not isNew then
+		return comp
+	end
+
+	self:_runComponent(comp, newKeywords)
 	return comp
 end
 
 
 function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	assert(typeof(ref) == "Instance")
+	keywords = keywords or {}
 
 	local class = self:_resolveOrError(classResolvable)
 	if self:HasComponent(ref, class) then
-		return self._componentsByRef[ref][class]
+		local comp = self._componentsByRef[ref][class]
+		return false, comp:newMirror(keywords.config)
 	end
 
-	keywords = keywords or {}
 	local config = keywords.config or {}
-	local mode = keywords.mode or ComponentMode.DEFAULT
+	local mode = keywords.mode or ComponentMode.Default
 	
 	local resolvedConfig = self._man:RunHooks("GetConfig", ref, class.BaseName)
 	resolvedConfig = ComponentsUtils.shallowMerge(config, resolvedConfig)
@@ -68,14 +71,22 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	local comp = class.new(ref, config)
 	comp.man = self._man
 	comp.mode = mode
+	comp:On("Destroying", function()
+		self._componentsByRef[ref][class] = nil
+		self:Fire("ComponentRemoved", ref, comp)
 
-	self._componentsByRef[ref] = self._componentsByRef[ref] or {}
-	self._componentsByRef[ref][class] = comp
-	if mode ~= ComponentMode.DEFAULT then
-		self._modeByRef[ref] = mode
+		if next(self._componentsByRef[ref]) == nil then
+			self:RemoveRef(ref)
+		end
+	end)
+
+	if self._componentsByRef[ref] == nil then
+		self._componentsByRef[ref] = {}
+		self:Fire("RefAdded", ref)
 	end
+	self._componentsByRef[ref][class] = comp
 
-	return comp
+	return true, comp, {config = resolvedConfig, mode = mode}
 end
 
 
@@ -105,58 +116,71 @@ function ComponentCollection:_runComponent(comp, keywords)
 		and runCoroutineOrWarn(errored, comp.Main, comp)
 	
 	if ok then
-		self._man:Fire("ComponentAdded", instance, comp, comp.config, keywords)
+		self:Fire("ComponentAdded", instance, comp, keywords)
 	end
 end
 
 
 function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
-	local comps = {}
+	local tbls = {}
 
 	for i, ref in ipairs(refs) do
 		if self:HasComponent(ref, classResolvables[i]) then continue end
 		local class = self:_resolveOrError(classResolvables[i])
-		table.insert(comps, self:_newComponent(ref, class, keywords[i]))
+		local isNew, comp, newKeywords = self:_newComponent(ref, class, keywords[i])
+		if not isNew then continue end
+
+		table.insert(tbls, {comp, newKeywords})
 	end
 
-	local comps2 = {}
-	for _, comp in ipairs(comps) do
-		local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
+	local tbls2 = {}
+	for _, tbl in ipairs(tbls) do
+		local ok = runCoroutineOrWarn(errored, tbl[1].PreInit, tbl[1])
 		if ok then
-			table.insert(comps2, comp)
+			table.insert(tbls2, tbl)
 		end
 	end
 
-	local comps3 = {}
-	for _, comp in ipairs(comps2) do
-		local ok = runCoroutineOrWarn(errored, comp.Init, comp)
+	local tbls3 = {}
+	for _, tbl in ipairs(tbls2) do
+		local ok = runCoroutineOrWarn(errored, tbl[1].Init, tbl[1])
 		if ok then
-			table.insert(comps3, comp)
+			table.insert(tbls3, tbl)
 		end
 	end
 
-	local comps4 = {}
-	for _, comp in ipairs(comps3) do
-		local ok = runCoroutineOrWarn(errored, comp.Main, comp)
+	local tbls4 = {}
+	for _, tbl in ipairs(tbls3) do
+		local ok = runCoroutineOrWarn(errored, tbl[1].Main, tbl[1])
 		if ok then
-			table.insert(comps4, comp)
+			table.insert(tbls4, tbl)
 		end
 	end
 
-	return comps4
+	local comps = {}
+	for _, tbl in ipairs(tbls4) do
+		table.insert(comps, tbl[1])
+		local comp = tbl[1]
+		self:Fire("ComponentAdded", comp.instance, comp, tbl[2])
+	end
+
+	return comps
 end
 
 
 function ComponentCollection:RemoveRef(ref)
 	local comps = self._componentsByRef[ref]
 	if comps == nil then return end
+	local profile = self._man:GetProfile(ref)
+	if profile.destroying then return end
 
+	profile.destroying = true
 	for _, comp in next, comps do
-		comp:Destroy()
-		comps[comp] = nil
+		self:RemoveComponent(ref, comp.BaseName)
 	end
-
 	self._componentsByRef[ref] = nil
+
+	self:Fire("RefRemoved", ref)
 end
 
 
@@ -164,16 +188,11 @@ function ComponentCollection:RemoveComponent(ref, classResolvable)
 	local class = self:_resolveOrError(classResolvable)
 	local comps = self._componentsByRef[ref]
 	local comp = comps and comps[class]
-	if comp == nil then return end
+	if not comp then return end
 
+	-- Will trigger the connection defined in :GetOrMakeComponent.
 	comp:Destroy()
-	comps[class] = nil
-
-	if next(comps) == nil then
-		self:RemoveRef(ref)
-	end
-
-	self._man:Fire("ComponentRemoved", ref, comp, comp._mode)
+	comps[comp] = nil
 end
 
 

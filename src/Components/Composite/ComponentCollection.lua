@@ -52,14 +52,28 @@ function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
 end
 
 
+local function isWeak(comps)
+	for _, tbl in pairs(comps) do
+		if not tbl.isWeak then
+			return false
+		end
+	end
+
+	return true
+end
+
 function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	assert(typeof(ref) == "Instance")
 	keywords = keywords or {}
 
 	local class = self:_resolveOrError(classResolvable)
 	if self:HasComponent(ref, class) then
-		local comp = self._componentsByRef[ref][class]
-		return false, comp:newMirror(keywords.config)
+		local tbl = self._componentsByRef[ref][class]
+		return false, tbl.comp:newMirror(keywords.config)
+	end
+
+	if self._componentsByRef[ref] == nil and keywords.isWeak then
+		return false, nil
 	end
 
 	local config = keywords.config or {}
@@ -72,10 +86,11 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	comp.man = self._man
 	comp.mode = mode
 	comp:On("Destroying", function()
-		self._componentsByRef[ref][class] = nil
+		local comps = self._componentsByRef[ref]
+		comps[class] = nil
 		self:Fire("ComponentRemoved", ref, comp)
 
-		if next(self._componentsByRef[ref]) == nil then
+		if not next(comps) or isWeak(comps) then
 			self:RemoveRef(ref)
 		end
 	end)
@@ -84,7 +99,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 		self._componentsByRef[ref] = {}
 		self:Fire("RefAdded", ref)
 	end
-	self._componentsByRef[ref][class] = comp
+	self._componentsByRef[ref][class] = {comp = comp, isWeak = keywords.isWeak}
 
 	return true, comp, {config = resolvedConfig, mode = mode}
 end
@@ -123,12 +138,16 @@ end
 
 function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 	local tbls = {}
+	local comps = {}
 
 	for i, ref in ipairs(refs) do
 		if self:HasComponent(ref, classResolvables[i]) then continue end
 		local class = self:_resolveOrError(classResolvables[i])
 		local isNew, comp, newKeywords = self:_newComponent(ref, class, keywords[i])
-		if not isNew then continue end
+		if not isNew then
+			table.insert(comps, comp)
+			continue
+		end
 
 		table.insert(tbls, {comp, newKeywords})
 	end
@@ -157,10 +176,9 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 		end
 	end
 
-	local comps = {}
 	for _, tbl in ipairs(tbls4) do
-		table.insert(comps, tbl[1])
 		local comp = tbl[1]
+		table.insert(comps, comp)
 		self:Fire("ComponentAdded", comp.instance, comp, tbl[2])
 	end
 
@@ -175,8 +193,8 @@ function ComponentCollection:RemoveRef(ref)
 	if profile.destroying then return end
 
 	profile.destroying = true
-	for _, comp in next, comps do
-		self:RemoveComponent(ref, comp.BaseName)
+	for _, tbl in next, comps do
+		self:RemoveComponent(ref, tbl.comp.BaseName)
 	end
 	self._componentsByRef[ref] = nil
 
@@ -187,12 +205,12 @@ end
 function ComponentCollection:RemoveComponent(ref, classResolvable)
 	local class = self:_resolveOrError(classResolvable)
 	local comps = self._componentsByRef[ref]
-	local comp = comps and comps[class]
-	if not comp then return end
+	local tbl = comps and comps[class]
+	if not tbl then return end
 
 	-- Will trigger the connection defined in :GetOrMakeComponent.
-	comp:Destroy()
-	comps[comp] = nil
+	tbl.comp:Destroy()
+	comps[class] = nil
 end
 
 

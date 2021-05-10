@@ -66,6 +66,7 @@ function BaseComponent.new(instance, config)
 		
 		config = config;
 		state = setStateMt({});
+		isDestroyed = false;
 
 		_events = {};
 		_configLayers = {};
@@ -82,6 +83,8 @@ function BaseComponent.new(instance, config)
 			self.PreInit = DESTROYED_ERROR
 			self.Init = DESTROYED_ERROR
 			self.Main = DESTROYED_ERROR
+
+			self.isDestroyed = true
 		end
 	end)
 
@@ -155,8 +158,8 @@ end
 
 
 -- isReloading: bool?
-function BaseComponent:Destroy()
-	self.maid:DoCleaning()
+function BaseComponent:Destroy(isReloading)
+	self.maid:DoCleaning(isReloading)
 end
 
 
@@ -356,15 +359,15 @@ function BaseComponent:newMirror(config)
 		self:reload()
 	end
 
-	local destroyed = false
-	return setmetatable({
+	local mirror
+	mirror = setmetatable({
 		Destroy = function(_, isReloading)
-			if destroyed then return end
+			if mirror.isDestroyed then return end
 
 			if isReloading then
 				self:Destroy(true)
 			else
-				destroyed = true
+				mirror.isDestroyed = true
 				self:removeLayer(id)
 
 				if config then
@@ -381,6 +384,8 @@ function BaseComponent:newMirror(config)
 			config = newConfig
 		end;
 	}, {__index = self})
+
+	return mirror
 end
 
 function BaseComponent:registerEvents(...)

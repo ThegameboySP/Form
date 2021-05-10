@@ -90,6 +90,38 @@ return function()
 
 			expect(getmetatable(ret2).__index).to.equal(comp)
 		end)
+
+		it("should never make a reference when the only component is weak", function()
+			local c = make()
+			local i = new("Folder")
+			local t = {}
+			c:On("RefAdded", spy(t))
+			c:On("ComponentAdded", spy(t))
+
+			local comp = c:GetOrAddComponent(i, "BaseComponent", {isWeak = true})
+			expect(comp).to.equal(nil)
+			expect(t.Count).to.equal(0)
+		end)
+
+		it("should never hold on to reference when only remaining components are weak", function()
+			local c = make()
+			local TestComp = BaseComponent:extend("TestComponent")
+			c:Register(TestComp)
+
+			local t = {}
+			c:On("RefRemoved", spy(t))
+
+			local i = new("Folder")
+			c:GetOrAddComponent(i, "BaseComponent")
+			local comp = c:GetOrAddComponent(i, TestComp, {isWeak = true})
+
+			expect(t.Count).to.equal(0)
+			expect(comp.isDestroyed).to.equal(false)
+			
+			c:RemoveComponent(i, "BaseComponent")
+			expect(t.Count).to.equal(1)
+			expect(comp.isDestroyed).to.equal(true)
+		end)
 	end)
 	
 	describe("BulkAddComponent", function()

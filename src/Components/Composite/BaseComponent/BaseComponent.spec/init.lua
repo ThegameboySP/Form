@@ -282,11 +282,11 @@ return function()
 			local i = new("Folder")
 			local c = start(Reloadable, i, {Time = 1})
 			
-			c:fire("TimeElapsed")
+			c:Fire("TimeElapsed")
 
 			-- lol
 			local called = {}
-			c:on("Bark!", function()
+			c:On("Bark!", function()
 				table.insert(called, true)
 			end)
 

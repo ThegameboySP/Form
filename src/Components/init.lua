@@ -9,7 +9,9 @@ return {
 
 	Replication = require(script.Extensions.Replicator);
 	Prototypes = require(script.Extensions.Prototypes);
+	Groups = require(script.Extensions.Groups);
 
 	Maid = require(script.Modules.Maid);
 	t = require(script.Modules.t);
+	bp = require(script.Modules.bp);
 }

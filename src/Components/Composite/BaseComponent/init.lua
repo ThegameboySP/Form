@@ -11,7 +11,7 @@ local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
 local Reducers = require(script.Parent.Parent.Shared.Reducers)
-local signalMixin = require(script.Parent.signalMixin)
+local SignalMixin = require(script.Parent.SignalMixin)
 
 local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
 local StateMetatable = require(script.StateMetatable)
@@ -59,8 +59,8 @@ function BaseComponent.getInterfaces()
 	return {}
 end
 
-BaseComponent.new = signalMixin(BaseComponent, function(instance, config)
-	local self = setmetatable({
+function BaseComponent.new(instance, config)
+	local self = SignalMixin.new(setmetatable({
 		instance = instance;
 		maid = Maid.new();
 		
@@ -72,7 +72,7 @@ BaseComponent.new = signalMixin(BaseComponent, function(instance, config)
 		_layers = {};
 		_layerOrder = {};
 		_subscriptions = KeypathSubscriptions.new();
-	}, BaseComponent)
+	}, BaseComponent))
 
 	self.maid:Add(function(isReloading)
 		if not isReloading then
@@ -86,7 +86,7 @@ BaseComponent.new = signalMixin(BaseComponent, function(instance, config)
 	end)
 
 	return self
-end)
+end
 
 
 local function transform(comp, config, state)
@@ -647,4 +647,4 @@ function getRemoteEventFolderOrError(instance, baseCompName)
 	return error("No remote event folder under instance: " .. instance:GetFullName())
 end
 
-return BaseComponent
+return SignalMixin.wrap(BaseComponent)

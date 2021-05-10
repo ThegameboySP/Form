@@ -1,7 +1,7 @@
 local ComponentCollection = require(script.Parent.ComponentCollection)
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
-local signalMixin = require(script.Parent.signalMixin)
+local SignalMixin = require(script.Parent.SignalMixin)
 
 local instanceConfigHook = require(script.instanceConfigHook)
 
@@ -10,16 +10,16 @@ local Manager = {
 }
 Manager.__index = Manager
 
-Manager.new = signalMixin(Manager, function(name)
+function Manager.new(name)
 	assert(type(name) == "string")
 
-	local self = setmetatable({
+	local self = SignalMixin.new(setmetatable({
 		Classes = {};
 		Name = name;
 
 		_hooks = {};
 		_profiles = {};
-	}, Manager)
+	}, Manager))
 	
 	self:RegisterHook("GetConfig", instanceConfigHook)
 	self._collection = ComponentCollection.new(self)
@@ -58,7 +58,7 @@ Manager.new = signalMixin(Manager, function(name)
 	end)
 
 	return self
-end)
+end
 
 
 function Manager:RegisterComponent(class)
@@ -144,4 +144,4 @@ function Manager:DebugPrint(...)
 	end
 end
 
-return Manager
+return SignalMixin.wrap(Manager)

@@ -1,8 +1,10 @@
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 
+local SignalMixin = {}
+
 local ERROR = "Listener errored: %s\nTraceback: %s"
 
-return function(class, new)
+function SignalMixin.wrap(class)
 	function class:On(name, handler)
 		self._listeners[name] = self._listeners[name] or {}
 		local listeners = self._listeners[name]
@@ -43,11 +45,13 @@ return function(class, new)
 		table.clear(self._anyListeners)
 	end
 
-	return function(...)
-		local obj = new(...)
-		obj._listeners = {}
-		obj._anyListeners = {}
-
-		return obj
-	end
+	return class
 end
+
+function SignalMixin.new(self)
+	self._listeners = {}
+	self._anyListeners = {}
+	return self
+end
+
+return SignalMixin

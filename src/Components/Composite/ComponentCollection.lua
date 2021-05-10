@@ -1,20 +1,20 @@
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
-local signalMixin = require(script.Parent.signalMixin)
+local SignalMixin = require(script.Parent.SignalMixin)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
 
-ComponentCollection.new = signalMixin(ComponentCollection, function(man)
-	return setmetatable({
+function ComponentCollection.new(man)
+	return SignalMixin.new(setmetatable({
 		_man = man;
 		
 		_classesByName = {};
 		_classesByRef = {};
 		_componentsByRef = {};
-	}, ComponentCollection)
-end)
+	}, ComponentCollection))
+end
 
 function ComponentCollection:Register(class)
 	local name = class.BaseName
@@ -201,4 +201,4 @@ function ComponentCollection:GetComponent(ref, classResolvable)
 end
 
 
-return ComponentCollection
+return SignalMixin.wrap(ComponentCollection)

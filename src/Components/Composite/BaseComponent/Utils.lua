@@ -84,9 +84,11 @@ function Utils.deepMergeState(from, to)
 		local tv = to[k]
 		local tt = type(tv)
 
-		if ft == "table" and v ~= NULL then
+		if v == NULL then
+			to[k] = nil
+		elseif ft == "table" then
 			local toTbl
-			if tt == "table" and v ~= NULL then
+			if tt == "table" then
 				toTbl = tv
 			else
 				toTbl = {}

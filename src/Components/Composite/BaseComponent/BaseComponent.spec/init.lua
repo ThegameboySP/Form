@@ -104,6 +104,15 @@ return function()
 
 			expect(c.state.test1).to.equal(false)
 		end)
+
+		it("should remove a key when it encounters null symbol", function()
+			local c = make()
+			c:setState({test = true})
+
+			expect(c.state.test).to.equal(true)
+			c:setState({test = NULL})
+			expect(c.state.test).to.equal(nil)
+		end)
 	end)
 
 	describe("Subscription", function()

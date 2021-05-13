@@ -3,7 +3,6 @@ local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
 
 local Maid = require(script.Parent.Parent.Modules.Maid)
-local Event = require(script.Parent.Parent.Modules.Event)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
 local bp = require(script.Parent.Parent.Modules.bp)
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
@@ -12,6 +11,7 @@ local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
 local Reducers = require(script.Parent.Parent.Shared.Reducers)
 local SignalMixin = require(script.Parent.SignalMixin)
+local TimeCycle = require(script.Parent.TimeCycle)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 
 local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
@@ -79,10 +79,10 @@ function BaseComponent.new(instance, config)
 		isDestroyed = false;
 
 		_mirrors = {};
-		_events = {};
 		_layers = {};
 		_layerOrder = {};
 		_subscriptions = KeypathSubscriptions.new();
+		_cycles = {};
 	}, BaseComponent))
 	self._source = self
 
@@ -428,39 +428,9 @@ function BaseComponent:NewMirror(config, key)
 	return mirror
 end
 
-function BaseComponent:registerEvents(...)
-	for k, v in next, {...} do
-		local event = Event.new()
-		
-		if type(v) == "function" then
-			self._events[k] = event
-			event:Connect(v)
-		elseif type(v) == "string" then
-			self._events[v] = event
-		end
-	end
-end
-
-
-function BaseComponent:fireEvent(eventName, ...)
-	self._events[eventName]:Fire(...)
-end
-
-
-function BaseComponent:connectEvent(eventName, handler)
-	return self._events[eventName]:Connect(handler)
-end
-BaseComponent.ConnectEvent = BaseComponent.connectEvent
-
-
-function BaseComponent:hasEvent(eventName)
-	return self._events[eventName] ~= nil
-end
-BaseComponent.HasEvent = BaseComponent.hasEvent
-
 
 function BaseComponent:FireAll(eventName, ...)
-	self:fireEvent(eventName, ...)
+	self:Fire(eventName, ...)
 	self:FireAllClients(eventName, ...)
 end
 
@@ -643,17 +613,25 @@ end
 
 
 function BaseComponent:GetTime()
-	return self.man:GetTime()
+	return self.man and self.man:GetTime() or tick()
 end
 
 
 function BaseComponent:SetCycle(name, cycleLen)
-	return self.man:SetCycle(self.instance, self.BaseName, name, cycleLen)
+	local cycle = self._cycles[name]
+	if cycle == nil then
+		cycle = TimeCycle.new(cycleLen)
+		self._cycles[name] = cycle
+	else
+		cycle:SetLength(cycleLen)
+	end
+
+	return cycle
 end
 
 
 function BaseComponent:GetCycle(name)
-	return self.man:GetCycle(self.instance, self.BaseName, name)
+	return self._cycles[name]
 end
 
 function getOrMakeRemoteEventFolder(instance, baseCompName)

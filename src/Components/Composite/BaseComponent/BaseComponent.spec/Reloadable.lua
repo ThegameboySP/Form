@@ -1,6 +1,11 @@
 local BaseComponent = require(script.Parent.Parent)
 local Reloadable = BaseComponent:extend("Reloadable")
 
+function Reloadable.mapConfig(config)
+	config.Mapped = true
+	return config
+end
+
 function Reloadable.mapState(config, state)
 	config.Time = config.Time or 1
 
@@ -14,9 +19,7 @@ function Reloadable.mapState(config, state)
 end
 
 function Reloadable:Init()
-	if not self.decorMaid then
-		self.decorMaid = self.Maid.new()
-	end
+	self.reloadMaid = self.Maid.new()
 end
 
 function Reloadable:Main()
@@ -27,6 +30,10 @@ function Reloadable:Main()
 			self:ChangeState("Next", state)
 		end
 	end)
+end
+
+function Reloadable:OnReload()
+	self.reloadMaid:DoCleaning()
 end
 
 function Reloadable:ChangeState(name, args)
@@ -64,15 +71,6 @@ function Reloadable:NextState()
 			self:Fire("Bark!")
 		end
 	end))
-end
-
-function Reloadable:Destroy(isReloading)
-	if isReloading then
-		self.maid:DoCleaning(isReloading)
-	else
-		self.maid:DoCleaning(isReloading)
-		self.decorMaid:DoCleaning(isReloading)
-	end
 end
 
 return Reloadable

@@ -172,7 +172,7 @@ For this reason, if you must create new behavior even if it already exists, it's
 On the other hand, if you wanted to override damage behavior from another component, you could simply use :AddComponentOrState. Let's see how we could do that.
 ```lua
 function S_Damage:Main()
-	self:bind(self.instance.Touched, function(part)
+	self:bind(self.ref.Touched, function(part)
 		local character = self.util.getCharacter(part)
 		if not character then return end
 
@@ -183,7 +183,7 @@ end
 
 ```lua
 function Component:Main()
-	local part = self.instance
+	local part = self.ref
 	self.man:AddComponentOrState(part, "Damage", {Damage = 15})
 
 	-- Which is the same as...

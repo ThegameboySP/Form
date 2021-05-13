@@ -37,7 +37,9 @@ end
 
 
 function InstanceWeakTable:Add(instance, value)
-	assert(typeof(instance) == "Instance")
+	local typeOf = typeof(instance)
+	assert(typeOf == "Instance", typeOf)
+	
 	if value == nil then
 		value = true
 	end
@@ -49,7 +51,9 @@ end
 
 
 function InstanceWeakTable:Remove(instance)
-	assert(typeof(instance) == "Instance")
+	local typeOf = typeof(instance)
+	assert(typeOf == "Instance", typeOf)
+
 	self._weak[instance] = nil
 	self._strong[instance] = nil
 	CollectionService:RemoveTag(instance, self._tag)

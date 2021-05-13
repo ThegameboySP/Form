@@ -49,11 +49,11 @@ end
 
 
 function ReferenceComponent:PreInit()
-	self._path = self.instance.Path.Value
+	self._path = self.ref.Path.Value
 
 	local clone = self:_tryResolveOrReturn()
 	self._clone = clone
-	self.instance.Value = clone
+	self.ref.Value = clone
 end
 
 
@@ -69,10 +69,10 @@ end
 function ReferenceComponent:_tryResolve()
 	local profile
 
-	if self.instance.Value then
-		profile = self.man:GetCloneProfileFromPrototype(self.instance.Value)
-			or self.man:GetCloneProfile(self.instance.Value)
-	elseif not self.instance.Value then
+	if self.ref.Value then
+		profile = self.man:GetCloneProfileFromPrototype(self.ref.Value)
+			or self.man:GetCloneProfile(self.ref.Value)
+	elseif not self.ref.Value then
 		local resolved = resolvePath(self._path)
 		if resolved == nil then
 			return nil

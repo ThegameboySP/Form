@@ -221,7 +221,7 @@ function PrototypesExtension:_runPrototypes(prototypes)
 	local comps = self._man:BulkAddComponent(refs, classes, keywords)
 	local events = {}
 	for _, comp in ipairs(comps) do
-		table.insert(events, {comp.instance, comp, {config = comp.config}})
+		table.insert(events, {comp.ref, comp, {config = comp.config}})
 	end
 
 	for _, event in ipairs(events) do

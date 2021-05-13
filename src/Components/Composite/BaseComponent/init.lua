@@ -66,11 +66,11 @@ BaseComponent.mapConfig = nil
 -- When calling :start(), state is an empty table.
 BaseComponent.mapState = nil
 
-function BaseComponent.new(instance, config)
+function BaseComponent.new(ref, config)
 	local self = SignalMixin.new(setmetatable({
 		isMirror = false;
 		
-		instance = instance;
+		ref = ref;
 		maid = Maid.new();
 		externalMaid = Maid.new();
 		
@@ -103,11 +103,16 @@ end
 
 
 local function errored(_, comp)
-	return comp.instance:GetFullName() .. ": Component errored:\n%s\nTraceback: %s"
+	local prefix = ""
+	if typeof(comp.ref) == "Instance" then
+		prefix = comp.ref:GetFullName() .. ": "
+	end
+
+	return prefix .. "Component errored:\n%s\nTraceback: %s"
 end
 
-function BaseComponent:start(instance, config)
-	local comp = self.new(instance, config)
+function BaseComponent:start(ref, config)
+	local comp = self.new(ref, config)
 
 	if next(comp.config) and comp.mapConfig then
 		config = comp.mapConfig(config)
@@ -146,8 +151,8 @@ function BaseComponent:extend(name)
 	}, BaseComponent)
 	newClass.__index = newClass
 
-	function newClass.new(instance, config)
-		return setmetatable(self.new(instance, config), newClass)
+	function newClass.new(ref, config)
+		return setmetatable(self.new(ref, config), newClass)
 	end
 
 	return newClass
@@ -436,9 +441,10 @@ end
 
 
 function BaseComponent:RegisterRemoteEvents(...)
+	assert(typeof(self.ref) == "Instance")
 	assert(self.isServer, ON_SERVER_ERROR)
 
-	local folder = getOrMakeRemoteEventFolder(self.instance, self.BaseName)
+	local folder = getOrMakeRemoteEventFolder(self.ref, self.BaseName)
 	for k, v in next, {...} do
 		local remote = Instance.new("RemoteEvent")
 
@@ -457,11 +463,11 @@ end
 
 
 function BaseComponent:_getRemoteEventSchema(func)
-	return bp.new(self.instance, {
+	return bp.new(self.ref, {
 		[bp.childNamed("RemoteEvents")] = {
 			[bp.childNamed(self.BaseName)] = {
 				[bp.attribute("Loaded", true)] = func or function(context)
-					local remoteFdr = context.source.instance
+					local remoteFdr = context.source.ref
 					return remoteFdr
 				end
 			}
@@ -470,14 +476,16 @@ function BaseComponent:_getRemoteEventSchema(func)
 end
 
 function BaseComponent:FireAllClients(eventName, ...)
-	local remote = getOrMakeRemoteEventFolder(self.instance, self.BaseName):FindFirstChild(eventName)
+	assert(typeof(self.ref) == "Instance")
+
+	local remote = getOrMakeRemoteEventFolder(self.ref, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
-		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
+		error(NO_REMOTE_ERROR:format(self.ref:GetFullName(), eventName))
 	end
 
 	if not self.isTesting then
 		local args = {...}
-		UserUtils.callOnReplicated(self.instance, self.maid, function()
+		UserUtils.callOnReplicated(self.ref, self.maid, function()
 			remote:FireAllClients(table.unpack(args, 1, #args))
 		end)
 	else
@@ -487,14 +495,16 @@ end
 
 
 function BaseComponent:FireClient(eventName, client, ...)
-	local remote = getOrMakeRemoteEventFolder(self.instance, self.BaseName):FindFirstChild(eventName)
+	assert(typeof(self.ref) == "Instance")
+
+	local remote = getOrMakeRemoteEventFolder(self.ref, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
-		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
+		error(NO_REMOTE_ERROR:format(self.ref:GetFullName(), eventName))
 	end
 
 	if not self.isTesting then
 		local args = {...}
-		UserUtils.callOnReplicated(self.instance, self.maid, function()
+		UserUtils.callOnReplicated(self.ref, self.maid, function()
 			remote:FireClient(client, table.unpack(args, 1, #args))
 		end)
 	else
@@ -504,6 +514,8 @@ end
 
 
 function BaseComponent:FireServer(eventName, ...)
+	assert(typeof(self.ref) == "Instance")
+
 	local maid, id = self.maid:Add(Maid.new())
 	local schema = maid:Add(self:_getRemoteEventSchema(function()
 		return false, {
@@ -522,18 +534,21 @@ end
 
 
 function BaseComponent:BindRemoteEvent(eventName, handler)
+	assert(typeof(self.ref) == "Instance")
+
 	return self.maid:Add(self:ConnectRemoteEvent(eventName, handler))
 end
 
 
 function BaseComponent:ConnectRemoteEvent(eventName, handler)
+	assert(typeof(self.ref) == "Instance")
+
 	local maid = Maid.new()
-	
 	-- Wait a frame, as remote event connections can fire immediately if in queue.
 	maid:Add(self:SpawnNextFrame(function()
 		if self.isServer and not self.isTesting then
 			maid:Add(
-				(getOrMakeRemoteEventFolder(self.instance, self.BaseName)
+				(getOrMakeRemoteEventFolder(self.ref, self.BaseName)
 				:FindFirstChild(eventName) or error("No event named " .. eventName .. "!"))
 				.OnServerEvent:Connect(handler)
 			)

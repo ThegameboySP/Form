@@ -20,7 +20,7 @@ return function()
 	describe("State layers", function()
 		it("should merge base", function()
 			local c = make()
-			c:setState({
+			c:SetState({
 				test = 1;
 				test2 = 2
 			})
@@ -28,7 +28,7 @@ return function()
 			expect(c.state.test).to.equal(1)
 			expect(c.state.test2).to.equal(2)
 
-			c:setState({
+			c:SetState({
 				test2 = 1
 			})
 
@@ -38,7 +38,7 @@ return function()
 
 		it("should add state on top of base", function()
 			local c = make()
-			c:setState({
+			c:SetState({
 				test1 = true;
 				test2 = c.add(2);
 				test3 = 5;
@@ -48,7 +48,7 @@ return function()
 			expect(c.state.test2).to.equal(2)
 			expect(c.state.test3).to.equal(5)
 
-			c:addLayer("two", {
+			c:AddLayer("two", {
 				test2 = c.add(5);
 				test3 = c.sub(1);
 			})
@@ -60,11 +60,11 @@ return function()
 
 		it("should merge existing layer", function()
 			local c = make()
-			c:mergeLayer("test", {
+			c:MergeLayer("test", {
 				test1 = false;
 				test2 = true;
 			})
-			c:mergeLayer("test", {
+			c:MergeLayer("test", {
 				test1 = true;
 			})
 
@@ -74,10 +74,10 @@ return function()
 
 		it("should compound layers with functions", function()
 			local c = make()
-			c:addLayer("second", {
+			c:AddLayer("second", {
 				time = 3;
 			})
-			c:setState({
+			c:SetState({
 				time = c.add(5);
 			})
 
@@ -87,30 +87,30 @@ return function()
 		it("should never error when trying to remove non-existent layer", function()
 			local c = make()
 			expect(function()
-				c:removeLayer("test")
+				c:RemoveLayer("test")
 			end).to.never.throw()
 		end)
 
 		it("should remove existing layer", function()
 			local c = make()
-			c:setState({test1 = false})
-			c:addLayer("test", {
+			c:SetState({test1 = false})
+			c:AddLayer("test", {
 				test1 = true;
 			})
 
 			expect(c.state.test1).to.equal(true)
 
-			c:removeLayer("test")
+			c:RemoveLayer("test")
 
 			expect(c.state.test1).to.equal(false)
 		end)
 
 		it("should remove a key when it encounters null symbol", function()
 			local c = make()
-			c:setState({test = true})
+			c:SetState({test = true})
 
 			expect(c.state.test).to.equal(true)
-			c:setState({test = NULL})
+			c:SetState({test = NULL})
 			expect(c.state.test).to.equal(nil)
 		end)
 	end)
@@ -119,10 +119,10 @@ return function()
 		it("should subscribe in a nested path", function()
 			local c = make()
 			local value
-			c:subscribe("nested.test1", function(v)
+			c:Subscribe("nested.test1", function(v)
 				value = v
 			end)
-			c:setState({
+			c:SetState({
 				nested = {
 					test1 = true;
 				}
@@ -135,16 +135,16 @@ return function()
 		it("should subscribe and call by current value of nested path", function()
 			local c = make()
 			local values = {}
-			c:setState({
+			c:SetState({
 				nested = {
 					test1 = false;
 				}
 			})
 
-			c:subscribeAnd("nested.test1", function(v)
+			c:SubscribeAnd("nested.test1", function(v)
 				table.insert(values, v)
 			end)
-			c:setState({
+			c:SetState({
 				nested = {
 					test1 = true;
 				}
@@ -159,29 +159,29 @@ return function()
 		it("should never fire if there was no change", function()
 			local c = make()
 			local values = {}
-			c:subscribe("test", function(test)
+			c:Subscribe("test", function(test)
 				table.insert(values, test)
 			end)
 
-			c:setState({})
+			c:SetState({})
 			expect(#values).to.equal(0)
-			c:setState({test = true})
+			c:SetState({test = true})
 			expect(#values).to.equal(1)
-			c:setState({test = true})
+			c:SetState({test = true})
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal(true)
 
 			-- Now test for nested items...
 			local values2 = {}
-			c:subscribe("sub.test2", function(test2)
+			c:Subscribe("sub.test2", function(test2)
 				table.insert(values2, test2)
 			end)
 
-			c:setState({sub = {}})
+			c:SetState({sub = {}})
 			expect(#values2).to.equal(0)
-			c:setState({sub = {test2 = true}})
+			c:SetState({sub = {test2 = true}})
 			expect(#values2).to.equal(1)
-			c:setState({sub = {test2 = true}})
+			c:SetState({sub = {test2 = true}})
 			expect(#values2).to.equal(1)
 			expect(values2[1]).to.equal(true)
 		end)
@@ -189,14 +189,14 @@ return function()
 		it("should subscribe to tables of state", function()
 			local c = make()
 			local values = {}
-			c:subscribe("nested", function(nested)
+			c:Subscribe("nested", function(nested)
 				table.insert(values, nested)
 			end)
 
-			c:setState({
+			c:SetState({
 				nested = {test = true}
 			})
-			c:setState({
+			c:SetState({
 				nested = {test = false}
 			})
 
@@ -207,14 +207,14 @@ return function()
 
 		it("should subscribe to deletions of state", function()
 			local c = make()
-			c:setState({test = true})
+			c:SetState({test = true})
 
 			local values = {}
-			c:subscribe("test", function(test)
+			c:Subscribe("test", function(test)
 				table.insert(values, test)
 			end)
 
-			c:setState({test = NULL})
+			c:SetState({test = NULL})
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal(NULL)
 		end)
@@ -224,7 +224,7 @@ return function()
 		it("should register remote events", function()
 			local i = new("Folder")
 			local c = make(i)
-			c:registerRemoteEvents("Test")
+			c:RegisterRemoteEvents("Test")
 
 			expect(function()
 				local _ = i.RemoteEvents.BaseComponent.Test
@@ -234,16 +234,16 @@ return function()
 		it("should connect to remote event when it's already registered", function()
 			local i = new("Folder")
 			local s = make(i)
-			s:registerRemoteEvents("Test")
+			s:RegisterRemoteEvents("Test")
 
 			local c = make(i)
 			c.isServer = false
 
 			local values = {}
-			c:bindRemoteEvent("Test", function(value)
+			c:BindRemoteEvent("Test", function(value)
 				table.insert(values, value)
 			end)
-			s:fireAllClients("Test", "test")
+			s:FireAllClients("Test", "test")
 
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal("test")
@@ -256,13 +256,13 @@ return function()
 			c.isServer = false
 
 			local values = {}
-			c:bindRemoteEvent("Test", function(value)
+			c:BindRemoteEvent("Test", function(value)
 				table.insert(values, value)
 			end)
 
-			s:registerRemoteEvents("Test")
+			s:RegisterRemoteEvents("Test")
 			expect(#values).to.equal(0)
-			s:fireAllClients("Test", "test")
+			s:FireAllClients("Test", "test")
 
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal("test")
@@ -274,12 +274,12 @@ return function()
 			local c = make(i)
 			c.isServer = false
 
-			c:fireServer("Test", "test")
+			c:FireServer("Test", "test")
 			local values = {}
-			s:bindRemoteEvent("Test", function(_, value)
+			s:BindRemoteEvent("Test", function(_, value)
 				table.insert(values, value)
 			end)
-			s:registerRemoteEvents("Test")
+			s:RegisterRemoteEvents("Test")
 
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal("test")
@@ -310,15 +310,15 @@ return function()
 	describe("Mirror layers", function()
 		it("should create a mirror layer, pointing to component", function()
 			local c = make()
-			c:setState({test = true})
+			c:SetState({test = true})
 
-			local layer = c:newMirror()
+			local layer = c:NewMirror()
 			expect(layer.Destroy).to.equal(c.Destroy)
 			expect(type(layer.DestroyMirror)).to.equal("function")
 			expect(function()
 				layer:DestroyMirror()
 			end).never.to.throw()
-			expect(layer:getState().test).to.equal(true)
+			expect(layer:GetState().test).to.equal(true)
 		end)
 
 		it(":start() should return a mirror layer", function()
@@ -332,7 +332,7 @@ return function()
 			expect(c:GetMirrorConfig().Mapped).to.equal(true)
 			expect(c:GetMirrorState().IsBarking).to.equal(false)
 			
-			local m = c:newMirror({ShouldBark = true})
+			local m = c:NewMirror({ShouldBark = true})
 			expect(m:GetMirrorConfig().ShouldBark).to.equal(true)
 			expect(c:GetMirrorConfig().Mapped).to.equal(true)
 			expect(m:GetMirrorState().IsBarking).to.equal(true)
@@ -346,7 +346,7 @@ return function()
 
 		it("should destroy component after all mirrors are destroyed", function()
 			local c = start(Reloadable)
-			local m = c:newMirror()
+			local m = c:NewMirror()
 			expect(m._source.isDestroyed).to.equal(false)
 
 			m:DestroyMirror()
@@ -360,7 +360,7 @@ return function()
 			expect(c.state.IsBarking).to.equal(false)
 			expect(c.config.ShouldBark).to.equal(false)
 
-			local layer = c:newMirror({ShouldBark = true})
+			local layer = c:NewMirror({ShouldBark = true})
 			expect(c.state.IsBarking).to.equal(true)
 			expect(c.config.ShouldBark).to.equal(true)
 

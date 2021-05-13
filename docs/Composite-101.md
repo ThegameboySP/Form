@@ -113,7 +113,7 @@ function S_Flag.getInterfaces(t)
 end
 
 function S_Flag:Init()
-	self:setState({
+	self:SetState({
 		-- The state the flag is currently in.
 		State = "Docked"; -- public
 		-- The time left when dropped until it returns to a flag stand.

@@ -118,7 +118,7 @@ function BaseComponent:start(instance, config)
 		and runCoroutineOrWarn(errored, comp.Main, comp)
 
 	if ok then
-		return comp:newMirror(config, Symbol.named("base"))
+		return comp:NewMirror(config, Symbol.named("base"))
 	else
 		error("Component errored, so could not continue.")
 	end
@@ -236,29 +236,26 @@ function BaseComponent:f(method)
 end
 
 
-function BaseComponent:addLayer(key, state)
+function BaseComponent:AddLayer(key, state)
 	return self:_newComponentLayer(key, state, nil)
 end
-BaseComponent.AddLayer = BaseComponent.addLayer
 
 
-function BaseComponent:mergeLayer(key, delta)
+function BaseComponent:MergeLayer(key, delta)
 	local layer = self._layers[key]
 
 	if layer == nil then
-		return self:addLayer(key, delta)
+		return self:AddLayer(key, delta)
 	else
 		layer.state = setStateMt(Utils.deepMergeLayer(delta, layer.state))
 		self:_updateState()
 	end
 end
-BaseComponent.MergeLayer = BaseComponent.mergeLayer
 
 
-function BaseComponent:removeLayer(key)
+function BaseComponent:RemoveLayer(key)
 	return self:_removeComponentLayer(key)
 end
-BaseComponent.RemoveLayer = BaseComponent.removeLayer
 
 
 local RESERVED_LAYER_KEYS = {
@@ -305,28 +302,24 @@ function BaseComponent:_updateState()
 end
 
 
-function BaseComponent:setState(delta)
-	return self:mergeLayer(Symbol.named("base"), delta)
+function BaseComponent:SetState(delta)
+	return self:MergeLayer(Symbol.named("base"), delta)
 end
-BaseComponent.SetState = BaseComponent.setState
 
 
-function BaseComponent:getState()
+function BaseComponent:GetState()
 	return Utils.deepCopyState(self.state)
 end
-BaseComponent.GetState = BaseComponent.getState
 
 
-function BaseComponent:connectSubscribe(keypath, handler)
+function BaseComponent:ConnectSubscribe(keypath, handler)
 	return self._subscriptions:Subscribe(keypath, handler)
 end
-BaseComponent.ConnectSubscribe = BaseComponent.connectSubscribe
 
 
-function BaseComponent:subscribe(keypath, handler)
-	return (self.maid:Add(self:connectSubscribe(keypath, handler)))
+function BaseComponent:Subscribe(keypath, handler)
+	return (self.maid:Add(self:ConnectSubscribe(keypath, handler)))
 end
-BaseComponent.Subscribe = BaseComponent.subscribe
 
 
 local function getStateByKeypath(state, keypath)
@@ -342,14 +335,13 @@ local function getStateByKeypath(state, keypath)
 	return current
 end
 
-function BaseComponent:subscribeAnd(keypath, handler)
-	return (self.maid:Add(self:connectSubscribeAnd(keypath, handler)))
+function BaseComponent:SubscribeAnd(keypath, handler)
+	return (self.maid:Add(self:ConnectSubscribeAnd(keypath, handler)))
 end
-BaseComponent.SubscribeAnd = BaseComponent.subscribeAnd
 
 
-function BaseComponent:connectSubscribeAnd(keypath, handler)
-	local disconnect = self:connectSubscribe(keypath, handler)
+function BaseComponent:ConnectSubscribeAnd(keypath, handler)
+	local disconnect = self:ConnectSubscribe(keypath, handler)
 	local value = getStateByKeypath(self.state, keypath)
 	if value ~= nil then
 		handler(value)
@@ -357,7 +349,6 @@ function BaseComponent:connectSubscribeAnd(keypath, handler)
 	
 	return disconnect
 end
-BaseComponent.ConnectSubscribeAnd = BaseComponent.connectSubscribeAnd
 
 
 function BaseComponent:_newComponentLayer(key, state, config)
@@ -397,7 +388,7 @@ function BaseComponent:_removeComponentLayer(key)
 end
 
 
-function BaseComponent:newMirror(config, key)
+function BaseComponent:NewMirror(config, key)
 	key = self:_newComponentLayer(key, {}, config)
 	self._mirrors[key] = true
 
@@ -468,13 +459,13 @@ end
 BaseComponent.HasEvent = BaseComponent.hasEvent
 
 
-function BaseComponent:fireAll(eventName, ...)
+function BaseComponent:FireAll(eventName, ...)
 	self:fireEvent(eventName, ...)
-	self:fireAllClients(eventName, ...)
+	self:FireAllClients(eventName, ...)
 end
 
 
-function BaseComponent:registerRemoteEvents(...)
+function BaseComponent:RegisterRemoteEvents(...)
 	assert(self.isServer, ON_SERVER_ERROR)
 
 	local folder = getOrMakeRemoteEventFolder(self.instance, self.BaseName)
@@ -483,7 +474,7 @@ function BaseComponent:registerRemoteEvents(...)
 
 		if type(v) == "function" then
 			remote.Name = tostring(k)
-			self:bindRemoteEvent(remote.Name, v)
+			self:BindRemoteEvent(remote.Name, v)
 		elseif type(v) == "string" then
 			remote.Name = v
 		end
@@ -508,7 +499,7 @@ function BaseComponent:_getRemoteEventSchema(func)
 	})
 end
 
-function BaseComponent:fireAllClients(eventName, ...)
+function BaseComponent:FireAllClients(eventName, ...)
 	local remote = getOrMakeRemoteEventFolder(self.instance, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
@@ -525,7 +516,7 @@ function BaseComponent:fireAllClients(eventName, ...)
 end
 
 
-function BaseComponent:fireClient(eventName, client, ...)
+function BaseComponent:FireClient(eventName, client, ...)
 	local remote = getOrMakeRemoteEventFolder(self.instance, self.BaseName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self.instance:GetFullName(), eventName))
@@ -542,7 +533,7 @@ function BaseComponent:fireClient(eventName, client, ...)
 end
 
 
-function BaseComponent:fireServer(eventName, ...)
+function BaseComponent:FireServer(eventName, ...)
 	local maid, id = self.maid:Add(Maid.new())
 	local schema = maid:Add(self:_getRemoteEventSchema(function()
 		return false, {
@@ -560,16 +551,16 @@ function BaseComponent:fireServer(eventName, ...)
 end
 
 
-function BaseComponent:bindRemoteEvent(eventName, handler)
-	return self.maid:Add(self:connectRemoteEvent(eventName, handler))
+function BaseComponent:BindRemoteEvent(eventName, handler)
+	return self.maid:Add(self:ConnectRemoteEvent(eventName, handler))
 end
 
 
-function BaseComponent:connectRemoteEvent(eventName, handler)
+function BaseComponent:ConnectRemoteEvent(eventName, handler)
 	local maid = Maid.new()
 	
 	-- Wait a frame, as remote event connections can fire immediately if in queue.
-	maid:Add(self:spawnNextFrame(function()
+	maid:Add(self:SpawnNextFrame(function()
 		if self.isServer and not self.isTesting then
 			maid:Add(
 				(getOrMakeRemoteEventFolder(self.instance, self.BaseName)
@@ -597,7 +588,7 @@ function BaseComponent:connectRemoteEvent(eventName, handler)
 end
 
 
-function BaseComponent:connect(event, handler)
+function BaseComponent:Connect(event, handler)
 	return event:Connect(function(...)
 		if self:isPaused() then return end
 		handler(...)
@@ -605,14 +596,14 @@ function BaseComponent:connect(event, handler)
 end
 
 
-function BaseComponent:bind(event, handler)
-	local con = self:connect(event, handler)
+function BaseComponent:Bind(event, handler)
+	local con = self:Connect(event, handler)
 	self.maid:GiveTask(con)
 	return con
 end
 
 
-function BaseComponent:spawnNextFrame(handler, ...)
+function BaseComponent:SpawnNextFrame(handler, ...)
 	if not self.isTesting then
 		local args = {...}
 		local argLen = #args
@@ -631,44 +622,39 @@ function BaseComponent:spawnNextFrame(handler, ...)
 end
 
 
-function BaseComponent:connectPostSimulation(handler)
+function BaseComponent:ConnectPostSimulation(handler)
 	return RunService.Heartbeat:Connect(handler)
 end
 
 
-function BaseComponent:bindPostSimulation(handler)
-	local con = self:connectPostSimulation(handler)
-	self.maid:GiveTask(con)
-	return con
+function BaseComponent:BindPostSimulation(handler)
+	return self.maid:Add(self:ConnectPostSimulation(handler))
 end
 
 
-function BaseComponent:connectPreRender(handler)
+function BaseComponent:ConnectPreRender(handler)
 	return RunService.RenderStepped:Connect(handler)
 end
 
 
-function BaseComponent:bindPreRender(handler)
-	local con = self:connectPreRender(handler)
-	self.maid:GiveTask(con)
-	return con
+function BaseComponent:BindPreRender(handler)
+	return self.maid:Add(self:ConnectPreRender(handler))
 end
 
 
-function BaseComponent:getTime()
+function BaseComponent:GetTime()
 	return self.man:GetTime()
 end
 
 
-function BaseComponent:setCycle(name, cycleLen)
+function BaseComponent:SetCycle(name, cycleLen)
 	return self.man:SetCycle(self.instance, self.BaseName, name, cycleLen)
 end
 
 
-function BaseComponent:getCycle(name)
+function BaseComponent:GetCycle(name)
 	return self.man:GetCycle(self.instance, self.BaseName, name)
 end
-BaseComponent.GetCycle = BaseComponent.getCycle
 
 function getOrMakeRemoteEventFolder(instance, baseCompName)
 	local remoteEvents = instance:FindFirstChild("RemoteEvents")

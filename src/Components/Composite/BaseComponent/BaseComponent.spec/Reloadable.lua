@@ -23,7 +23,7 @@ function Reloadable:Init()
 end
 
 function Reloadable:Main()
-	self:subscribeAnd("State", function(state)
+	self:SubscribeAnd("State", function(state)
 		if state.Name == "Default" then
 			self:ChangeState("Default", state)
 		elseif state.Name == "Next" then
@@ -40,7 +40,7 @@ function Reloadable:ChangeState(name, args)
 	local methodName = name .. "State"
 	assert(self[methodName], "Method does not exist!")
 
-	self:setState({
+	self:SetState({
 		State = self.util.union(
 			args or {},
 			{
@@ -56,7 +56,7 @@ function Reloadable:DefaultState()
 	local maid = self.maid:AddId(self.Maid.new(), "state")
 
 	maid:Add(self:On("TimeElapsed", function()
-		self:setState({State = {TimeLeft = self.sub(1)}})
+		self:SetState({State = {TimeLeft = self.sub(1)}})
 		if self.state.State.TimeLeft <= 0 then
 			self:ChangeState("Next")
 		end
@@ -66,7 +66,7 @@ end
 function Reloadable:NextState()
 	local maid = self.maid:AddId(self.Maid.new(), "state")
 	
-	maid:Add(self:subscribeAnd("IsBarking", function(isBarking)
+	maid:Add(self:SubscribeAnd("IsBarking", function(isBarking)
 		if isBarking then
 			self:Fire("Bark!")
 		end

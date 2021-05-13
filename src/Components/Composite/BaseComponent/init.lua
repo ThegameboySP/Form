@@ -63,6 +63,7 @@ function BaseComponent.new(instance, config)
 	local self = SignalMixin.new(setmetatable({
 		instance = instance;
 		maid = Maid.new();
+		externalMaid = Maid.new();
 		
 		config = config;
 		state = setStateMt({});
@@ -79,6 +80,7 @@ function BaseComponent.new(instance, config)
 		if not isReloading then
 			self:Fire("Destroying")
 			self:DisconnectAll()
+			self.externalMaid:DoCleaning()
 			
 			self.PreInit = DESTROYED_ERROR
 			self.Init = DESTROYED_ERROR
@@ -320,9 +322,14 @@ end
 BaseComponent.GetState = BaseComponent.getState
 
 
+function BaseComponent:connectSubscribe(keypath, handler)
+	return self._subscriptions:Subscribe(keypath, handler)
+end
+BaseComponent.ConnectSubscribe = BaseComponent.connectSubscribe
+
+
 function BaseComponent:subscribe(keypath, handler)
-	local disconnect = self._subscriptions:Subscribe(keypath, handler)
-	return self.maid:Add(disconnect)
+	return (self.maid:Add(self:connectSubscribe(keypath, handler)))
 end
 BaseComponent.Subscribe = BaseComponent.subscribe
 
@@ -341,7 +348,13 @@ local function getStateByKeypath(state, keypath)
 end
 
 function BaseComponent:subscribeAnd(keypath, handler)
-	local disconnect = self:subscribe(keypath, handler)
+	return (self.maid:Add(self:connectSubscribeAnd(keypath, handler)))
+end
+BaseComponent.SubscribeAnd = BaseComponent.subscribeAnd
+
+
+function BaseComponent:connectSubscribeAnd(keypath, handler)
+	local disconnect = self:connectSubscribe(keypath, handler)
 	local value = getStateByKeypath(self.state, keypath)
 	if value ~= nil then
 		handler(value)
@@ -349,7 +362,8 @@ function BaseComponent:subscribeAnd(keypath, handler)
 	
 	return disconnect
 end
-BaseComponent.SubscribeAnd = BaseComponent.subscribeAnd
+BaseComponent.ConnectSubscribeAnd = BaseComponent.connectSubscribeAnd
+
 
 function BaseComponent:newMirror(config)
 	local id = self:addLayer(nil, {})

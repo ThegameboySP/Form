@@ -17,7 +17,7 @@ local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
 local StateMetatable = require(script.StateMetatable)
 local Utils = require(script.Utils)
 
-local BaseComponent = {}
+local BaseComponent = SignalMixin.wrap({})
 BaseComponent.BaseName = "BaseComponent"
 BaseComponent.isTesting = false
 BaseComponent.__index = BaseComponent
@@ -76,18 +76,16 @@ function BaseComponent.new(instance, config)
 		_subscriptions = KeypathSubscriptions.new();
 	}, BaseComponent))
 
-	self.maid:Add(function(isReloading)
-		if not isReloading then
-			self:Fire("Destroying")
-			self:DisconnectAll()
-			self.externalMaid:DoCleaning()
-			
-			self.PreInit = DESTROYED_ERROR
-			self.Init = DESTROYED_ERROR
-			self.Main = DESTROYED_ERROR
+	self.maid:Add(function()
+		self:Fire("Destroying")
+		self:DisconnectAll()
+		self.externalMaid:DoCleaning()
+		
+		self.PreInit = DESTROYED_ERROR
+		self.Init = DESTROYED_ERROR
+		self.Main = DESTROYED_ERROR
 
-			self.isDestroyed = true
-		end
+		self.isDestroyed = true
 	end)
 
 	return self
@@ -160,8 +158,8 @@ end
 
 
 -- isReloading: bool?
-function BaseComponent:Destroy(isReloading)
-	self.maid:DoCleaning(isReloading)
+function BaseComponent:Destroy(...)
+	self.maid:DoCleaning(...)
 end
 
 
@@ -184,8 +182,6 @@ end
 
 
 function BaseComponent:reload(config)
-	self:Destroy(true)
-
 	if config then
 		local baseConfig = self._baseConfig
 		table.remove(self._configLayers, table.find(self._configLayers, baseConfig))
@@ -214,9 +210,18 @@ function BaseComponent:reload(config)
 		self:_mergeLayers(newLayers)
 	end
 
-	self:PreInit()
-	self:Init()
-	self:Main()
+	self:Fire("Reloaded")
+end
+
+
+local fire = BaseComponent.Fire
+function BaseComponent:Fire(name, ...)
+	local methodName = "On" .. name
+	if type(self[methodName]) == "function" then
+		self[methodName](self, ...)
+	end
+
+	fire(self, name, ...)
 end
 
 
@@ -375,19 +380,14 @@ function BaseComponent:newMirror(config)
 
 	local mirror
 	mirror = setmetatable({
-		Destroy = function(_, isReloading)
+		Destroy = function()
 			if mirror.isDestroyed then return end
+			mirror.isDestroyed = true
+			self:removeLayer(id)
 
-			if isReloading then
-				self:Destroy(true)
-			else
-				mirror.isDestroyed = true
-				self:removeLayer(id)
-
-				if config then
-					table.remove(self._configLayers, table.find(self._configLayers, config))
-					self:reload()
-				end
+			if config then
+				table.remove(self._configLayers, table.find(self._configLayers, config))
+				self:reload()
 			end
 		end;
 
@@ -666,4 +666,4 @@ function getRemoteEventFolderOrError(instance, baseCompName)
 	return error("No remote event folder under instance: " .. instance:GetFullName())
 end
 
-return SignalMixin.wrap(BaseComponent)
+return BaseComponent

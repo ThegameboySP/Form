@@ -10,8 +10,8 @@ local function make(ref)
 	return c
 end
 
-local function start(class, ref, config)
-	local c = class:start(ref or {}, config or {})
+local function run(class, ref, config)
+	local c = class:run(ref or {}, config or {})
 	c.isTesting = true
 	return c
 end
@@ -289,7 +289,7 @@ return function()
 	describe("Reloading", function()
 		it("should persist state", function()
 			local i = new("Folder")
-			local c = start(Reloadable, i, {Time = 1})
+			local c = run(Reloadable, i, {Time = 1})
 			
 			c:Fire("TimeElapsed")
 
@@ -321,31 +321,31 @@ return function()
 			expect(layer:GetState().test).to.equal(true)
 		end)
 
-		it(":start() should return a mirror layer", function()
-			local c = start(Reloadable)
+		it(":run() should return a mirror layer", function()
+			local c = run(Reloadable)
 			expect(c.isMirror).to.equal(true)
 		end)
 
 		it("mapConfig and mapState should be called on each layer separately", function()
-			local c = start(Reloadable, {}, {ShouldBark = false})
-			expect(c:GetMirrorConfig().ShouldBark).to.equal(false)
-			expect(c:GetMirrorConfig().Mapped).to.equal(true)
-			expect(c:GetMirrorState().IsBarking).to.equal(false)
+			local c = run(Reloadable, {}, {ShouldBark = false})
+			expect(c.config.ShouldBark).to.equal(false)
+			expect(c.config.Mapped).to.equal(true)
+			expect(c.config.IsBarking).to.equal(false)
 			
-			local m = c:NewMirror({ShouldBark = true})
-			expect(m:GetMirrorConfig().ShouldBark).to.equal(true)
-			expect(c:GetMirrorConfig().Mapped).to.equal(true)
-			expect(m:GetMirrorState().IsBarking).to.equal(true)
+			c:NewMirror({ShouldBark = true})
+			expect(c.config.ShouldBark).to.equal(true)
+			expect(c.config.Mapped).to.equal(true)
+			expect(c.config.IsBarking).to.equal(true)
 		end)
 
 		it("mapConfig and mapState should not be called if mirror has no config", function()
-			local c = start(Reloadable, {}, {})
-			expect(c:GetMirrorConfig().Mapped).to.equal(nil)
-			expect(c:GetMirrorState().IsBarking).to.equal(nil)
+			local c = run(Reloadable, {}, {})
+			expect(c.config.Mapped).to.equal(nil)
+			expect(c.config.IsBarking).to.equal(nil)
 		end)
 
 		it("should destroy component after all mirrors are destroyed", function()
-			local c = start(Reloadable)
+			local c = run(Reloadable)
 			local m = c:NewMirror()
 			expect(m._source.isDestroyed).to.equal(false)
 
@@ -356,7 +356,7 @@ return function()
 		end)
 
 		it("should merge config and state when destroying and reloading mirrors", function()
-			local c = start(Reloadable, {}, {ShouldBark = false})
+			local c = run(Reloadable, {}, {ShouldBark = false})
 			expect(c.state.IsBarking).to.equal(false)
 			expect(c.config.ShouldBark).to.equal(false)
 

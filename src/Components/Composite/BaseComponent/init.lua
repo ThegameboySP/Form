@@ -62,8 +62,7 @@ function BaseComponent.getInterfaces()
 end
 
 BaseComponent.mapConfig = nil
--- When reloading, this should be run on each layer of state, then merged together.
--- When calling :start(), state is an empty table.
+-- This should be run on each layer of state, then merged together.
 BaseComponent.mapState = nil
 
 function BaseComponent.new(ref, config)
@@ -112,21 +111,21 @@ local function errored(_, comp)
 end
 
 function BaseComponent:start(ref, config)
-	local comp = self.new(ref, config)
+	local comp = self.new(ref, {})
+	return comp:NewMirror(config, Symbol.named("base"))
+end
 
-	if next(comp.config) and comp.mapConfig then
-		config = comp.mapConfig(config)
-	end
+
+function BaseComponent:run(ref, config)
+	local mirror = self:start(ref, config)
+	local comp = mirror._source
 
 	local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
 		and runCoroutineOrWarn(errored, comp.Init, comp)
 		and runCoroutineOrWarn(errored, comp.Main, comp)
 
-	if ok then
-		return comp:NewMirror(config, Symbol.named("base"))
-	else
-		error("Component errored, so could not continue.")
-	end
+	assert(ok, "Component errored, so could not continue.")
+	return mirror
 end
 
 
@@ -194,7 +193,8 @@ function BaseComponent:Reload()
 			local layer = self._layers[key]
 			if not next(layer.config) then continue end
 
-			table.insert(configLayers, configFunc(copyFunc(layer.config)))
+			local newConfig = configFunc(copyFunc(layer.config))
+			table.insert(configLayers, newConfig)
 		end
 
 		config = Reducers.merge(configLayers)
@@ -216,10 +216,10 @@ function BaseComponent:Reload()
 			table.insert(stateLayers, key)
 		end
 
-		self:_mergeLayers(stateLayers)
+		self:_mergeStateLayers(stateLayers)
 	end
 
-	self:Fire("Reloaded", ComponentsUtils.diff(config, oldConfig), oldConfig)
+	return oldConfig
 end
 
 
@@ -285,7 +285,7 @@ function BaseComponent:_getLayers()
 end
 
 
-function BaseComponent:_mergeLayers(layerKeys)
+function BaseComponent:_mergeStateLayers(layerKeys)
 	local newState = {}
 	for _, key in ipairs(layerKeys) do
 		Utils.deepMergeState(self._layers[key].state, newState)
@@ -303,7 +303,7 @@ end
 
 
 function BaseComponent:_updateState()
-	return self:_mergeLayers(self:_getLayers())
+	return self:_mergeStateLayers(self:_getLayers())
 end
 
 
@@ -397,11 +397,10 @@ function BaseComponent:NewMirror(config, key)
 	key = self:_newComponentLayer(key, {}, config)
 	self._mirrors[key] = true
 
-	local mirror
-	mirror = setmetatable({
+	return setmetatable({
 		isMirror = true;
 
-		DestroyMirror = function()
+		DestroyMirror = function(mirror)
 			if mirror.isDestroyed then return end
 
 			mirror.isDestroyed = true
@@ -426,11 +425,10 @@ function BaseComponent:NewMirror(config, key)
 				self._layers[key].config = newConfig
 			end
 
-			self._source:Reload()
+			local oldConfig = self._source:Reload()
+			self:Fire("Reloaded", ComponentsUtils.diff(self.config, oldConfig), oldConfig)
 		end;
 	}, {__index = self})
-
-	return mirror
 end
 
 

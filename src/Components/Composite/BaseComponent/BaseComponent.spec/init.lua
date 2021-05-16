@@ -48,7 +48,7 @@ return function()
 			expect(c.state.test2).to.equal(2)
 			expect(c.state.test3).to.equal(5)
 
-			c:AddLayer("two", {
+			c.Layers:Add("two", {
 				test2 = c.add(5);
 				test3 = c.sub(1);
 			})
@@ -60,11 +60,11 @@ return function()
 
 		it("should merge existing layer", function()
 			local c = make()
-			c:MergeLayer("test", {
+			c.Layers:Merge("test", {
 				test1 = false;
 				test2 = true;
 			})
-			c:MergeLayer("test", {
+			c.Layers:Merge("test", {
 				test1 = true;
 			})
 
@@ -74,7 +74,7 @@ return function()
 
 		it("should compound layers with functions", function()
 			local c = make()
-			c:AddLayer("second", {
+			c.Layers:Add("second", {
 				time = 3;
 			})
 			c:SetState({
@@ -87,20 +87,20 @@ return function()
 		it("should never error when trying to remove non-existent layer", function()
 			local c = make()
 			expect(function()
-				c:RemoveLayer("test")
+				c.Layers:Remove("test")
 			end).to.never.throw()
 		end)
 
 		it("should remove existing layer", function()
 			local c = make()
 			c:SetState({test1 = false})
-			c:AddLayer("test", {
+			c.Layers:Add("test", {
 				test1 = true;
 			})
 
 			expect(c.state.test1).to.equal(true)
 
-			c:RemoveLayer("test")
+			c.Layers:Remove("test")
 
 			expect(c.state.test1).to.equal(false)
 		end)
@@ -224,7 +224,7 @@ return function()
 		it("should register remote events", function()
 			local i = new("Folder")
 			local c = make(i)
-			c:RegisterRemoteEvents("Test")
+			c.Remote:RegisterEvents("Test")
 
 			expect(function()
 				local _ = i.RemoteEvents.BaseComponent.Test
@@ -234,16 +234,16 @@ return function()
 		it("should connect to remote event when it's already registered", function()
 			local i = new("Folder")
 			local s = make(i)
-			s:RegisterRemoteEvents("Test")
+			s.Remote:RegisterEvents("Test")
 
 			local c = make(i)
 			c.isServer = false
 
 			local values = {}
-			c:BindRemoteEvent("Test", function(value)
+			c.Remote:BindEvent("Test", function(value)
 				table.insert(values, value)
 			end)
-			s:FireAllClients("Test", "test")
+			s.Remote:FireAllClients("Test", "test")
 
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal("test")
@@ -256,13 +256,13 @@ return function()
 			c.isServer = false
 
 			local values = {}
-			c:BindRemoteEvent("Test", function(value)
+			c.Remote:BindEvent("Test", function(value)
 				table.insert(values, value)
 			end)
 
-			s:RegisterRemoteEvents("Test")
+			s.Remote:RegisterEvents("Test")
 			expect(#values).to.equal(0)
-			s:FireAllClients("Test", "test")
+			s.Remote:FireAllClients("Test", "test")
 
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal("test")
@@ -274,12 +274,12 @@ return function()
 			local c = make(i)
 			c.isServer = false
 
-			c:FireServer("Test", "test")
+			c.Remote:FireServer("Test", "test")
 			local values = {}
-			s:BindRemoteEvent("Test", function(_, value)
+			s.Remote:BindEvent("Test", function(_, value)
 				table.insert(values, value)
 			end)
-			s:RegisterRemoteEvents("Test")
+			s.Remote:RegisterEvents("Test")
 
 			expect(#values).to.equal(1)
 			expect(values[1]).to.equal("test")

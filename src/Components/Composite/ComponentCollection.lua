@@ -2,6 +2,7 @@ local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 local SignalMixin = require(script.Parent.SignalMixin)
+local Symbol = require(script.Parent.Parent.Modules.Symbol)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
@@ -69,7 +70,8 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	local class = self:_resolveOrError(classResolvable)
 	if self:HasComponent(ref, class) then
 		local tbl = self._componentsByRef[ref][class]
-		return false, tbl.comp:newMirror(keywords.config)
+		assert((not not tbl.isWeak) == (not not keywords.isWeak), "Weak components must be consistent!")
+		return false, tbl.comp
 	end
 
 	if self._componentsByRef[ref] == nil and keywords.isWeak then
@@ -94,6 +96,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 			self:RemoveRef(ref)
 		end
 	end)
+	comp.Layers:Set(Symbol.named("base"), config, nil)
 
 	if self._componentsByRef[ref] == nil then
 		self._componentsByRef[ref] = {}
@@ -120,17 +123,18 @@ end
 
 
 local function errored(_, comp)
-	return comp.instance:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
+	return comp.ref:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
 end
 
 
 function ComponentCollection:_runComponent(comp, keywords)
-	local instance = comp.instance
+	local instance = comp.ref
 	local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
 		and runCoroutineOrWarn(errored, comp.Init, comp)
 		and runCoroutineOrWarn(errored, comp.Main, comp)
 	
 	if ok then
+		comp.initialized = true
 		self:Fire("ComponentAdded", instance, comp, keywords)
 	end
 end
@@ -172,6 +176,7 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 	for _, tbl in ipairs(tbls3) do
 		local ok = runCoroutineOrWarn(errored, tbl[1].Main, tbl[1])
 		if ok then
+			tbl[1].initialized = true
 			table.insert(tbls4, tbl)
 		end
 	end
@@ -179,7 +184,7 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 	for _, tbl in ipairs(tbls4) do
 		local comp = tbl[1]
 		table.insert(comps, comp)
-		self:Fire("ComponentAdded", comp.instance, comp, tbl[2])
+		self:Fire("ComponentAdded", comp.ref, comp, tbl[2])
 	end
 
 	return comps

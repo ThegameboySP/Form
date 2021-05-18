@@ -81,14 +81,14 @@ return function()
 			expect(t.Count).to.equal(1)
 		end)
 
-		it("should return a new mirror when component already exists", function()
+		it("should return component when it already exists", function()
 			local c = make()
 
 			local i = new("Folder")
 			local comp = c:GetOrAddComponent(i, "BaseComponent")
 			local ret2 = c:GetOrAddComponent(i, "BaseComponent")
 
-			expect(getmetatable(ret2).__index).to.equal(comp)
+			expect(ret2).to.equal(comp)
 		end)
 
 		it("should never make a reference when the only component is weak", function()

@@ -49,6 +49,21 @@ return function()
 		end)
 	end)
 
+	describe(".Groups", function()
+		local TestComponent = BaseComponent:extend("TestComponent")
+		TestComponent.Groups = {"Test1", "Test2"}
+
+		it("should automatically assign groups on ComponentAdded if .Groups exists", function()
+			local man = make()
+			man:RegisterComponent(TestComponent)
+			local i = new("Folder")
+			man:GetOrAddComponent(i, TestComponent)
+
+			expect(man.Groups:Has(i, "Test1")).to.equal(true)
+			expect(man.Groups:Has(i, "Test2")).to.equal(true)
+		end)
+	end)
+
 	describe("Add", function()
 		it("should never fire Added when a reference is already added", function()
 			local man = make()

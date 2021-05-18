@@ -25,8 +25,9 @@ function Manager.new(name)
 	self._collection = ComponentCollection.new(self)
 
 	self._collection:On("RefAdded", function(ref)
-		self._profiles[ref] = {ref = ref, components = {}, mode = nil}
-		self:Fire("RefAdded", ref)
+		local profile = {ref = ref, components = {}, mode = nil}
+		self._profiles[ref] = profile
+		self:Fire("RefAdded", ref, profile)
 	end)
 
 	self._collection:On("RefRemoved", function(ref)
@@ -35,8 +36,9 @@ function Manager.new(name)
 		if mode == ComponentMode.Destroy then
 			ref.Parent = nil
 		end
+		self._profiles[ref] = nil
 
-		self:Fire("RefRemoved", ref)
+		self:Fire("RefRemoved", ref, profile)
 	end)
 
 	self._collection:On("ComponentAdded", function(ref, comp)

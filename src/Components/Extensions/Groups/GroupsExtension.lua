@@ -1,73 +1,108 @@
 local SignalMixin = require(script.Parent.Parent.Parent.Composite.SignalMixin)
 local Group = require(script.Parent.Group)
 local GroupsComponent = require(script.Parent.GroupsComponent)
+local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 
 local GroupsExtension = {}
 GroupsExtension.__index = GroupsExtension
 
 local ERROR = function(ref)
-	error("%s is not a registered reference!"):format(ref:GetFullName())
+	error(("%s is not a registered reference!"):format(ref:GetFullName()))
 end
 
 function GroupsExtension.new(man)
 	local self = SignalMixin.new(setmetatable({
 		_man = man;
 		_groups = {};
+		_comps = {};
 	}, GroupsExtension))
 
 	man:RegisterComponent(GroupsComponent)
 	man:On("RefAdded", function(ref)
-		local profile = man:GetProfile(ref)
-		profile.groups = {}
+		local comp = man:GetOrAddComponent(ref, GroupsComponent, {
+			isWeak = true;
+		})
+		comp:SetState({Default = true})
+		self._comps[ref] = comp
 
-		self:Add(ref, "Default")
+		comp.externalMaid:Add(comp:ConnectSubscribeAnd("", function(changedGroups)
+			for name, value in pairs(changedGroups) do
+				if value == true then
+					self:_add(ref, name)
+				else
+					self:_remove(ref, name)
+				end
+			end
+		end))
 	end)
 
 	man:On("RefRemoved", function(ref)
 		for name in pairs(self._groups) do
-			self:Remove(ref, name)
+			self:_remove(ref, name)
 		end
+
+		self._comps[ref]:Destroy()
+		self._comps[ref] = nil
+	end)
+
+	man:On("ComponentAdded", function(ref, comp)
+		if comp.Groups then
+			local groups = self._comps[ref]
+			groups.Layers:SetConfig(comp.BaseName, comp.Groups)
+		end
+	end)
+
+	man:On("ComponentRemoved", function(ref, comp)
+		local groups = self._comps[ref]
+		if groups == nil then return end
+		groups.Layers:Remove(comp.BaseName)
 	end)
 
 	return self
 end
 
-function GroupsExtension:Add(ref, name)
-	local profile = self._man:GetProfile(ref) or ERROR(ref)
-	if profile.groups[name] then return end
+function GroupsExtension:_add(ref, name)
+	if not self._comps[ref] then
+		error(ERROR(ref))
+	end
 
 	local group = self:_getOrMakeGroup(name)
+	if group:IsAdded(ref) then return end
 	group:Add(ref)
-
-	local keywords = {config = {[name] = true}, isWeak = true}
-	local mirror = self._man:GetOrAddComponent(ref, GroupsComponent, keywords)
-	profile.groups[name] = mirror
 
 	self:Fire("Added", ref, name)
 end
 
-function GroupsExtension:Remove(ref, name)
-	local profile = self._man:GetProfile(ref) or ERROR(ref)
-	if not profile.groups[name] then return end
+function GroupsExtension:Add(ref, name)
+	local comp = self._comps[ref] or ERROR(ref)
+	comp.Layers:MergeState("Manual", {[name] = true})
+	self:_add(ref, name)
+end
 
-	local mirror = profile.groups[name]
-	if not mirror.isDestroyed then
-		profile.groups[name]:Destroy()
+function GroupsExtension:Remove(ref, name)
+	local comp = self._comps[ref] or ERROR(ref)
+	comp.Layers:MergeState("Manual", {[name] = Symbol.named("null")})
+	self:_remove(ref, name)
+end
+
+function GroupsExtension:_remove(ref, name)
+	if not self._comps[ref] then
+		error(ERROR(ref))
 	end
-	profile.groups[name] = nil
 
 	local group = self._groups[name]
+	if not group:IsAdded(ref) then return end
 	group:Remove(ref)
 
 	self:Fire("Removed", ref, name)
 end
 
 function GroupsExtension:Get(ref)
-	local profile = self._man:GetProfile(ref)
+	local comp = self._comps[ref]
 
-	if profile then
+	if comp then
 		local array = {}
-		for name in pairs(profile.groups) do
+		for name in pairs(comp.state) do
 			table.insert(array, name)
 		end
 		return array
@@ -79,11 +114,6 @@ end
 function GroupsExtension:Has(ref, name)
 	local group = self._groups[name]
 	if group == nil then
-		return false
-	end
-
-	local profile = self._man:GetProfile(ref)
-	if profile == nil then
 		return false
 	end
 

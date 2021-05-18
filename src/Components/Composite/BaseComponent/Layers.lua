@@ -1,21 +1,16 @@
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 local Maid = require(script.Parent.Parent.Parent.Modules.Maid)
-local StateMetatable = require(script.Parent.StateMetatable)
 local Utils = require(script.Parent.Utils)
 
 local Layers = {}
 Layers.__index = Layers
-
-local function setStateMt(state)
-	return setmetatable(state, StateMetatable)
-end
 
 function Layers.new(base)
 	return setmetatable({
 		_base = base;
 		_maid = Maid.new();
 
-		_layers = {};
+		layers = {};
 		_layerOrder = {};
 	}, Layers)
 end
@@ -26,25 +21,25 @@ function Layers:Destroy()
 end
 
 
-function Layers:Add(key, state)
-	return self:_newComponentLayer(key, state, nil)
+function Layers:SetState(key, state)
+	return self:Set(key, nil, state)
 end
 
 
-function Layers:Merge(key, delta)
-	local layer = self._layers[key]
+function Layers:MergeState(key, delta)
+	local layer = self.layers[key]
 
 	if layer == nil then
-		return self:Add(key, delta)
+		return self:SetState(key, delta)
 	else
-		layer.state = setStateMt(Utils.deepMergeLayer(delta, layer.state))
+		layer.state = Utils.deepMergeLayer(delta, layer.state)
 		self:_updateState()
 	end
 end
 
 
-function Layers:Remove(key)
-	return self:_removeComponentLayer(key)
+function Layers:RemoveState(key)
+	return self:Remove(key)
 end
 
 
@@ -52,10 +47,10 @@ local RESERVED_LAYER_KEYS = {
 	[Symbol.named("remote")] = true;
 	[Symbol.named("base")] = true;
 }
-function Layers:_getLayers()
+function Layers:getLayerKeys()
 	local layersToMerge = {}
 	for _, key in pairs({Symbol.named("remote"), Symbol.named("base")}) do
-		if self._layers[key] then
+		if self.layers[key] then
 			table.insert(layersToMerge, key)
 		end
 	end
@@ -70,14 +65,14 @@ function Layers:_getLayers()
 end
 
 
-function Layers:_mergeStateLayers(layerKeys)
+function Layers:mergeStateLayers(layerKeys)
 	local newState = {}
 	for _, key in ipairs(layerKeys) do
-		Utils.deepMergeState(self._layers[key].state, newState)
+		Utils.deepMergeState(self.layers[key].state, newState)
 	end
 	
 	for _, key in ipairs(layerKeys) do
-		Utils.runStateFunctions(self._layers[key].state, newState)
+		Utils.runStateFunctions(self.layers[key].state, newState)
 	end
 
 	self._base:_setFinalState(newState)
@@ -85,41 +80,60 @@ end
 
 
 function Layers:_updateState()
-	return self:_mergeStateLayers(self:_getLayers())
+	return self:mergeStateLayers(self:getLayerKeys())
 end
 
 
-function Layers:_newComponentLayer(key, state, config)
-	key = key or #self._layers + 1
+function Layers:SetConfig(key, config)
+	return self:Set(key, config, nil)
+end
 
-	if self._layers[key] == nil then
+
+function Layers:_insertIfNil(key)
+	if self.layers[key] == nil then
 		table.insert(self._layerOrder, key)
+		self.layers[key] = {state = {}, config = {}}
 	end
 
-	self._layers[key] = {
-		state = setStateMt(Utils.deepCopyState(state or {}));
-		config = config or {};
-	}
+	return self.layers[key]
+end
 
-	if config then
-		self._source:Reload()
+
+function Layers:Set(key, config, state)
+	local layer = self:_insertIfNil(key)
+	if config and next(config) then
+		layer.config = config
+	end
+
+	if state and next(state) then
+		layer.state = state
+	end
+
+	if config and next(config) then
+		self._base:Reload()
 	else
 		self:_updateState()
 	end
 
-	return key
+	return layer
 end
 
 
-function Layers:_removeComponentLayer(key)
-	local layer = self._layers[key]
+function Layers:Remove(key)
+	local layer = self.layers[key]
 	if layer == nil then return end
 
-	self._layers[key] = nil
+	self.layers[key] = nil
 	table.remove(self._layerOrder, table.find(self._layerOrder, key))
 
+	-- If we're all out of layers, the component is empty. Destroy.
+	if self._layerOrder[1] == nil then
+		self._base:Destroy()
+		return
+	end
+
 	if next(layer.config) then
-		self._source:Reload()
+		self._base:Reload()
 	else
 		self:_updateState()
 	end

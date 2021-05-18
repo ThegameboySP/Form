@@ -3,6 +3,7 @@ local Reloadable = BaseComponent:extend("Reloadable")
 
 function Reloadable.mapConfig(config)
 	config.Mapped = true
+	config.MappedTimes = (config.MappedTimes or 0) + 1
 	return config
 end
 
@@ -10,6 +11,8 @@ function Reloadable.mapState(config, state)
 	config.Time = config.Time or 1
 
 	return {
+		Mapped = true;
+		Test = state.Test;
 		IsBarking = not not config.ShouldBark;
 		State = state.State or {
 			Name = "Default";

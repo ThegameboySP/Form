@@ -24,13 +24,13 @@ local Binding = require(script.Binding)
 local BaseComponent = SignalMixin.wrap({
 	NetworkMode = NetworkMode.ServerClient;
 	BaseName = "BaseComponent";
+	isServer = RunService:IsServer();
 	isTesting = false;
 
 	Maid = Maid;
 	inst = UserUtils;
 	util = ComponentsUtils;
 	func = FuncUtils;
-	isServer = RunService:IsServer();
 	player = Players.LocalPlayer;
 	null = Symbol.named("null");
 
@@ -61,23 +61,27 @@ local DESTROYED_ERROR = function()
 	error("Cannot run a component that is destroyed!")
 end
 
-local op = function(func)
+local op = function(def, func)
 	return function(n)
 		return function(c)
+			if type(c) ~= "number" then
+				c = def
+			end
 			return func(c, n)
 		end
 	end
 end
-BaseComponent.add = op(function(c, n) return (c or 0) + n end)
-BaseComponent.sub = op(function(c, n) return (c or 0) - n end)
-BaseComponent.mul = op(function(c, n) return (c or 0) * n end)
-BaseComponent.div = op(function(c, n) return (c or 0) / n end)
+BaseComponent.add = op(0, function(c, n) return c + n end)
+BaseComponent.sub = op(0, function(c, n) return c - n end)
+BaseComponent.mul = op(1, function(c, n) return c * n end)
+BaseComponent.div = op(1, function(c, n) return c / n end)
+BaseComponent.mod = op(0, function(c, n) return c % n end)
 
 local function setStateMt(state)
 	return setmetatable(state, StateMetatable)
 end
 
-function BaseComponent.new(ref, config)
+function BaseComponent.new(ref)
 	local self = SignalMixin.new(setmetatable({
 		isMirror = false;
 		
@@ -85,7 +89,7 @@ function BaseComponent.new(ref, config)
 		maid = Maid.new();
 		externalMaid = Maid.new();
 		
-		config = config or {};
+		config = {};
 		state = setStateMt({});
 		isDestroyed = false;
 
@@ -131,22 +135,19 @@ local function errored(_, comp)
 	return prefix .. "Component errored:\n%s\nTraceback: %s"
 end
 
-function BaseComponent:start(ref, config)
-	local comp = self.new(ref, {})
-	return comp:NewMirror(config, Symbol.named("base"))
-end
 
-
-function BaseComponent:run(ref, config)
-	local mirror = self:start(ref, config)
-	local comp = mirror._source
+function BaseComponent:run(ref, config, state)
+	local comp = self.new(ref)
+	comp.Layers:Set(Symbol.named("base"), config, state)
 
 	local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
 		and runCoroutineOrWarn(errored, comp.Init, comp)
 		and runCoroutineOrWarn(errored, comp.Main, comp)
 
 	assert(ok, "Component errored, so could not continue.")
-	return mirror
+
+	comp.initialized = true
+	return comp
 end
 
 
@@ -188,44 +189,48 @@ end
 
 
 function BaseComponent:Reload()
-	local layerKeys = self:_getLayers()
+	local layerKeys = self.Layers:getLayerKeys()
+	local layers = self.Layers.layers
 
-	local config do
+	local keyToMappedConfig = {}
+	local oldConfig = self.config
+	do
 		local configFunc = self.mapConfig or RET
 		local copyFunc = self.mapConfig and ComponentsUtils.deepCopy or RET
 
 		local configLayers = {}
 		for _, key in ipairs(layerKeys) do
-			local layer = self._layers[key]
+			local layer = layers[key]
 			if not next(layer.config) then continue end
 
-			local newConfig = configFunc(copyFunc(layer.config))
-			table.insert(configLayers, newConfig)
+			local mappedConfig = configFunc(copyFunc(layer.config))
+			table.insert(configLayers, mappedConfig)
+			keyToMappedConfig[key] = mappedConfig
 		end
 
-		config = Reducers.merge(configLayers)
+		self.config = Reducers.merge(configLayers)
 	end
-	local oldConfig = self.config
-	self.config = config
 
 	if self.mapState then
 		local stateLayers = {}
 
 		for _, key in ipairs(layerKeys) do
-			local layer = self._layers[key]
+			local layer = layers[key]
 			if not next(layer.config) then continue end
 
-			self._layers[key].state = setStateMt(self.mapState(
-				ComponentsUtils.deepCopy(layer.config),
-				self._layers[key].state
-			))
+			layers[key].state = self.mapState(
+				keyToMappedConfig[key] or ComponentsUtils.deepCopy(layer.config),
+				setStateMt(layers[key].state)
+			)
 			table.insert(stateLayers, key)
 		end
 
-		self:_mergeStateLayers(stateLayers)
+		self.Layers:mergeStateLayers(stateLayers)
 	end
 
-	return oldConfig
+	if self.initialized then
+		self:Fire("Reloaded", ComponentsUtils.diff(self.config, oldConfig), oldConfig)
+	end
 end
 
 
@@ -255,7 +260,17 @@ end
 
 
 function BaseComponent:SetState(delta)
-	return self.Layers:Merge(Symbol.named("base"), delta)
+	self.Layers:MergeState(Symbol.named("base"), delta)
+end
+
+
+function BaseComponent:SetConfig(config)
+	self.Layers:SetConfig(Symbol.named("base"), config, nil)
+end
+
+
+function BaseComponent:SetLayer(config, state)
+	self.Layers:Set(Symbol.named("base"), config, state)
 end
 
 
@@ -270,7 +285,7 @@ end
 
 
 function BaseComponent:Subscribe(keypath, handler)
-	return (self.maid:Add(self:ConnectSubscribe(keypath, handler)))
+	return self.maid:Add(self:ConnectSubscribe(keypath, handler))
 end
 
 
@@ -300,45 +315,6 @@ function BaseComponent:ConnectSubscribeAnd(keypath, handler)
 	end
 	
 	return disconnect
-end
-
-
-function BaseComponent:NewMirror(config, key)
-	key = self:_newComponentLayer(key, {}, config)
-	self._mirrors[key] = true
-
-	return setmetatable({
-		isMirror = true;
-
-		DestroyMirror = function(mirror)
-			if mirror.isDestroyed then return end
-
-			mirror.isDestroyed = true
-			self._mirrors[key] = nil
-			if not next(self._mirrors) then
-				return self:Destroy()
-			end
-
-			self:_removeComponentLayer(key)			
-		end;
-
-		GetMirrorState = function()
-			return ComponentsUtils.deepCopy(self._layers[key].state)
-		end;
-
-		GetMirrorConfig = function()
-			return ComponentsUtils.deepCopy(self._layers[key].config)
-		end;
-
-		Reload = function(_, newConfig)
-			if newConfig then
-				self._layers[key].config = newConfig
-			end
-
-			local oldConfig = self._source:Reload()
-			self:Fire("Reloaded", ComponentsUtils.diff(self.config, oldConfig), oldConfig)
-		end;
-	}, {__index = self})
 end
 
 

@@ -25,6 +25,7 @@ end
 function KeypathSubscriptions.new()
 	return setmetatable({
 		_subscriptionsByPath = {};
+		_firedPaths = {};
 	}, KeypathSubscriptions)
 end
 
@@ -47,20 +48,26 @@ function KeypathSubscriptions:Subscribe(keyPath, handler)
 end
 
 
-local function errored(_, comp)
-	return comp.instance:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
-end
-
-
 function KeypathSubscriptions:FireFromDelta(delta)
 	local paths = deltaToPaths(delta)
+	if next(paths) then
+		paths[""] = delta
+	end
 	
+	local pathToFired = {}
+	for path in pairs(paths) do
+		pathToFired[path] = self._firedPaths[path]
+	end
+
 	for path, value in pairs(paths) do
 		local subscriptions = self._subscriptionsByPath[path]
 		if subscriptions == nil then continue end
+		-- Don't fire if the subscription was already fired from a previous coroutine in the loop.
+		if self._firedPaths[path] ~= pathToFired[path] then continue end
 
 		local format = ("Subscription at %q errored: %s"):format(path, "%s\nTrace: %s")
 		for _, subscriber in ipairs(subscriptions) do
+			self._firedPaths[path] = {}
 			runCoroutineOrWarn(format, subscriber, value)
 		end
 	end

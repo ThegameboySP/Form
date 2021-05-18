@@ -1,6 +1,7 @@
 local BaseComponent = require(script.Parent)
 local Reloadable = require(script.Reloadable)
-local NULL = require(script.Parent.Parent.Parent.Modules.Symbol).named("null")
+local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
+local NULL = Symbol.named("null")
 
 local new = Instance.new
 
@@ -10,8 +11,8 @@ local function make(ref)
 	return c
 end
 
-local function run(class, ref, config)
-	local c = class:run(ref or {}, config or {})
+local function run(class, ref, config, state)
+	local c = class:run(ref or {}, config or {}, state)
 	c.isTesting = true
 	return c
 end
@@ -48,7 +49,7 @@ return function()
 			expect(c.state.test2).to.equal(2)
 			expect(c.state.test3).to.equal(5)
 
-			c.Layers:Add("two", {
+			c.Layers:SetState("two", {
 				test2 = c.add(5);
 				test3 = c.sub(1);
 			})
@@ -60,11 +61,11 @@ return function()
 
 		it("should merge existing layer", function()
 			local c = make()
-			c.Layers:Merge("test", {
+			c.Layers:MergeState("test", {
 				test1 = false;
 				test2 = true;
 			})
-			c.Layers:Merge("test", {
+			c.Layers:MergeState("test", {
 				test1 = true;
 			})
 
@@ -74,7 +75,7 @@ return function()
 
 		it("should compound layers with functions", function()
 			local c = make()
-			c.Layers:Add("second", {
+			c.Layers:SetState("second", {
 				time = 3;
 			})
 			c:SetState({
@@ -87,20 +88,20 @@ return function()
 		it("should never error when trying to remove non-existent layer", function()
 			local c = make()
 			expect(function()
-				c.Layers:Remove("test")
+				c.Layers:RemoveState("test")
 			end).to.never.throw()
 		end)
 
 		it("should remove existing layer", function()
 			local c = make()
 			c:SetState({test1 = false})
-			c.Layers:Add("test", {
+			c.Layers:SetState("test", {
 				test1 = true;
 			})
 
 			expect(c.state.test1).to.equal(true)
 
-			c.Layers:Remove("test")
+			c.Layers:RemoveState("test")
 
 			expect(c.state.test1).to.equal(false)
 		end)
@@ -293,13 +294,12 @@ return function()
 			
 			c:Fire("TimeElapsed")
 
-			-- lol
 			local called = {}
 			c:On("Bark!", function()
 				table.insert(called, true)
 			end)
 
-			c:Reload({ShouldBark = true})
+			c:SetConfig({ShouldBark = true})
 
 			expect(c.state.State.Name).to.equal("Next")
 			expect(c.state.IsBarking).to.equal(true)
@@ -307,74 +307,77 @@ return function()
 		end)
 	end)
 
-	describe("Mirror layers", function()
-		it("should create a mirror layer, pointing to component", function()
-			local c = make()
-			c:SetState({test = true})
-
-			local layer = c:NewMirror()
-			expect(layer.Destroy).to.equal(c.Destroy)
-			expect(type(layer.DestroyMirror)).to.equal("function")
-			expect(function()
-				layer:DestroyMirror()
-			end).never.to.throw()
-			expect(layer:GetState().test).to.equal(true)
+	describe("Layers", function()
+		it(":run() should create base layer", function()
+			local c = run(Reloadable)
+			expect(next(c.Layers.layers)).to.be.ok()
 		end)
 
-		it(":run() should return a mirror layer", function()
-			local c = run(Reloadable)
-			expect(c.isMirror).to.equal(true)
+		it("should keep layer order when setting existing layer", function()
+			local c = run(Reloadable, {}, {Test = 1}, {Test = 1})
+			expect(c.config.Test).to.equal(1)
+			expect(c.state.Test).to.equal(1)
+
+			c.Layers:Set("layer2", {Test = 2}, {Test = 2})
+			expect(c.config.Test).to.equal(2)
+			expect(c.state.Test).to.equal(2)
+
+			c:SetLayer({Test = 3}, {Test = 3})
+			expect(c.config.Test).to.equal(2)
+			expect(c.state.Test).to.equal(2)
+
+			c.Layers:Set("layer2", {Test = 4}, {Test = 4})
+			expect(c.config.Test).to.equal(4)
+			expect(c.state.Test).to.equal(4)
 		end)
 
 		it("mapConfig and mapState should be called on each layer separately", function()
-			local c = run(Reloadable, {}, {ShouldBark = false})
-			expect(c.config.ShouldBark).to.equal(false)
+			-- Running calls Reload once...
+			local c = run(Reloadable, {}, {ShouldBark = false}, {MappedTimes = 2})
 			expect(c.config.Mapped).to.equal(true)
-			expect(c.config.IsBarking).to.equal(false)
-			
-			c:NewMirror({ShouldBark = true})
-			expect(c.config.ShouldBark).to.equal(true)
+			expect(c.config.MappedTimes).to.equal(1)
+			expect(c.state.Mapped).to.equal(true)
+
+			c:Reload()
 			expect(c.config.Mapped).to.equal(true)
-			expect(c.config.IsBarking).to.equal(true)
+			expect(c.config.MappedTimes).to.equal(1)
+			expect(c.state.Mapped).to.equal(true)
 		end)
 
-		it("mapConfig and mapState should not be called if mirror has no config", function()
+		it("mapConfig and mapState should not be called if layer has no config", function()
 			local c = run(Reloadable, {}, {})
+			c:Reload()
 			expect(c.config.Mapped).to.equal(nil)
 			expect(c.config.IsBarking).to.equal(nil)
 		end)
 
-		it("should destroy component after all mirrors are destroyed", function()
+		it("should destroy component after all layers are destroyed", function()
 			local c = run(Reloadable)
-			local m = c:NewMirror()
-			expect(m._source.isDestroyed).to.equal(false)
+			c.Layers:SetState("layer2", {blah = true})
+			expect(c.isDestroyed).to.equal(false)
 
-			m:DestroyMirror()
-			expect(m._source.isDestroyed).to.equal(false)
-			c:DestroyMirror()
-			expect(m._source.isDestroyed).to.equal(true)
+			c.Layers:Remove("layer2")
+			expect(c.isDestroyed).to.equal(false)
+			c.Layers:Remove(Symbol.named("base"))
+			expect(c.isDestroyed).to.equal(true)
 		end)
 
-		it("should merge config and state when destroying and reloading mirrors", function()
+		it("should merge config and state when destroying and setting layers", function()
 			local c = run(Reloadable, {}, {ShouldBark = false})
 			expect(c.state.IsBarking).to.equal(false)
 			expect(c.config.ShouldBark).to.equal(false)
 
-			local layer = c:NewMirror({ShouldBark = true})
+			c.Layers:SetConfig("layer2", {ShouldBark = true})
 			expect(c.state.IsBarking).to.equal(true)
 			expect(c.config.ShouldBark).to.equal(true)
 
-			layer:Reload({ShouldBark = false})
+			c.Layers:Remove("layer2")
 			expect(c.state.IsBarking).to.equal(false)
 			expect(c.config.ShouldBark).to.equal(false)
 
-			layer:DestroyMirror()
+			c:SetConfig({ShouldBark = false})
 			expect(c.state.IsBarking).to.equal(false)
 			expect(c.config.ShouldBark).to.equal(false)
-
-			c:Reload({ShouldBark = true})
-			expect(c.state.IsBarking).to.equal(true)
-			expect(c.config.ShouldBark).to.equal(true)
 		end)
 	end)
 end

@@ -80,9 +80,6 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 
 	local config = keywords.config or {}
 	local mode = keywords.mode or ComponentMode.Default
-	
-	local resolvedConfig = self._man:RunHooks("GetConfig", ref, class.BaseName)
-	resolvedConfig = ComponentsUtils.shallowMerge(config, resolvedConfig)
 
 	local comp = class.new(ref, config)
 	comp.man = self._man
@@ -104,7 +101,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	end
 	self._componentsByRef[ref][class] = {comp = comp, isWeak = keywords.isWeak}
 
-	return true, comp, {config = resolvedConfig, mode = mode}
+	return true, comp, {config = config, mode = mode}
 end
 
 

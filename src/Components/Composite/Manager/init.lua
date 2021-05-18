@@ -3,8 +3,6 @@ local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local SignalMixin = require(script.Parent.SignalMixin)
 
-local instanceConfigHook = require(script.instanceConfigHook)
-
 local Manager = {
 	DEBUG = true;
 }
@@ -21,7 +19,6 @@ function Manager.new(name)
 		_profiles = {};
 	}, Manager))
 	
-	self:RegisterHook("GetConfig", instanceConfigHook)
 	self._collection = ComponentCollection.new(self)
 
 	self._collection:On("RefAdded", function(ref)

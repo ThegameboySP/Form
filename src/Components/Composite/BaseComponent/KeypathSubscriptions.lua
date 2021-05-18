@@ -1,5 +1,5 @@
-local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
-local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
+local ComponentsUtils = require(script.Parent.Parent.Parent.Shared.ComponentsUtils)
+local runCoroutineOrWarn = require(script.Parent.Parent.runCoroutineOrWarn)
 
 local KeypathSubscriptions = {}
 KeypathSubscriptions.__index = KeypathSubscriptions

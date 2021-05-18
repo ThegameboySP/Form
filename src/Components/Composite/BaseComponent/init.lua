@@ -10,10 +10,10 @@ local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
 local Reducers = require(script.Parent.Parent.Shared.Reducers)
 local SignalMixin = require(script.Parent.SignalMixin)
-local TimeCycle = require(script.Parent.TimeCycle)
+local TimeCycle = require(script.TimeCycle)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 
-local KeypathSubscriptions = require(script.Parent.KeypathSubscriptions)
+local KeypathSubscriptions = require(script.KeypathSubscriptions)
 local StateMetatable = require(script.StateMetatable)
 local Utils = require(script.Utils)
 

@@ -1,10 +1,13 @@
+local RunService = game:GetService("RunService")
+
 local ComponentCollection = require(script.Parent.ComponentCollection)
-local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
+local Reducers = require(script.Parent.Parent.Shared.Reducers)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local SignalMixin = require(script.Parent.SignalMixin)
 
 local Manager = {
 	DEBUG = true;
+	isServer = RunService:IsServer();
 }
 Manager.__index = Manager
 
@@ -22,36 +25,44 @@ function Manager.new(name)
 	self._collection = ComponentCollection.new(self)
 
 	self._collection:On("RefAdded", function(ref)
-		local profile = {ref = ref, components = {}, mode = nil}
+		local profile = {ref = ref, componentsOrder = {}, mode = nil}
 		self._profiles[ref] = profile
 		self:Fire("RefAdded", ref, profile)
 	end)
 
-	self._collection:On("RefRemoved", function(ref)
+	self._collection:On("RefRemoving", function(ref)
 		local profile = self._profiles[ref]
 		local mode = profile.mode
 		if mode == ComponentMode.Destroy then
 			ref.Parent = nil
 		end
-		self._profiles[ref] = nil
 
+		self:Fire("RefRemoving", ref, profile)
+	end)
+
+	self._collection:On("RefRemoved", function(ref)
+		local profile = self._profiles[ref]
+		self._profiles[ref] = nil
 		self:Fire("RefRemoved", ref, profile)
 	end)
 
-	self._collection:On("ComponentAdded", function(ref, comp)
+	self._collection:On("ComponentAdded", function(ref, comp, keywords)
 		local profile = self._profiles[ref]
-		profile.components[comp.BaseName] = true
-		
-		if comp.mode ~= ComponentMode.Default or profile.mode == nil then
-			profile.mode = comp.mode
-		end
+		table.insert(profile.componentsOrder, comp)
+		profile.mode = comp.mode
 
-		self:Fire("ComponentAdded", ref, comp)
+		self:Fire("ComponentAdded", ref, comp, keywords)
 	end)
 
 	self._collection:On("ComponentRemoved", function(ref, comp)
 		local profile = self._profiles[ref]
-		profile.components[comp.BaseName] = nil
+		local order = profile.componentsOrder
+		table.remove(order, table.find(order, comp))
+
+		local lastComp = order[#order]
+		if lastComp then
+			profile.mode = lastComp.mode
+		end
 
 		self:Fire("ComponentRemoved", ref, comp)
 	end)
@@ -111,24 +122,8 @@ function Manager:ReduceRunHooks(name, reducer, ...)
 end
 
 
-local HOOK_REDUCE = function(array)
-	local type = type(array[1])
-
-	if type == "table" then
-		local final = {}
-		for _, value in ipairs(array) do
-			final = ComponentsUtils.shallowMerge(value, final)
-		end
-
-		return final
-	elseif type == "nil" then
-		return nil
-	else
-		return array[#array]
-	end
-end
 function Manager:RunHooks(name, ...)
-	return self:ReduceRunHooks(name, HOOK_REDUCE, ...)
+	return self:ReduceRunHooks(name, Reducers.hook, ...)
 end
 
 

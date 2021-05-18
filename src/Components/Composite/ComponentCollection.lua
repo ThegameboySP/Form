@@ -1,8 +1,8 @@
-local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 local SignalMixin = require(script.Parent.SignalMixin)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
+local IKeywords = require(script.Parent.IKeywords)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
@@ -66,6 +66,7 @@ end
 function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	assert(typeof(ref) == "Instance")
 	keywords = keywords or {}
+	assert(IKeywords(keywords))
 
 	local class = self:_resolveOrError(classResolvable)
 	if self:HasComponent(ref, class) then
@@ -101,7 +102,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	end
 	self._componentsByRef[ref][class] = {comp = comp, isWeak = keywords.isWeak}
 
-	return true, comp, {config = config, mode = mode}
+	return true, comp, {config = config, mode = mode, isWeak = keywords.isWeak}
 end
 
 
@@ -195,6 +196,8 @@ function ComponentCollection:RemoveRef(ref)
 	if profile.destroying then return end
 
 	profile.destroying = true
+	self:Fire("RefRemoving", ref)
+
 	for _, tbl in next, comps do
 		self:RemoveComponent(ref, tbl.comp.BaseName)
 	end

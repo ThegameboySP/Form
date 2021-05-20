@@ -11,6 +11,7 @@ local FuncUtils = require(script.Parent.User.FuncUtils)
 local Reducers = require(script.Parent.Parent.Shared.Reducers)
 local SignalMixin = require(script.Parent.SignalMixin)
 local TimeCycle = require(script.TimeCycle)
+local makeSleep = require(script.makeSleep)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 
 local KeypathSubscriptions = require(script.KeypathSubscriptions)
@@ -20,6 +21,7 @@ local Utils = require(script.Utils)
 local Layers = require(script.Layers)
 local Remote = require(script.Remote)
 local Binding = require(script.Binding)
+local Pause = require(script.Pause)
 
 local BaseComponent = SignalMixin.wrap({
 	NetworkMode = NetworkMode.ServerClient;
@@ -83,8 +85,6 @@ end
 
 function BaseComponent.new(ref)
 	local self = SignalMixin.new(setmetatable({
-		isMirror = false;
-		
 		ref = ref;
 		maid = Maid.new();
 		externalMaid = Maid.new();
@@ -93,13 +93,14 @@ function BaseComponent.new(ref)
 		state = setStateMt({});
 		isDestroyed = false;
 
-		_mirrors = {};
 		_subscriptions = KeypathSubscriptions.new();
 		_cycles = {};
 	}, BaseComponent))
 
+	self.sleep = makeSleep(self)
 	self.Layers = Layers.new(self)
 	self.Binding = Binding.new(self)
+	self.Pause = Pause.new(self)
 	if typeof(ref) == "Instance" then
 		self.Remote = Remote.new(self)
 	end
@@ -111,6 +112,7 @@ function BaseComponent.new(ref)
 
 		self.Layers:Destroy()
 		self.Binding:Destroy()
+		self.Pause:Destroy()
 		if self.Remote then
 			self.Remote:Destroy()
 		end
@@ -234,14 +236,16 @@ function BaseComponent:Reload()
 end
 
 
-local fire = BaseComponent.Fire
-function BaseComponent:Fire(name, ...)
-	local methodName = "On" .. name
-	if type(self[methodName]) == "function" then
-		self[methodName](self, ...)
-	end
+do
+	local fire = BaseComponent.Fire
+	function BaseComponent:Fire(name, ...)
+		local methodName = "On" .. name
+		if type(self[methodName]) == "function" then
+			self[methodName](self, ...)
+		end
 
-	fire(self, name, ...)
+		fire(self, name, ...)
+	end
 end
 
 
@@ -326,15 +330,8 @@ function BaseComponent:FireAll(eventName, ...)
 end
 
 
-function BaseComponent:Connect(event, handler)
-	return event:Connect(function(...)
-		handler(...)
-	end)
-end
-
-
 function BaseComponent:Bind(event, handler)
-	return self.maid:Add(self:Connect(event, handler))
+	return self.maid:Add(event:Connect(handler))
 end
 
 

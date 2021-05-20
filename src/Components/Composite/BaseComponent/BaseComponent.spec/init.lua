@@ -1,6 +1,7 @@
 local BaseComponent = require(script.Parent)
 local Reloadable = require(script.Reloadable)
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
+local spy = require(script.Parent.Parent.Parent.Testing.spy)
 local NULL = Symbol.named("null")
 
 local new = Instance.new
@@ -378,6 +379,92 @@ return function()
 			c:SetConfig({ShouldBark = false})
 			expect(c.state.IsBarking).to.equal(false)
 			expect(c.config.ShouldBark).to.equal(false)
+		end)
+	end)
+
+	describe("Pause", function()
+		it("should pause and unpause", function()
+			local c = make()
+			local p = c.Pause
+
+			expect(p:IsPaused()).to.equal(false)
+			p:Pause()
+			p:Pause()
+			expect(p:IsPaused()).to.equal(true)
+			p:Unpause()
+			p:Unpause()
+			expect(p:IsPaused()).to.equal(false)
+		end)
+
+		it("should only fire Paused and Unpaused when there was a change", function()
+			local c = make()
+			local p = c.Pause
+			local t = {}
+			local func = spy(t)
+
+			c:On("Paused", func)
+			c:On("Unpaused", func)
+
+			p:Pause()
+			p:Pause()
+			expect(t.Count).to.equal(1)
+			expect(t.Params[1][1]).to.equal(nil)
+
+			p:Unpause()
+			p:Unpause()
+			expect(t.Count).to.equal(2)
+			expect(t.Params[2][1]).to.equal(nil)
+		end)
+
+		it("should suppress all Wrap'ed events when paused", function()
+			local c = make()
+			local p = c.Pause
+			local t = {}
+			local func = p:Wrap(spy(t))
+
+			p:Pause()
+			c:On("Test", func)
+			c:OnAny(func)
+			c:Fire("Test")
+
+			local bindable = new("BindableEvent")
+			bindable.Event:Connect(func)
+			bindable:Fire()
+
+			expect(t.Count).to.equal(0)
+		end)
+	end)
+
+	describe("Sleep", function()
+		it("should yield the thread until the given time", function()
+			local c = make()
+			local resumed = false
+			coroutine.wrap(function()
+				c.sleep(2)
+				resumed = true
+			end)()
+
+			expect(resumed).to.equal(false)
+			c.Binding:_advance(2)
+			expect(resumed).to.equal(true)
+		end)
+
+		it("should not count time when paused", function()
+			local c = make()
+			local resumed = false
+			coroutine.wrap(function()
+				c.sleep(2)
+				resumed = true
+			end)()
+
+			c.Pause:Pause()
+			c.Binding:_advance(4)
+			c.Binding:_advance(4)
+			expect(resumed).to.equal(false)
+
+			c.Pause:Unpause()
+			c.Binding:_advance(2)
+			expect(resumed).to.equal(true)
 		end)
 	end)
 end

@@ -1,6 +1,7 @@
 local BaseComponent = require(script.Parent)
 local Reloadable = require(script.Reloadable)
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
+local ComponentsUtils = require(script.Parent.Parent.Parent.Shared.ComponentsUtils)
 local spy = require(script.Parent.Parent.Parent.Testing.spy)
 local NULL = Symbol.named("null")
 
@@ -21,7 +22,8 @@ end
 return function()
 	describe("State layers", function()
 		it("should merge base", function()
-			local c = make()
+			local c = run(BaseComponent)
+
 			c:SetState({
 				test = 1;
 				test2 = 2
@@ -39,7 +41,7 @@ return function()
 		end)
 
 		it("should add state on top of base", function()
-			local c = make()
+			local c = run(BaseComponent)
 			c:SetState({
 				test1 = true;
 				test2 = c.add(2);
@@ -61,7 +63,7 @@ return function()
 		end)
 
 		it("should merge existing layer", function()
-			local c = make()
+			local c = run(BaseComponent)
 			c.Layers:MergeState("test", {
 				test1 = false;
 				test2 = true;
@@ -75,7 +77,7 @@ return function()
 		end)
 
 		it("should compound layers with functions", function()
-			local c = make()
+			local c = run(BaseComponent)
 			c.Layers:SetState("second", {
 				time = 3;
 			})
@@ -87,14 +89,14 @@ return function()
 		end)
 
 		it("should never error when trying to remove non-existent layer", function()
-			local c = make()
+			local c = run(BaseComponent)
 			expect(function()
 				c.Layers:RemoveState("test")
 			end).to.never.throw()
 		end)
 
 		it("should remove existing layer", function()
-			local c = make()
+			local c = run(BaseComponent)
 			c:SetState({test1 = false})
 			c.Layers:SetState("test", {
 				test1 = true;
@@ -108,7 +110,7 @@ return function()
 		end)
 
 		it("should remove a key when it encounters null symbol", function()
-			local c = make()
+			local c = run(BaseComponent)
 			c:SetState({test = true})
 
 			expect(c.state.test).to.equal(true)
@@ -119,7 +121,7 @@ return function()
 
 	describe("Subscription", function()
 		it("should subscribe in a nested path", function()
-			local c = make()
+			local c = run(BaseComponent)
 			local value
 			c:Subscribe("nested.test1", function(v)
 				value = v
@@ -135,7 +137,7 @@ return function()
 		end)
 
 		it("should subscribe and call by current value of nested path", function()
-			local c = make()
+			local c = run(BaseComponent)
 			local values = {}
 			c:SetState({
 				nested = {
@@ -159,7 +161,7 @@ return function()
 		end)
 
 		it("should never fire if there was no change", function()
-			local c = make()
+			local c = run(BaseComponent)
 			local values = {}
 			c:Subscribe("test", function(test)
 				table.insert(values, test)
@@ -189,7 +191,7 @@ return function()
 		end)
 
 		it("should subscribe to tables of state", function()
-			local c = make()
+			local c = run(BaseComponent)
 			local values = {}
 			c:Subscribe("nested", function(nested)
 				table.insert(values, nested)
@@ -208,7 +210,7 @@ return function()
 		end)
 
 		it("should subscribe to deletions of state", function()
-			local c = make()
+			local c = run(BaseComponent)
 			c:SetState({test = true})
 
 			local values = {}
@@ -225,7 +227,7 @@ return function()
 	describe("Remote", function()
 		it("should register remote events", function()
 			local i = new("Folder")
-			local c = make(i)
+			local c = run(BaseComponent, i)
 			c.Remote:RegisterEvents("Test")
 
 			expect(function()
@@ -235,10 +237,10 @@ return function()
 
 		it("should connect to remote event when it's already registered", function()
 			local i = new("Folder")
-			local s = make(i)
+			local s = run(BaseComponent, i)
 			s.Remote:RegisterEvents("Test")
 
-			local c = make(i)
+			local c = run(BaseComponent, i)
 			c.isServer = false
 
 			local values = {}
@@ -253,8 +255,8 @@ return function()
 
 		it("should connect to remote event once it's registered", function()
 			local i = new("Folder")
-			local s = make(i)
-			local c = make(i)
+			local s = run(BaseComponent, i)
+			local c = run(BaseComponent, i)
 			c.isServer = false
 
 			local values = {}
@@ -272,8 +274,8 @@ return function()
 
 		it("should fire server remote event once it's visible", function()
 			local i = new("Folder")
-			local s = make(i)
-			local c = make(i)
+			local s = run(BaseComponent, i)
+			local c = run(BaseComponent, i)
 			c.isServer = false
 
 			c.Remote:FireServer("Test", "test")
@@ -311,7 +313,7 @@ return function()
 	describe("Layers", function()
 		it(":run() should create base layer", function()
 			local c = run(Reloadable)
-			expect(next(c.Layers.layers)).to.be.ok()
+			expect(next(c.Layers:get())).to.be.ok()
 		end)
 
 		it("should keep layer order when setting existing layer", function()
@@ -332,24 +334,10 @@ return function()
 			expect(c.state.Test).to.equal(4)
 		end)
 
-		it("mapConfig and mapState should be called on each layer separately", function()
-			-- Running calls Reload once...
-			local c = run(Reloadable, {}, {ShouldBark = false}, {MappedTimes = 2})
-			expect(c.config.Mapped).to.equal(true)
-			expect(c.config.MappedTimes).to.equal(1)
-			expect(c.state.Mapped).to.equal(true)
-
-			c:Reload()
-			expect(c.config.Mapped).to.equal(true)
-			expect(c.config.MappedTimes).to.equal(1)
-			expect(c.state.Mapped).to.equal(true)
-		end)
-
 		it("mapConfig and mapState should not be called if layer has no config", function()
-			local c = run(Reloadable, {}, {})
-			c:Reload()
+			local c = Reloadable:run({}, nil)
 			expect(c.config.Mapped).to.equal(nil)
-			expect(c.config.IsBarking).to.equal(nil)
+			expect(c.state.IsBarking).to.equal(nil)
 		end)
 
 		it("should destroy component after all layers are destroyed", function()
@@ -465,6 +453,110 @@ return function()
 			c.Pause:Unpause()
 			c.Binding:_advance(2)
 			expect(resumed).to.equal(true)
+		end)
+	end)
+
+	describe("Interfaces", function()
+		it("should cache the interfaces on first-time :run()", function()
+			local TestComponent = BaseComponent:extend("Test")
+			function TestComponent.getInterfaces(t)
+				return {
+					IRef = t.table;
+					IConfig = t.interface({});
+					IState = t.interface({});
+				}
+			end
+			
+			expect(TestComponent.IRef).to.equal(BaseComponent.IRef)
+			expect(TestComponent.IConfig).to.equal(BaseComponent.IConfig)
+			expect(TestComponent.IState).to.equal(BaseComponent.IState)
+
+			run(TestComponent)
+
+			expect(type(TestComponent.IRef)).to.equal("function")
+			expect(TestComponent.IRef).to.never.equal(BaseComponent.IRef)
+			expect(type(TestComponent.IConfig)).to.equal("function")
+			expect(TestComponent.IConfig).to.never.equal(BaseComponent.IConfig)
+			expect(type(TestComponent.IState)).to.equal("function")
+			expect(TestComponent.IState).to.never.equal(BaseComponent.IState)
+		end)
+
+		it("IConfig: should error on bad config layer and bad final config, while canceling the transaction", function()
+			local TestComponent = BaseComponent:extend("Test")
+			function TestComponent.getInterfaces(t)
+				return {IConfig = t.strictInterface({test = function(item)
+					return item == 1
+				end})}
+			end
+
+			-- On initialization:
+			expect(function()
+				run(TestComponent, {}, {})
+			end).to.throw()
+
+			local c = run(TestComponent, {}, {test = 1})
+			c.Layers:Set("layer2")
+			local layers = ComponentsUtils.deepCopy(c.Layers:get())
+
+			-- Change layer:
+			expect(function()
+				c.Layers:SetConfig("layer2", {test = "blah"})
+			end).to.throw()
+
+			expect(ComponentsUtils.deepCompare(layers, c.Layers:get())).to.equal(true)
+
+			expect(function()
+				c.Layers:SetConfig("layer2", {test = 1})
+			end).to.never.throw()
+		end)
+
+		it("IState: should error on bad state layer and bad final state, while canceling the transaction", function()
+			local TestComponent = BaseComponent:extend("Test")
+			function TestComponent.getInterfaces(t)
+				return {IState = t.strictInterface({test = function(item)
+					return item == 1
+				end})}
+			end
+
+			-- On initialization:
+			expect(function()
+				run(TestComponent, {}, {})
+			end).to.throw()
+
+			local c = run(TestComponent, {}, {}, {test = 1})
+			c.Layers:Set("layer2")
+			local layers = ComponentsUtils.deepCopy(c.Layers:get())
+
+			-- Change layer:
+			expect(function()
+				c.Layers:SetState("layer2", {test = "blah"})
+			end).to.throw()
+
+			-- Final layer:
+			expect(function()
+				c.Layers:SetState("layer2", {test = c.add(1)})
+			end).to.throw()
+
+			expect(ComponentsUtils.deepCompare(layers, c.Layers:get())).to.equal(true)
+
+			expect(function()
+				c.Layers:SetState("layer2", {test = 1})
+			end).to.never.throw()
+		end)
+
+		it("IRef: should error on bad reference", function()
+			local TestComponent = BaseComponent:extend("Test")
+			function TestComponent.getInterfaces(t)
+				return {IRef = t.instanceIsA("Folder")}
+			end
+
+			expect(function()
+				run(TestComponent, {})
+			end).to.throw()
+
+			expect(function()
+				run(TestComponent, new("Folder"))
+			end).to.never.throw()
 		end)
 	end)
 end

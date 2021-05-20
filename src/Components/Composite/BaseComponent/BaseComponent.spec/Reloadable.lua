@@ -35,7 +35,7 @@ function Reloadable:Main()
 	end)
 end
 
-function Reloadable:OnReload()
+function Reloadable:OnNewConfig()
 	self.reloadMaid:DoCleaning()
 end
 

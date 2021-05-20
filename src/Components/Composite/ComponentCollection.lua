@@ -27,6 +27,8 @@ function ComponentCollection:Register(class)
 	self._man.Classes[name] = class
 	self._classesByName[name] = class
 	self._classesByRef[class] = class
+
+	class:cache()
 end
 
 

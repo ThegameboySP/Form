@@ -3,12 +3,12 @@ local Players = game:GetService("Players")
 
 local Maid = require(script.Parent.Parent.Modules.Maid)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
+local t = require(script.Parent.Parent.Modules.t)
 
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
-local Reducers = require(script.Parent.Parent.Shared.Reducers)
 local SignalMixin = require(script.Parent.SignalMixin)
 local TimeCycle = require(script.TimeCycle)
 local makeSleep = require(script.makeSleep)
@@ -39,9 +39,9 @@ local BaseComponent = SignalMixin.wrap({
 	getInterfaces = function()
 		return {}
 	end;
-	mapConfig = nil;
+	mapConfig = function(...) return ... end;
 	-- This should be run on each layer of state, then merged together.
-	mapState = nil;
+	mapState = function() return {} end;
 
 	bindToModule = function(module, module2)
 		module2.Parent = module
@@ -58,7 +58,7 @@ local BaseComponent = SignalMixin.wrap({
 })
 BaseComponent.__index = BaseComponent
 
-local RET = function(...) return ... end
+local PASS = function() return true end
 local DESTROYED_ERROR = function()
 	error("Cannot run a component that is destroyed!")
 end
@@ -79,10 +79,6 @@ BaseComponent.mul = op(1, function(c, n) return c * n end)
 BaseComponent.div = op(1, function(c, n) return c / n end)
 BaseComponent.mod = op(0, function(c, n) return c % n end)
 
-local function setStateMt(state)
-	return setmetatable(state, StateMetatable)
-end
-
 function BaseComponent.new(ref)
 	local self = SignalMixin.new(setmetatable({
 		ref = ref;
@@ -90,15 +86,32 @@ function BaseComponent.new(ref)
 		externalMaid = Maid.new();
 		
 		config = {};
-		state = setStateMt({});
+		state = setmetatable({}, StateMetatable);
 		isDestroyed = false;
+		initialized = false;
 
 		_subscriptions = KeypathSubscriptions.new();
 		_cycles = {};
 	}, BaseComponent))
 
 	self.sleep = makeSleep(self)
+
 	self.Layers = Layers.new(self)
+	self.Layers:On("Resolved", function(resolvedConfig, resolvedState)
+		local old = self.config
+		self.config = resolvedConfig or self.config
+
+		if self.initialized and resolvedConfig then
+			local diff = ComponentsUtils.diff(resolvedConfig, old)
+			self:Fire("NewConfig", diff, old)
+		end
+
+		-- Fire state update last so that :OnNewConfig() has a chance to do something to internal state first.
+		local oldState = self.state
+		self.state = setmetatable(resolvedState, StateMetatable)
+		self._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
+	end)
+
 	self.Binding = Binding.new(self)
 	self.Pause = Pause.new(self)
 	if typeof(ref) == "Instance" then
@@ -139,6 +152,14 @@ end
 
 
 function BaseComponent:run(ref, config, state)
+	self:cache()
+	do
+		local ok, err = self.IRef(ref)
+		if not ok then
+			error(("Invalid reference: %s"):format(err or ""))
+		end
+	end
+
 	local comp = self.new(ref)
 	comp.Layers:Set(Symbol.named("base"), config, state)
 
@@ -156,14 +177,27 @@ end
 function BaseComponent:extend(name)
 	local newClass = setmetatable({
 		BaseName = Utils.getBaseComponentName(name);
+		[Symbol.named("cached")] = false;
 	}, BaseComponent)
 	newClass.__index = newClass
 
-	function newClass.new(ref, config)
-		return setmetatable(self.new(ref, config), newClass)
+	function newClass.new(ref)
+		return setmetatable(self.new(ref), newClass)
 	end
 
 	return newClass
+end
+
+
+function BaseComponent:cache()
+	if self[Symbol.named("cached")] then return end
+
+	local interfaces = self.getInterfaces(t)
+	self.IRef = interfaces.IRef or PASS
+	self.IConfig = interfaces.IConfig or PASS
+	self.IState = interfaces.IState or PASS
+
+	self[Symbol.named("cached")] = true
 end
 
 
@@ -190,52 +224,6 @@ function BaseComponent:Main()
 end
 
 
-function BaseComponent:Reload()
-	local layerKeys = self.Layers:getLayerKeys()
-	local layers = self.Layers.layers
-
-	local keyToMappedConfig = {}
-	local oldConfig = self.config
-	do
-		local configFunc = self.mapConfig or RET
-		local copyFunc = self.mapConfig and ComponentsUtils.deepCopy or RET
-
-		local configLayers = {}
-		for _, key in ipairs(layerKeys) do
-			local layer = layers[key]
-			if not next(layer.config) then continue end
-
-			local mappedConfig = configFunc(copyFunc(layer.config))
-			table.insert(configLayers, mappedConfig)
-			keyToMappedConfig[key] = mappedConfig
-		end
-
-		self.config = Reducers.merge(configLayers)
-	end
-
-	if self.mapState then
-		local stateLayers = {}
-
-		for _, key in ipairs(layerKeys) do
-			local layer = layers[key]
-			if not next(layer.config) then continue end
-
-			layers[key].state = self.mapState(
-				keyToMappedConfig[key] or ComponentsUtils.deepCopy(layer.config),
-				setStateMt(layers[key].state)
-			)
-			table.insert(stateLayers, key)
-		end
-
-		self.Layers:mergeStateLayers(stateLayers)
-	end
-
-	if self.initialized then
-		self:Fire("Reloaded", ComponentsUtils.diff(self.config, oldConfig), oldConfig)
-	end
-end
-
-
 do
 	local fire = BaseComponent.Fire
 	function BaseComponent:Fire(name, ...)
@@ -246,13 +234,6 @@ do
 
 		fire(self, name, ...)
 	end
-end
-
-
-function BaseComponent:_setFinalState(newState)
-	local oldState = self.state
-	self.state = setStateMt(newState)
-	self._subscriptions:FireFromDelta(Utils.stateDiff(newState, oldState))
 end
 
 

@@ -35,7 +35,6 @@ function Utils.runStateFunctions(layer, union)
 		elseif lt == "function" then
 			local r = v(uv)
 			union[k] = r
-			layer[k] = r
 		end
 	end
 end

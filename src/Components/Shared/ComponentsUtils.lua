@@ -105,6 +105,45 @@ function ComponentsUtils.shallowCompare(tbl1, tbl2)
 end
 
 
+function ComponentsUtils.deepCompare(tbl1, tbl2)
+	for k, v in pairs(tbl1) do
+		local t = type(v)
+		local v2 = tbl2[k]
+		local t2 = type(v2)
+
+		local equals = true
+		if t == "table" and t2 == "table" then
+			equals = ComponentsUtils.deepCompare(v, v2)
+		elseif v ~= v2 then
+			equals = false
+		end
+
+		if equals == false then
+			return false
+		end
+	end
+
+	for k, v in pairs(tbl2) do
+		local t = type(v)
+		local v1 = tbl1[k]
+		local t1 = type(v1)
+
+		local equals = true
+		if t == "table" and t1 == "table" then
+			equals = ComponentsUtils.deepCompare(v, v1)
+		elseif v ~= v1 then
+			equals = false
+		end
+
+		if equals == false then
+			return false
+		end
+	end
+
+	return true
+end
+
+
 function ComponentsUtils.isInTable(tbl, value)
 	for _, v in next, tbl do
 		if v == value then

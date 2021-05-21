@@ -7,6 +7,8 @@ local IKeywords = require(script.Parent.IKeywords)
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
 
+local BASE = Symbol.named("base")
+
 function ComponentCollection.new(man)
 	return SignalMixin.new(setmetatable({
 		_man = man;
@@ -45,13 +47,13 @@ end
 
 
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
-	local isNew, comp, newKeywords = self:_newComponent(ref, classResolvable, keywords)
+	local isNew, comp, id, newKeywords = self:_newComponent(ref, classResolvable, keywords)
 	if not isNew then
-		return comp
+		return comp, id
 	end
 
 	self:_runComponent(comp, newKeywords)
-	return comp
+	return comp, id
 end
 
 
@@ -74,7 +76,9 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	if self:HasComponent(ref, class) then
 		local tbl = self._componentsByRef[ref][class]
 		assert((not not tbl.isWeak) == (not not keywords.isWeak), "Weak components must be consistent!")
-		return false, tbl.comp
+
+		local comp = tbl.comp
+		return false, comp, comp.Layers:SetConfig(comp.Layers:NewId(), keywords.config)
 	end
 
 	if self._componentsByRef[ref] == nil and keywords.isWeak then
@@ -96,7 +100,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 			self:RemoveRef(ref)
 		end
 	end)
-	comp.Layers:Set(Symbol.named("base"), config, nil)
+	comp.Layers:SetConfig(BASE, config)
 
 	if self._componentsByRef[ref] == nil then
 		self._componentsByRef[ref] = {}
@@ -104,7 +108,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	end
 	self._componentsByRef[ref][class] = {comp = comp, isWeak = keywords.isWeak}
 
-	return true, comp, {config = config, mode = mode, isWeak = keywords.isWeak}
+	return true, comp, BASE, {config = config, mode = mode, isWeak = keywords.isWeak}
 end
 
 
@@ -147,13 +151,13 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 	for i, ref in ipairs(refs) do
 		if self:HasComponent(ref, classResolvables[i]) then continue end
 		local class = self:_resolveOrError(classResolvables[i])
-		local isNew, comp, newKeywords = self:_newComponent(ref, class, keywords[i])
+		local isNew, comp, id, newKeywords = self:_newComponent(ref, class, keywords[i])
 		if not isNew then
-			table.insert(comps, comp)
+			table.insert(comps, {comp, id})
 			continue
 		end
 
-		table.insert(tbls, {comp, newKeywords})
+		table.insert(tbls, {comp, id, newKeywords})
 	end
 
 	local tbls2 = {}
@@ -183,8 +187,9 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 
 	for _, tbl in ipairs(tbls4) do
 		local comp = tbl[1]
-		table.insert(comps, comp)
-		self:Fire("ComponentAdded", comp.ref, comp, tbl[2])
+		local id = tbl[2]
+		table.insert(comps, {comp, id})
+		self:Fire("ComponentAdded", comp.ref, comp, tbl[3])
 	end
 
 	return comps

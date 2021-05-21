@@ -34,6 +34,11 @@ function Layers:get()
 end
 
 
+function Layers:NewId()
+	return #self._layers + 1
+end
+
+
 function Layers:SetState(key, state)
 	return self:Set(key, nil, state)
 end

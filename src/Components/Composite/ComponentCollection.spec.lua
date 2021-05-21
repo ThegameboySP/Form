@@ -85,10 +85,11 @@ return function()
 			local c = make()
 
 			local i = new("Folder")
-			local comp = c:GetOrAddComponent(i, "BaseComponent")
-			local ret2 = c:GetOrAddComponent(i, "BaseComponent")
+			local comp, id1 = c:GetOrAddComponent(i, "BaseComponent")
+			local ret2, id2 = c:GetOrAddComponent(i, "BaseComponent")
 
 			expect(ret2).to.equal(comp)
+			expect(id1).to.never.equal(id2)
 		end)
 
 		it("should never make a reference when the only component is weak", function()
@@ -136,7 +137,7 @@ return function()
 
 			for i=1, t.Count do
 				expect(t.Params[i][1]).to.equal(refs[i])
-				expect(t.Params[i][2]).to.equal(comps[i])
+				expect(t.Params[i][2]).to.equal(comps[i][1])
 				expect(shallowEquals(t.Params[i][3].config, keywords[i].config)).to.equal(true)
 				expect(t.Params[i][3].mode).to.equal("Default")
 			end

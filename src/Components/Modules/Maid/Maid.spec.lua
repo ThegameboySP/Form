@@ -1,4 +1,4 @@
-local Maid = require(script.Parent.Maid)
+local Maid = require(script.Parent)
 
 local NOOP = function() end
 local RET_TRUE = function() return true end

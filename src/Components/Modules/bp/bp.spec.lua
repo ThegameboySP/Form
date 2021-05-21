@@ -1,4 +1,4 @@
-local bp = require(script.Parent.bp)
+local bp = require(script.Parent)
 
 local function makeSchema(func)
 	return {

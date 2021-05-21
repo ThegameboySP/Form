@@ -1,6 +1,6 @@
-local Manager = require(script.Parent.Manager)
-local BaseComponent = require(script.Parent.BaseComponent)
-local spy = require(script.Parent.Parent.Testing.spy)
+local Manager = require(script.Parent.Parent.Manager)
+local BaseComponent = require(script.Parent.Parent.BaseComponent)
+local spy = require(script.Parent.Parent.Parent.Testing.spy)
 
 local function make()
 	local m = Manager.new("Test")

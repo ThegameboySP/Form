@@ -559,4 +559,29 @@ return function()
 			end).to.never.throw()
 		end)
 	end)
+
+	describe("Subcomponents", function()
+		local TestComponent = BaseComponent:extend("Test")
+
+		it("should add a component to itself", function()
+			local c = run(BaseComponent)
+			local subComp, id = c:GetOrAddComponent(TestComponent, "Test", {key1 = true})
+			expect(c.Test).to.equal(subComp)
+			expect(getmetatable(subComp)).to.equal(TestComponent)
+
+			expect(subComp.isDestroyed).to.equal(false)
+			subComp.Layers:Remove(id)
+			expect(subComp.isDestroyed).to.equal(true)
+			expect(c.Test).to.equal(nil)
+		end)
+
+		it("should remove a component from itself", function()
+			local c = run(BaseComponent)
+			local subComp = c:GetOrAddComponent(TestComponent, "Test", {key1 = true})
+			expect(c.Test).to.equal(subComp)
+
+			c:RemoveComponent(TestComponent)
+			expect(c.Test).to.equal(nil)
+		end)
+	end)
 end

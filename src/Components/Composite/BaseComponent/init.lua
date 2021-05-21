@@ -92,6 +92,7 @@ function BaseComponent.new(ref)
 
 		_subscriptions = KeypathSubscriptions.new();
 		_cycles = {};
+		_componentsByClass = {};
 	}, BaseComponent))
 
 	self.sleep = makeSleep(self)
@@ -170,7 +171,7 @@ function BaseComponent:run(ref, config, state)
 	assert(ok, "Component errored, so could not continue.")
 
 	comp.initialized = true
-	return comp
+	return comp, Symbol.named("base")
 end
 
 
@@ -300,6 +301,37 @@ function BaseComponent:ConnectSubscribeAnd(keypath, handler)
 	end
 	
 	return disconnect
+end
+
+
+function BaseComponent:GetOrAddComponent(class, name, config, state)
+	if self[name] == nil then
+		local ret = table.pack(class:run(self, config, state))
+		local comp = ret[1]
+		local id = self.maid:GiveTask(comp)
+		self._componentsByClass[class] = comp
+
+		self[name] = comp
+		comp:On("Destroying", function()
+			self.maid:Remove(id)
+			self[name] = nil
+			self._componentsByClass[class] = nil
+		end)
+
+		return table.unpack(ret, 1, ret.n)
+	end
+
+	local comp = self[name]
+	local id = #comp.Layers:get() + 1
+	comp.Layers:Set(id, config, state)
+	return comp, id
+end
+
+
+function BaseComponent:RemoveComponent(class, ...)
+	local comp = self._componentsByClass[class]
+	if comp == nil then return end
+	comp:Destroy(...)
 end
 
 

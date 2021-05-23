@@ -142,36 +142,9 @@ function BaseComponent.new(ref)
 end
 
 
-local function errored(_, comp)
-	local prefix = ""
-	if typeof(comp.ref) == "Instance" then
-		prefix = comp.ref:GetFullName() .. ": "
-	end
-
-	return prefix .. "Component errored:\n%s\nTraceback: %s"
-end
-
-
 function BaseComponent:run(ref, config, state)
-	self:cache()
-	do
-		local ok, err = self.IRef(ref)
-		if not ok then
-			error(("Invalid reference: %s"):format(err or ""))
-		end
-	end
-
 	local comp = self.new(ref)
-	comp.Layers:Set(Symbol.named("base"), config, state)
-
-	local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
-		and runCoroutineOrWarn(errored, comp.Init, comp)
-		and runCoroutineOrWarn(errored, comp.Main, comp)
-
-	assert(ok, "Component errored, so could not continue.")
-
-	comp.initialized = true
-	return comp, Symbol.named("base")
+	return comp, comp:Start(config, state)
 end
 
 
@@ -190,15 +163,15 @@ function BaseComponent:extend(name)
 end
 
 
-function BaseComponent:cache()
-	if self[Symbol.named("cached")] then return end
+function BaseComponent.cache(class)
+	if class[Symbol.named("cached")] then return end
 
-	local interfaces = self.getInterfaces(t)
-	self.IRef = interfaces.IRef or PASS
-	self.IConfig = interfaces.IConfig or PASS
-	self.IState = interfaces.IState or PASS
+	local interfaces = class.getInterfaces(t)
+	class.IRef = interfaces.IRef or PASS
+	class.IConfig = interfaces.IConfig or PASS
+	class.IState = interfaces.IState or PASS
 
-	self[Symbol.named("cached")] = true
+	class[Symbol.named("cached")] = true
 end
 
 
@@ -222,6 +195,31 @@ end
 -- For firing events and setting into motion internal processes.
 function BaseComponent:Main()
 	-- pass
+end
+
+
+function BaseComponent:GetClass()
+	return getmetatable(self)
+end
+
+
+function BaseComponent:Start(config, state)
+	self.cache(self:GetClass())
+	do
+		local ok, err = self.IRef(self.ref)
+		if not ok then
+			error(("Invalid reference: %s"):format(err or ""))
+		end
+	end
+
+	self.Layers:Set(Symbol.named("base"), config, state)
+
+	coroutine.wrap(self.PreInit)(self)
+	coroutine.wrap(self.Init)(self)
+	coroutine.wrap(self.Main)(self)
+
+	self.initialized = true
+	return Symbol.named("base")
 end
 
 
@@ -306,8 +304,10 @@ end
 
 function BaseComponent:GetOrAddComponent(class, name, config, state)
 	if self[name] == nil then
-		local ret = table.pack(class:run(self, config, state))
-		local comp = ret[1]
+		local comp = class.new(self)
+		comp.man = self.man
+		local ret = table.pack(comp:Start(config, state))
+		
 		local id = self.maid:GiveTask(comp)
 		self._componentsByClass[class] = comp
 
@@ -316,9 +316,11 @@ function BaseComponent:GetOrAddComponent(class, name, config, state)
 			self.maid:Remove(id)
 			self[name] = nil
 			self._componentsByClass[class] = nil
+			self:Fire("ComponentRemoved", self, comp)
 		end)
 
-		return table.unpack(ret, 1, ret.n)
+		self:Fire("ComponentAdded", self, comp)
+		return comp, table.unpack(ret, 1, ret.n)
 	end
 
 	local comp = self[name]

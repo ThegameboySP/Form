@@ -20,6 +20,27 @@ local function run(class, ref, config, state)
 end
 
 return function()
+	describe("Lifecycle methods", function()
+		it("run: should invoke :PreInit, :Init, and :Main in order, once", function()
+			local TestComponent = BaseComponent:extend("Test")
+
+			local t1 = {}
+			TestComponent.PreInit = spy(t1)
+			local t2 = {}
+			TestComponent.Init = spy(t2)
+			local t3 = {}
+			TestComponent.Main = spy(t3)
+
+			local comp = TestComponent:run()
+			expect(t1.Count).to.equal(1)
+			expect(t1.Params[1][1]).to.equal(comp)
+			expect(t2.Count).to.equal(1)
+			expect(t2.Params[1][1]).to.equal(comp)
+			expect(t3.Count).to.equal(1)
+			expect(t3.Params[1][1]).to.equal(comp)
+		end)
+	end)
+
 	describe("State layers", function()
 		it("should merge base", function()
 			local c = run(BaseComponent)
@@ -567,7 +588,7 @@ return function()
 			local c = run(BaseComponent)
 			local subComp, id = c:GetOrAddComponent(TestComponent, "Test", {key1 = true})
 			expect(c.Test).to.equal(subComp)
-			expect(getmetatable(subComp)).to.equal(TestComponent)
+			expect(subComp:GetClass()).to.equal(TestComponent)
 
 			expect(subComp.isDestroyed).to.equal(false)
 			subComp.Layers:Remove(id)

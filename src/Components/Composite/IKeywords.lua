@@ -5,4 +5,5 @@ return t.strictInterface({
 	config = t.optional(t.table);
 	mode = t.optional(t.valueOf(ComponentMode));
 	isWeak = t.optional(t.boolean);
+	layers = t.optional(t.table);
 })

@@ -101,6 +101,9 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 		end
 	end)
 	comp.Layers:SetConfig(BASE, config)
+	for key, tbl in pairs(keywords.layers or {}) do
+		comp.Layers:Set(key, tbl.config, tbl.state)
+	end
 
 	if self._componentsByRef[ref] == nil then
 		self._componentsByRef[ref] = {}

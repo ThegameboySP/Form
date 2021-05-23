@@ -138,4 +138,16 @@ function Manager:DebugPrint(...)
 	end
 end
 
+
+function Manager:VerbosePrint(...)
+	if self.DEBUG then
+		warn("[Composite verbose]", ...)
+	end
+end
+
+
+function Manager:Warn(...)
+	warn("[Composite warning]", ...)
+end
+
 return SignalMixin.wrap(Manager)

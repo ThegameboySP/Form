@@ -1,6 +1,32 @@
-local CollectionService = game:GetService("CollectionService")
-
 local ComponentsUtils = {}
+
+local function MAKE_TABLE()
+	return {}
+end
+
+function ComponentsUtils.getOrMakeTable(tbl, ...)
+	return ComponentsUtils.getOrMake(MAKE_TABLE, tbl, ...)
+end
+
+function ComponentsUtils.getOrMake(new, tbl, ...)
+	local current = tbl
+	local args = {...}
+	local len = #args
+
+	for index, key in ipairs(args) do
+		if current[key] == nil then
+			if index == len then
+				current[key] = new()
+			else
+				current[key] = {}
+			end
+		end
+
+		current = current[key]
+	end
+
+	return current
+end
 
 function ComponentsUtils.shallowCopy(tbl)
 	local newTbl = {}

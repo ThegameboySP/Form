@@ -12,7 +12,6 @@ local FuncUtils = require(script.Parent.User.FuncUtils)
 local SignalMixin = require(script.Parent.SignalMixin)
 local TimeCycle = require(script.TimeCycle)
 local makeSleep = require(script.makeSleep)
-local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 
 local KeypathSubscriptions = require(script.KeypathSubscriptions)
 local StateMetatable = require(script.StateMetatable)
@@ -85,6 +84,7 @@ function BaseComponent.new(ref)
 		maid = Maid.new();
 		externalMaid = Maid.new();
 		
+		added = {};
 		config = {};
 		state = setmetatable({}, StateMetatable);
 		isDestroyed = false;
@@ -92,7 +92,6 @@ function BaseComponent.new(ref)
 
 		_subscriptions = KeypathSubscriptions.new();
 		_cycles = {};
-		_componentsByClass = {};
 	}, BaseComponent))
 
 	self.sleep = makeSleep(self)
@@ -302,28 +301,26 @@ function BaseComponent:ConnectSubscribeAnd(keypath, handler)
 end
 
 
-function BaseComponent:GetOrAddComponent(class, name, config, state)
-	if self[name] == nil then
+function BaseComponent:GetOrAddComponent(class, config, state)
+	if self.added[class] == nil then
 		local comp = class.new(self)
 		comp.man = self.man
 		local ret = table.pack(comp:Start(config, state))
 		
 		local id = self.maid:GiveTask(comp)
-		self._componentsByClass[class] = comp
 
-		self[name] = comp
 		comp:On("Destroying", function()
 			self.maid:Remove(id)
-			self[name] = nil
-			self._componentsByClass[class] = nil
+			self.added[class] = nil
 			self:Fire("ComponentRemoved", comp)
 		end)
 
+		self.added[class] = comp
 		self:Fire("ComponentAdded", comp)
 		return comp, table.unpack(ret, 1, ret.n)
 	end
 
-	local comp = self[name]
+	local comp = self.added[class]
 	local id = #comp.Layers:get() + 1
 	comp.Layers:Set(id, config, state)
 	return comp, id
@@ -331,7 +328,7 @@ end
 
 
 function BaseComponent:RemoveComponent(class, ...)
-	local comp = self._componentsByClass[class]
+	local comp = self.added[class]
 	if comp == nil then return end
 	comp:Destroy(...)
 end

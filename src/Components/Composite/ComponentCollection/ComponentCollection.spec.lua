@@ -63,10 +63,9 @@ return function()
 			local comp = c:GetOrAddComponent(i, "BaseComponent", {config = config})
 
 			expect(t.Count).to.equal(1)
-			expect(t.Params[1][1]).to.equal(i)
-			expect(t.Params[1][2]).to.equal(comp)
-			expect(shallowEquals(t.Params[1][3].config, config)).to.equal(true)
-			expect(t.Params[1][3].mode).to.equal("Default")
+			expect(t.Params[1][1]).to.equal(comp)
+			expect(shallowEquals(t.Params[1][2].config, config)).to.equal(true)
+			expect(t.Params[1][2].mode).to.equal("Default")
 		end)
 
 		it("should never add a component twice to the same reference", function()
@@ -136,10 +135,9 @@ return function()
 			local comps = c:BulkAddComponent(refs, classes, keywords)
 
 			for i=1, t.Count do
-				expect(t.Params[i][1]).to.equal(refs[i])
-				expect(t.Params[i][2]).to.equal(comps[i][1])
-				expect(shallowEquals(t.Params[i][3].config, keywords[i].config)).to.equal(true)
-				expect(t.Params[i][3].mode).to.equal("Default")
+				expect(t.Params[i][1]).to.equal(comps[i][1])
+				expect(shallowEquals(t.Params[i][2].config, keywords[i].config)).to.equal(true)
+				expect(t.Params[i][2].mode).to.equal("Default")
 			end
 
 			return comps, t
@@ -171,8 +169,7 @@ return function()
 			c:RemoveComponent(i, "BaseComponent")
 
 			expect(t.Count).to.equal(1)
-			expect(t.Params[1][1]).to.equal(i)
-			expect(t.Params[1][2]).to.equal(comp)
+			expect(t.Params[1][1]).to.equal(comp)
 		end)
 
 		it("should automatically remove a component that was destroyed", function()
@@ -185,8 +182,7 @@ return function()
 			comp:Destroy()
 
 			expect(t.Count).to.equal(1)
-			expect(t.Params[1][1]).to.equal(i)
-			expect(t.Params[1][2]).to.equal(comp)
+			expect(t.Params[1][1]).to.equal(comp)
 		end)
 
 		it("should remove a reference and fire RefRemoved once", function()
@@ -201,7 +197,6 @@ return function()
 			c:RemoveRef(i)
 			
 			expect(t.Count).to.equal(1)
-			expect(t.Params[1][1]).to.equal(i)
 			expect(t2.Count).to.equal(1)
 		end)
 

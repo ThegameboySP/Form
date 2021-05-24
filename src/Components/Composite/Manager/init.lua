@@ -46,15 +46,17 @@ function Manager.new(name)
 		self:Fire("RefRemoved", ref, profile)
 	end)
 
-	self._collection:On("ComponentAdded", function(ref, comp, keywords)
+	self._collection:On("ComponentAdded", function(comp, keywords)
+		local ref = comp.ref
 		local profile = self._profiles[ref]
 		table.insert(profile.componentsOrder, comp)
 		profile.mode = comp.mode
 
-		self:Fire("ComponentAdded", ref, comp, keywords)
+		self:Fire("ComponentAdded", comp, keywords)
 	end)
 
-	self._collection:On("ComponentRemoved", function(ref, comp)
+	self._collection:On("ComponentRemoved", function(comp)
+		local ref = comp.ref
 		local profile = self._profiles[ref]
 		local order = profile.componentsOrder
 		table.remove(order, table.find(order, comp))
@@ -64,7 +66,7 @@ function Manager.new(name)
 			profile.mode = lastComp.mode
 		end
 
-		self:Fire("ComponentRemoved", ref, comp)
+		self:Fire("ComponentRemoved", comp)
 	end)
 
 	return self

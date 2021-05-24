@@ -45,15 +45,15 @@ function GroupsExtension.new(man)
 		self._comps[ref] = nil
 	end)
 
-	man:On("ComponentAdded", function(ref, comp)
+	man:On("ComponentAdded", function(comp)
 		if comp.Groups then
-			local groups = self._comps[ref]
+			local groups = self._comps[comp.ref]
 			groups.Layers:SetConfig(comp.BaseName, comp.Groups)
 		end
 	end)
 
-	man:On("ComponentRemoved", function(ref, comp)
-		local groups = self._comps[ref]
+	man:On("ComponentRemoved", function(comp)
+		local groups = self._comps[comp.ref]
 		if groups == nil then return end
 		groups.Layers:Remove(comp.BaseName)
 	end)

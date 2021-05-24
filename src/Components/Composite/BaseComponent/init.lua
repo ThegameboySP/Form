@@ -316,10 +316,10 @@ function BaseComponent:GetOrAddComponent(class, name, config, state)
 			self.maid:Remove(id)
 			self[name] = nil
 			self._componentsByClass[class] = nil
-			self:Fire("ComponentRemoved", self, comp)
+			self:Fire("ComponentRemoved", comp)
 		end)
 
-		self:Fire("ComponentAdded", self, comp)
+		self:Fire("ComponentAdded", comp)
 		return comp, table.unpack(ret, 1, ret.n)
 	end
 

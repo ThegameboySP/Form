@@ -20,8 +20,8 @@ return function(view)
 	local InstanceState = {}
 	view.InstanceState = InstanceState
 
-	view:On("ComponentAdded", function(ref, comp)
-		local folder = StateInterfacer.getStateFolder(ref, comp.name)
+	view:On("ComponentAdded", function(comp)
+		local folder = StateInterfacer.getStateFolder(comp.ref, comp.name)
 		local delta = {}
 
 		comp.maid:Add(StateInterfacer.subscribeComponentState(folder, function(path, value)

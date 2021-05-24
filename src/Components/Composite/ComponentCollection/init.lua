@@ -94,7 +94,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	comp:On("Destroying", function()
 		local comps = self._componentsByRef[ref]
 		comps[class] = nil
-		self:Fire("ComponentRemoved", ref, comp)
+		self:Fire("ComponentRemoved", comp)
 
 		if not next(comps) or isWeak(comps) then
 			self:RemoveRef(ref)
@@ -135,14 +135,13 @@ end
 
 
 function ComponentCollection:_runComponent(comp, keywords)
-	local instance = comp.ref
 	local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
 		and runCoroutineOrWarn(errored, comp.Init, comp)
 		and runCoroutineOrWarn(errored, comp.Main, comp)
 	
 	if ok then
 		comp.initialized = true
-		self:Fire("ComponentAdded", instance, comp, keywords)
+		self:Fire("ComponentAdded", comp, keywords)
 	end
 end
 
@@ -192,7 +191,7 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 		local comp = tbl[1]
 		local id = tbl[2]
 		table.insert(comps, {comp, id})
-		self:Fire("ComponentAdded", comp.ref, comp, tbl[3])
+		self:Fire("ComponentAdded", comp, tbl[3])
 	end
 
 	return comps

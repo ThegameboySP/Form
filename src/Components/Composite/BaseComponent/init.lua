@@ -82,7 +82,6 @@ function BaseComponent.new(ref)
 	local self = SignalMixin.new(setmetatable({
 		ref = ref;
 		maid = Maid.new();
-		externalMaid = Maid.new();
 		
 		added = {};
 		config = {};
@@ -121,7 +120,6 @@ function BaseComponent.new(ref)
 	self.maid:Add(function()
 		self:Fire("Destroying")
 		self:DisconnectAll()
-		self.externalMaid:DoCleaning()
 
 		self.Layers:Destroy()
 		self.Binding:Destroy()

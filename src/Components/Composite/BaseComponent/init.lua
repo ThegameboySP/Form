@@ -262,13 +262,8 @@ function BaseComponent:GetState()
 end
 
 
-function BaseComponent:ConnectSubscribe(keypath, handler)
-	return self._subscriptions:Subscribe(keypath, handler)
-end
-
-
 function BaseComponent:Subscribe(keypath, handler)
-	return self.maid:Add(self:ConnectSubscribe(keypath, handler))
+	return (self.maid:AddAuto(self._subscriptions:Subscribe(keypath, handler)))
 end
 
 
@@ -286,18 +281,13 @@ local function getStateByKeypath(state, keypath)
 end
 
 function BaseComponent:SubscribeAnd(keypath, handler)
-	return (self.maid:Add(self:ConnectSubscribeAnd(keypath, handler)))
-end
-
-
-function BaseComponent:ConnectSubscribeAnd(keypath, handler)
-	local disconnect = self:ConnectSubscribe(keypath, handler)
+	local disconnect = self:Subscribe(keypath, handler)
 	local value = getStateByKeypath(self.state, keypath)
 	if value ~= nil then
 		handler(value)
 	end
 	
-	return disconnect
+	return (self.maid:AddAuto(disconnect))
 end
 
 

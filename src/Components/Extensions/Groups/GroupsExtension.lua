@@ -25,7 +25,7 @@ function GroupsExtension.new(man)
 		comp:SetState({Default = true})
 		self._comps[ref] = comp
 
-		comp.externalMaid:Add(comp:ConnectSubscribeAnd("", function(changedGroups)
+		comp.externalMaid:Add(comp:SubscribeAnd("", function(changedGroups)
 			for name, value in pairs(changedGroups) do
 				if value == true then
 					self:_add(ref, name)

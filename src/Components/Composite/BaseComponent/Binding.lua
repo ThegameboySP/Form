@@ -31,7 +31,7 @@ end
 -- For unit testing.
 function Binding:_advance(delta, binding)
 	assert(self._base.isTesting, "Component is not testing!")
-	delta = delta or 1 / 60
+	delta = delta or (1 / 60)
 
 	local tbl = binding == nil and self._testBound or self._testBound[binding] or {}
 	for _, handlers in pairs(tbl) do
@@ -61,7 +61,7 @@ end
 
 
 function Binding:Bind(binding, handler)
-	return self._maid:Add(self:Connect(binding, handler))
+	return (self._maid:AddAuto(self:Connect(binding, handler)))
 end
 
 

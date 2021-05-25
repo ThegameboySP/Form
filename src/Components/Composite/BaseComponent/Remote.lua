@@ -118,14 +118,11 @@ end
 
 function Remote:BindEvent(eventName, handler)
 	assert(typeof(self._base.ref) == "Instance")
-
-	return self._maid:Add(self:ConnectEvent(eventName, handler))
+	return self._maid:AddAuto(self:_connectEvent(eventName, handler))
 end
 
 
-function Remote:ConnectEvent(eventName, handler)
-	assert(typeof(self._base.ref) == "Instance")
-
+function Remote:_connectEvent(eventName, handler)
 	local maid = Maid.new()
 	-- Wait a frame, as remote event connections can fire immediately if in queue.
 	maid:Add(self._base.Binding:SpawnNextFrame(function()

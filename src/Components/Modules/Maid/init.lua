@@ -56,8 +56,6 @@ function Maid:DoCleaning(...)
 		self:Remove(index, ...)
 		index = next(tasks)
 	end
-
-	return self
 end
 Maid.Destroy = Maid.DoCleaning
 
@@ -130,6 +128,26 @@ function Maid:GiveTasks(tasks)
 	end
 
 	return self, ids
+end
+
+
+-- Wraps the task so it will be automatically cleared from
+-- internal tables when invoked.
+function Maid:AddAuto(task, destructorName, id)
+	local taskId
+	local wrappedId
+
+	local removed = false
+	local wrapped = function(...)
+		if removed then return end
+		removed = true
+		self:Remove(wrappedId)
+		return self:Remove(taskId, ...)
+	end
+
+	taskId = self:GiveTask(task, destructorName)
+	wrappedId = self:GiveTask(wrapped, nil, id)
+	return wrapped, wrappedId
 end
 
 

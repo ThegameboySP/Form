@@ -160,6 +160,54 @@ return function()
 			expect(ids[1]).to.equal(NOOP)
 		end)
 
+		it("AddAuto: should return wrapped function which removes itself and the task when invoked", function()
+			local maid = Maid.new()
+			do
+				local wrapped, id = maid:AddAuto(RET_TRUE)
+				expect(maid[id]).to.equal(wrapped)
+				
+				expect( wrapped() ).to.equal(true)
+				expect(maid[id]).to.equal(nil)
+			end
+
+			do
+				local con = Instance.new("Folder").ChildAdded:Connect(NOOP)
+				local wrapped, id = maid:AddAuto(con)
+				expect(maid[id]).to.equal(wrapped)
+
+				expect( wrapped() ).to.equal(nil)
+				expect(maid[id]).to.equal(nil)
+			end
+
+			do
+				local subMaid = Maid.new()
+				local didClean = false
+				subMaid:Add(function() didClean = true end)
+				rawset(subMaid, "Destroy", NOOP)
+
+				local wrapped, id = maid:AddAuto(subMaid, "DoCleaning", "test")
+				expect(id).to.equal("test")
+				expect(maid[id]).to.equal(wrapped)
+
+				expect( wrapped() ).to.equal(nil)
+				expect(maid[id]).to.equal(nil)
+				expect(didClean).to.equal(true)
+			end
+		end)
+
+		it("AddAuto: wrapped function should only remove itself once, even after further invocations", function()
+			local maid = Maid.new()
+			local wrapped, id = maid:AddAuto(RET_TRUE, nil, "test")
+			
+			expect(maid[id]).to.equal(wrapped)
+			expect( wrapped() ).to.equal(true)
+			expect(maid[id]).to.equal(nil)
+
+			maid:Add(RET_TRUE, nil, "test")
+			expect( wrapped() ).to.equal(nil)
+			expect( maid:Remove("test") ).to.equal(true)
+		end)
+
 		it("dot notation: should access tasks", function()
 			local maid = Maid.new()
 			maid.test = NOOP

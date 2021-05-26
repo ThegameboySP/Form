@@ -5,6 +5,7 @@ local Maid = require(script.Parent.Parent.Modules.Maid)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
 local t = require(script.Parent.Parent.Modules.t)
 
+local IComponentKeywords = require(script.IComponentKeywords)
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
 local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
@@ -139,9 +140,9 @@ function BaseComponent.new(ref)
 end
 
 
-function BaseComponent:run(ref, config, state)
+function BaseComponent:run(ref, keywords)
 	local comp = self.new(ref)
-	return comp, comp:Start(config, state)
+	return comp, comp:Start(keywords)
 end
 
 
@@ -200,7 +201,11 @@ function BaseComponent:GetClass()
 end
 
 
-function BaseComponent:Start(config, state)
+function BaseComponent:Start(keywords)
+	assert(not self.initialized, "Cannot start an initialized component!")
+	keywords = keywords or {}
+	assert(IComponentKeywords(keywords))
+
 	self.cache(self:GetClass())
 	do
 		local ok, err = self.IRef(self.ref)
@@ -209,7 +214,10 @@ function BaseComponent:Start(config, state)
 		end
 	end
 
-	self.Layers:Set(Symbol.named("base"), config, state)
+	self.Layers:Set(Symbol.named("base"), keywords.config, keywords.state)
+	for name, layer in pairs(keywords.layers or {}) do
+		self.Layers:Set(name, layer.config, layer.state)
+	end
 
 	coroutine.wrap(self.PreInit)(self)
 	coroutine.wrap(self.Init)(self)
@@ -289,11 +297,11 @@ function BaseComponent:SubscribeAnd(keypath, handler)
 end
 
 
-function BaseComponent:GetOrAddComponent(class, config, state)
+function BaseComponent:GetOrAddComponent(class, keywords)
 	if self.added[class] == nil then
 		local comp = class.new(self)
 		comp.man = self.man
-		local ret = table.pack(comp:Start(config, state))
+		local ret = table.pack(comp:Start(keywords))
 		
 		local id = self.maid:GiveTask(comp)
 
@@ -309,8 +317,16 @@ function BaseComponent:GetOrAddComponent(class, config, state)
 	end
 
 	local comp = self.added[class]
-	local id = #comp.Layers:get() + 1
-	comp.Layers:Set(id, config, state)
+	local id
+	if keywords.config or keywords.state then
+		id = #comp.Layers:get() + 1
+		comp.Layers:Set(id, keywords.config, keywords.state)
+	end
+
+	for name, layer in pairs(keywords.layers or {}) do
+		self.Layers:Set(name, layer.config, layer.state)
+	end
+
 	return comp, id
 end
 

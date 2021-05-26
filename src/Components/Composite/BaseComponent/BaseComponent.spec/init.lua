@@ -14,7 +14,7 @@ local function make(ref)
 end
 
 local function run(class, ref, config, state)
-	local c = class:run(ref or {}, config or {}, state)
+	local c = class:run(ref or {}, {config = config or {}, state = state})
 	c.isTesting = true
 	return c
 end
@@ -586,7 +586,7 @@ return function()
 
 		it("should add a component to itself", function()
 			local c = run(BaseComponent)
-			local subComp, id = c:GetOrAddComponent(TestComponent, {key1 = true})
+			local subComp, id = c:GetOrAddComponent(TestComponent, {config = {key1 = true}})
 			expect(c.added[TestComponent]).to.equal(subComp)
 			expect(subComp:GetClass()).to.equal(TestComponent)
 
@@ -598,7 +598,7 @@ return function()
 
 		it("should remove a component from itself", function()
 			local c = run(BaseComponent)
-			local subComp = c:GetOrAddComponent(TestComponent, {key1 = true})
+			local subComp = c:GetOrAddComponent(TestComponent, {config = {key1 = true}})
 			expect(c.added[TestComponent]).to.equal(subComp)
 
 			c:RemoveComponent(TestComponent)

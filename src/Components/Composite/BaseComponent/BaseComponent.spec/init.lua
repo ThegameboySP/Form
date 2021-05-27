@@ -246,22 +246,26 @@ return function()
 	end)
 
 	describe("Remote", function()
+		local RemoteComponent = BaseComponent:extend("RemoteComponent", {
+			EmbeddedComponents = {"Remote"}
+		})
+
 		it("should register remote events", function()
 			local i = new("Folder")
-			local c = run(BaseComponent, i)
+			local c = run(RemoteComponent, i)
 			c.Remote:RegisterEvents("Test")
 
 			expect(function()
-				local _ = i.RemoteEvents.BaseComponent.Test
+				local _ = i.RemoteEvents.RemoteComponent.Test
 			end).never.to.throw()
 		end)
 
 		it("should connect to remote event when it's already registered", function()
 			local i = new("Folder")
-			local s = run(BaseComponent, i)
+			local s = run(RemoteComponent, i)
 			s.Remote:RegisterEvents("Test")
 
-			local c = run(BaseComponent, i)
+			local c = run(RemoteComponent, i)
 			c.isServer = false
 
 			local values = {}
@@ -276,8 +280,8 @@ return function()
 
 		it("should connect to remote event once it's registered", function()
 			local i = new("Folder")
-			local s = run(BaseComponent, i)
-			local c = run(BaseComponent, i)
+			local s = run(RemoteComponent, i)
+			local c = run(RemoteComponent, i)
 			c.isServer = false
 
 			local values = {}
@@ -295,8 +299,8 @@ return function()
 
 		it("should fire server remote event once it's visible", function()
 			local i = new("Folder")
-			local s = run(BaseComponent, i)
-			local c = run(BaseComponent, i)
+			local s = run(RemoteComponent, i)
+			local c = run(RemoteComponent, i)
 			c.isServer = false
 
 			c.Remote:FireServer("Test", "test")
@@ -392,8 +396,9 @@ return function()
 	end)
 
 	describe("Pause", function()
+		local PauseComponent = BaseComponent:extend("PauseComponent")
 		it("should pause and unpause", function()
-			local c = make()
+			local c = run(PauseComponent)
 			local p = c.Pause
 
 			expect(p:IsPaused()).to.equal(false)
@@ -406,7 +411,7 @@ return function()
 		end)
 
 		it("should only fire Paused and Unpaused when there was a change", function()
-			local c = make()
+			local c = run(PauseComponent)
 			local p = c.Pause
 			local t = {}
 			local func = spy(t)
@@ -426,7 +431,7 @@ return function()
 		end)
 
 		it("should suppress all Wrap'ed events when paused", function()
-			local c = make()
+			local c = run(PauseComponent)
 			local p = c.Pause
 			local t = {}
 			local func = p:Wrap(spy(t))
@@ -446,7 +451,7 @@ return function()
 
 	describe("Sleep", function()
 		it("should yield the thread until the given time", function()
-			local c = make()
+			local c = run(BaseComponent)
 			local resumed = false
 			coroutine.wrap(function()
 				c.sleep(2)
@@ -459,7 +464,7 @@ return function()
 		end)
 
 		it("should not count time when paused", function()
-			local c = make()
+			local c = run(BaseComponent)
 			local resumed = false
 			coroutine.wrap(function()
 				c.sleep(2)
@@ -582,7 +587,9 @@ return function()
 	end)
 
 	describe("Subcomponents", function()
-		local TestComponent = BaseComponent:extend("Test")
+		local TestComponent = BaseComponent:extend("Test", {
+			EmbeddedComponents = {"Layers"}
+		})
 
 		it("should add a component to itself", function()
 			local c = run(BaseComponent)

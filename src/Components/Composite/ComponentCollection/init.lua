@@ -75,7 +75,9 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	local class = self:_resolveOrError(classResolvable)
 	if self:HasComponent(ref, class) then
 		local tbl = self._componentsByRef[ref][class]
-		assert((not not tbl.isWeak) == (not not keywords.isWeak), "Weak components must be consistent!")
+		if (not not tbl.isWeak) ~= (not not keywords.isWeak) then
+			error("Weak components must be consistent!")
+		end
 
 		local comp = tbl.comp
 		return false, comp, comp.Layers:SetConfig(comp.Layers:NewId(), keywords.config)
@@ -100,10 +102,7 @@ function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 			self:RemoveRef(ref)
 		end
 	end)
-	comp.Layers:SetConfig(BASE, config)
-	for key, tbl in pairs(keywords.layers or {}) do
-		comp.Layers:Set(key, tbl.config, tbl.state)
-	end
+	comp:PreStart()
 
 	if self._componentsByRef[ref] == nil then
 		self._componentsByRef[ref] = {}
@@ -135,13 +134,17 @@ end
 
 
 function ComponentCollection:_runComponent(comp, keywords)
-	local ok = runCoroutineOrWarn(errored, comp.PreInit, comp)
-		and runCoroutineOrWarn(errored, comp.Init, comp)
-		and runCoroutineOrWarn(errored, comp.Main, comp)
-	
+	local ok, err = pcall(comp.Start, comp, {
+		state = keywords.state;
+		config = keywords.config;
+		layers = keywords.layers;
+	})
+
 	if ok then
 		comp.initialized = true
 		self:Fire("ComponentAdded", comp, keywords)
+	else
+		warn(err)
 	end
 end
 
@@ -155,7 +158,7 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
 		local class = self:_resolveOrError(classResolvables[i])
 		local isNew, comp, id, newKeywords = self:_newComponent(ref, class, keywords[i])
 		if not isNew then
-			table.insert(comps, {comp, id})
+			table.insert(comps, {comp, id, nil})
 			continue
 		end
 

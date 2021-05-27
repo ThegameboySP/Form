@@ -24,6 +24,7 @@ local Binding = require(script.Binding)
 local Pause = require(script.Pause)
 
 local BaseComponent = SignalMixin.wrap({
+	EmbeddedComponents = {"Layers", "Binding", "Pause"};
 	NetworkMode = NetworkMode.ServerClient;
 	BaseName = "BaseComponent";
 	isServer = RunService:IsServer();
@@ -81,6 +82,8 @@ BaseComponent.mod = op(0, function(c, n) return c % n end)
 
 function BaseComponent.new(ref)
 	local self = SignalMixin.new(setmetatable({
+		BaseName = BaseComponent.BaseName;
+
 		ref = ref;
 		maid = Maid.new();
 		
@@ -94,37 +97,19 @@ function BaseComponent.new(ref)
 		_cycles = {};
 	}, BaseComponent))
 
-	self.sleep = makeSleep(self)
-
-	self.Layers = Layers.new(self)
-	self.Layers:On("Resolved", function(resolvedConfig, resolvedState)
-		local old = self.config
-		self.config = resolvedConfig or self.config
-
-		if self.initialized and resolvedConfig then
-			local diff = ComponentsUtils.diff(resolvedConfig, old)
-			self:Fire("NewConfig", diff, old)
-		end
-
-		-- Fire state update last so that :OnNewConfig() has a chance to do something to internal state first.
-		local oldState = self.state
-		self.state = setmetatable(resolvedState, StateMetatable)
-		self._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
-	end)
-
-	self.Binding = Binding.new(self)
-	self.Pause = Pause.new(self)
-	if typeof(ref) == "Instance" then
-		self.Remote = Remote.new(self)
-	end
-
 	self.maid:Add(function()
 		self:Fire("Destroying")
 		self:DisconnectAll()
 
+		if self.Layers then
 		self.Layers:Destroy()
+		end
+		if self.Binding then
 		self.Binding:Destroy()
+		end
+		if self.Pause then
 		self.Pause:Destroy()
+		end
 		if self.Remote then
 			self.Remote:Destroy()
 		end
@@ -142,19 +127,25 @@ end
 
 function BaseComponent:run(ref, keywords)
 	local comp = self.new(ref)
-	return comp, comp:Start(keywords)
+	local id = comp:PreStart(keywords)
+	comp:Start()
+	return comp, id
 end
 
 
-function BaseComponent:extend(name)
-	local newClass = setmetatable({
-		BaseName = Utils.getBaseComponentName(name);
-		[Symbol.named("cached")] = false;
-	}, BaseComponent)
+function BaseComponent:extend(name, structure)
+	structure = structure or {}
+	structure.BaseName = Utils.getBaseComponentName(name)
+	structure[Symbol.named("cached")] = false
+
+	local newClass = setmetatable(structure, BaseComponent)
 	newClass.__index = newClass
 
 	function newClass.new(ref)
-		return setmetatable(self.new(ref), newClass)
+		local this = setmetatable(self.new(ref), newClass)
+		-- For easy inspecting.
+		this.BaseName = newClass.BaseName
+		return this
 	end
 
 	return newClass
@@ -201,7 +192,7 @@ function BaseComponent:GetClass()
 end
 
 
-function BaseComponent:Start(keywords)
+function BaseComponent:PreStart(keywords)
 	assert(not self.initialized, "Cannot start an initialized component!")
 	keywords = keywords or {}
 	assert(IComponentKeywords(keywords))
@@ -214,36 +205,73 @@ function BaseComponent:Start(keywords)
 		end
 	end
 
+	local embedded = ComponentsUtils.arrayToHash(self.EmbeddedComponents)
+	self.Binding = Binding.new(self)
+	self.sleep = makeSleep(self)
+
+	if embedded.Layers then
+		self.Layers = Layers.new(self)
+		self.Layers:On("Resolved", function(resolvedConfig, resolvedState)
+			local old = self.config
+			self.config = resolvedConfig or self.config
+
+			if self.initialized and resolvedConfig then
+				local diff = ComponentsUtils.diff(resolvedConfig, old)
+				self:Fire("NewConfig", diff, old)
+			end
+
+			-- Fire state update last so that :OnNewConfig() has a chance to do something to internal state first.
+			local oldState = self.state
+			self.state = setmetatable(resolvedState, StateMetatable)
+			self._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
+		end)
+
 	self.Layers:Set(Symbol.named("base"), keywords.config, keywords.state)
 	for name, layer in pairs(keywords.layers or {}) do
 		self.Layers:Set(name, layer.config, layer.state)
 	end
+	end
 
+	if embedded.Pause then
+		self.Pause = Pause.new(self)
+	end
+
+	if embedded.Remote and typeof(self.ref) == "Instance" then
+		self.Remote = Remote.new(self)
+	end
+
+	return Symbol.named("base")
+end
+
+
+function BaseComponent:Start()
 	coroutine.wrap(self.PreInit)(self)
 	coroutine.wrap(self.Init)(self)
 	coroutine.wrap(self.Main)(self)
 
 	self.initialized = true
-	return Symbol.named("base")
 end
 
 
 do
 	local fire = BaseComponent.Fire
-	function BaseComponent:Fire(name, ...)
-		local methodName = "On" .. name
+	function BaseComponent:Fire(key, ...)
+		if type(key) == "string" then
+			local methodName = "On" .. key
 		if type(self[methodName]) == "function" then
 			self[methodName](self, ...)
 		end
+		end
 
-		fire(self, name, ...)
+		fire(self, key, ...)
 	end
 end
 
 
-function BaseComponent:f(method)
+function BaseComponent:f(method, ...)
+	local args = table.pack(...)
 	return function(...)
-		return method(self, ...)
+		return method(self, table.unpack(args, 1, args.n), ...)
 	end
 end
 
@@ -298,11 +326,14 @@ end
 
 
 function BaseComponent:GetOrAddComponent(class, keywords)
+	keywords = keywords or {}
+
 	if self.added[class] == nil then
 		local comp = class.new(self)
 		comp.man = self.man
-		local ret = table.pack(comp:Start(keywords))
+		local ret = table.pack(comp:PreStart(keywords))
 		
+		comp:Start()
 		local id = self.maid:GiveTask(comp)
 
 		comp:On("Destroying", function()

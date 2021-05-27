@@ -329,7 +329,7 @@ function BaseComponent:GetOrAddComponent(class, keywords)
 	keywords = keywords or {}
 
 	if self.added[class] == nil then
-		local comp = class.new(self)
+		local comp = class.new(keywords.target or self)
 		comp.man = self.man
 		local ret = table.pack(comp:PreStart(keywords))
 		

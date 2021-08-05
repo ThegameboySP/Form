@@ -290,22 +290,9 @@ function BaseComponent:Subscribe(keypath, handler)
 end
 
 
-local function getStateByKeypath(state, keypath)
-	local current = state
-	for key in keypath:gmatch("([^.]+)%.?") do
-		current = current[key]
-
-		if current == nil then
-			return nil
-		end
-	end
-
-	return current
-end
-
 function BaseComponent:SubscribeAnd(keypath, handler)
 	local disconnect = self:Subscribe(keypath, handler)
-	local value = getStateByKeypath(self.state, keypath)
+	local value = self.state:getByKeyPath(keypath)
 	if value ~= nil then
 		handler(value)
 	end

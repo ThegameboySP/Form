@@ -16,4 +16,12 @@ function Symbol.named(name)
 	return nameToSymbol[name]
 end
 
+function Symbol.new(name)
+	return setmetatable({}, {
+		__tostring = function()
+			return "Symbol_" .. name
+		end
+	})
+end
+
 return Symbol

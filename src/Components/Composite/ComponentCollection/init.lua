@@ -1,8 +1,8 @@
-local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 local SignalMixin = require(script.Parent.SignalMixin)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
 local IKeywords = require(script.Parent.IKeywords)
+local Root = require(script.Root)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
@@ -15,7 +15,7 @@ function ComponentCollection.new(man)
 		
 		_classesByName = {};
 		_classesByRef = {};
-		_componentsByRef = {};
+		_wrapperByRef = {};
 	}, ComponentCollection))
 end
 
@@ -23,14 +23,13 @@ function ComponentCollection:Register(class)
 	local name = class.BaseName
 	assert(type(name) == "string", "Expected 'string'")
 	assert(type(class) == "table", "Expected 'table'")
-
 	assert(self._classesByName[name] == nil, "A class already exists by this name!")
 
-	self._man.Classes[name] = class
 	self._classesByName[name] = class
 	self._classesByRef[class] = class
-
+	
 	class:cache()
+	self:Fire("ClassRegistered", class)
 end
 
 
@@ -46,85 +45,67 @@ function ComponentCollection:_resolveOrError(classResolvable)
 end
 
 
+function ComponentCollection:_getOrAddWrapper(ref)
+	local wrapper = self._wrapperByRef[ref]
+	if wrapper == nil then
+		wrapper = Root:run(ref)
+		self._wrapperByRef[ref] = wrapper
+
+		wrapper:On("ComponentAdding", function(...)
+			self:Fire("ComponentAdding", ...)
+		end)
+
+		wrapper:On("ComponentAdded", function(...)
+			self:Fire("ComponentAdded", ...)
+		end)
+		
+		wrapper:On("ComponentRemoved", function(...)
+			self:Fire("ComponentRemoved", ...)
+		end)
+
+		wrapper:On("Destroyed", function()
+			self:RemoveRef(ref)
+		end)
+
+		self:Fire("RefAdded", ref)
+	end
+
+	return wrapper
+end
+
+
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
-	local isNew, comp, id, newKeywords = self:_newComponent(ref, classResolvable, keywords)
-	if not isNew then
+	keywords = keywords or {}
+	local comp, id = self:_newComponent(ref, classResolvable, keywords)
+	if id ~= BASE then
 		return comp, id
 	end
 
-	self:_runComponent(comp, newKeywords)
+	self:_runComponent(comp, keywords.config)
 	return comp, id
 end
 
-
-local function isWeak(comps)
-	for _, tbl in pairs(comps) do
-		if not tbl.isWeak then
-			return false
-		end
-	end
-
-	return true
-end
-
 function ComponentCollection:_newComponent(ref, classResolvable, keywords)
-	assert(typeof(ref) == "Instance")
-	keywords = keywords or {}
+	assert(typeof(ref) == "Instance", "Expected 'Instance'")
 	assert(IKeywords(keywords))
-
+	
 	local class = self:_resolveOrError(classResolvable)
-	if self:HasComponent(ref, class) then
-		local tbl = self._componentsByRef[ref][class]
-		if (not not tbl.isWeak) ~= (not not keywords.isWeak) then
-			error("Weak components must be consistent!")
-		end
-
-		local comp = tbl.comp
-		return false, comp, comp.Layers:SetConfig(comp.Layers:NewId(), keywords.config)
+	local wrapper = self:_getOrAddWrapper(ref)
+	if wrapper.added[class] then
+		return wrapper:GetOrAddComponent(class, {
+			config = keywords.config;
+			layers = keywords.layers;
+		})
 	end
 
-	if self._componentsByRef[ref] == nil and keywords.isWeak then
-		return false, nil
-	end
-
-	local config = keywords.config or {}
-	local mode = keywords.mode or ComponentMode.Default
-
-	local comp = class.new(ref, config)
+	local comp = wrapper:PreStartComponent(class, {
+		config = keywords.config,
+		layers = keywords.layers;
+		target = ref;
+	})
 	comp.man = self._man
-	comp.mode = mode
-	comp:On("Destroying", function()
-		local comps = self._componentsByRef[ref]
-		comps[class] = nil
-		self:Fire("ComponentRemoved", comp)
 
-		if not next(comps) or isWeak(comps) then
-			self:RemoveRef(ref)
-		end
-	end)
-	comp:PreStart()
-
-	if self._componentsByRef[ref] == nil then
-		self._componentsByRef[ref] = {}
-		self:Fire("RefAdded", ref)
-	end
-	self._componentsByRef[ref][class] = {comp = comp, isWeak = keywords.isWeak}
-
-	return true, comp, BASE, {config = config, mode = mode, isWeak = keywords.isWeak}
-end
-
-
-function ComponentCollection:HasComponent(ref, classResolvable)
-	local class = self:_resolveOrError(classResolvable)
-
-	if
-		self._componentsByRef[ref]
-		and self._componentsByRef[ref][class]
-	then
-		return true
-	end
-
-	return false
+	return comp, BASE
 end
 
 
@@ -133,87 +114,85 @@ local function errored(_, comp)
 end
 
 
-function ComponentCollection:_runComponent(comp, keywords)
-	local ok, err = pcall(comp.Start, comp, {
-		state = keywords.state;
-		config = keywords.config;
-		layers = keywords.layers;
-	})
+function ComponentCollection:_runComponent(comp, config)
+	local ok, err = pcall(comp.Start, comp)
 
 	if ok then
-		comp.initialized = true
-		self:Fire("ComponentAdded", comp, keywords)
+		self._wrapperByRef[comp.ref]:Fire("ComponentAdded", comp, config or {})
 	else
-		warn(err)
+		warn(errored(nil, comp):format(err))
 	end
 end
 
 
-function ComponentCollection:BulkAddComponent(refs, classResolvables, keywords)
+local function run(tbls, methodName)
+	local new = {}
+
+	for _, tbl in ipairs(tbls) do
+		local shouldRun, comp = tbl[1], tbl[2]
+		if shouldRun then
+			local ok = runCoroutineOrWarn(errored, comp[methodName], comp)
+			if ok then
+				table.insert(new, tbl)
+			end
+		else
+			table.insert(new, tbl)
+		end
+	end
+
+	return tbls
+end
+
+function ComponentCollection:BulkAddComponent(refs, classResolvables, keywordsCollection)
 	local tbls = {}
-	local comps = {}
+	local ids = {}
 
 	for i, ref in ipairs(refs) do
-		if self:HasComponent(ref, classResolvables[i]) then continue end
 		local class = self:_resolveOrError(classResolvables[i])
-		local isNew, comp, id, newKeywords = self:_newComponent(ref, class, keywords[i])
-		if not isNew then
-			table.insert(comps, {comp, id, nil})
-			continue
-		end
+		local keywords = keywordsCollection[i] or {}
+		local comp, id = self:_newComponent(ref, class, keywords)
+		ids[comp] = ids[comp] or {}
+		table.insert(ids[comp], id)
 
-		table.insert(tbls, {comp, id, newKeywords})
+		table.insert(tbls, {id == BASE, comp, keywords.config})
 	end
 
-	local tbls2 = {}
-	for _, tbl in ipairs(tbls) do
-		local ok = runCoroutineOrWarn(errored, tbl[1].PreInit, tbl[1])
-		if ok then
-			table.insert(tbls2, tbl)
-		end
-	end
+	local tbls2 = run(tbls, "PreInit")
+	local tbls3 = run(tbls2, "Init")
+	local tbls4 = run(tbls3, "Main")
 
-	local tbls3 = {}
-	for _, tbl in ipairs(tbls2) do
-		local ok = runCoroutineOrWarn(errored, tbl[1].Init, tbl[1])
-		if ok then
-			table.insert(tbls3, tbl)
-		end
-	end
-
-	local tbls4 = {}
-	for _, tbl in ipairs(tbls3) do
-		local ok = runCoroutineOrWarn(errored, tbl[1].Main, tbl[1])
-		if ok then
-			tbl[1].initialized = true
-			table.insert(tbls4, tbl)
-		end
-	end
-
+	local comps = {}
+	local added = {}
 	for _, tbl in ipairs(tbls4) do
-		local comp = tbl[1]
-		local id = tbl[2]
-		table.insert(comps, {comp, id})
-		self:Fire("ComponentAdded", comp, tbl[3])
+		local didRun = tbl[1]
+		local comp = tbl[2]
+		local config = tbl[3]
+		if added[comp] then continue end
+		added[comp] = true
+
+		table.insert(comps, comp)
+		if not didRun then continue end
+
+		comp.initialized = true
+		self:Fire("ComponentAdded", comp, config)
 	end
 
-	return comps
+	return comps, ids
 end
 
 
 function ComponentCollection:RemoveRef(ref)
-	local comps = self._componentsByRef[ref]
-	if comps == nil then return end
-	local profile = self._man:GetProfile(ref)
-	if profile.destroying then return end
+	local wrapper = self._wrapperByRef[ref]
+	if wrapper == nil then return end
+	if wrapper.destroying then return end
+	wrapper.destroying = true
 
-	profile.destroying = true
 	self:Fire("RefRemoving", ref)
 
-	for _, tbl in next, comps do
-		self:RemoveComponent(ref, tbl.comp.BaseName)
+	for class in next, wrapper.added do
+		self:RemoveComponent(ref, class)
 	end
-	self._componentsByRef[ref] = nil
+	self._wrapperByRef[ref] = nil
 
 	self:Fire("RefRemoved", ref)
 end
@@ -221,18 +200,22 @@ end
 
 function ComponentCollection:RemoveComponent(ref, classResolvable)
 	local class = self:_resolveOrError(classResolvable)
-	local comps = self._componentsByRef[ref]
-	local tbl = comps and comps[class]
-	if not tbl then return end
+	local wrapper = self._wrapperByRef[ref]
+	if not wrapper then return end
+	local comp = wrapper.added[class]
+	if not comp then return end
 
 	-- Will trigger the connection defined in :GetOrMakeComponent.
-	tbl.comp:Destroy()
-	comps[class] = nil
+	comp:Destroy()
 end
 
 
 function ComponentCollection:GetComponent(ref, classResolvable)
+	local class = self:_resolveOrError(classResolvable)
+	local wrapper = self._wrapperByRef[ref]
+	if wrapper == nil then return nil end
 
+	return wrapper.added[class]
 end
 
 

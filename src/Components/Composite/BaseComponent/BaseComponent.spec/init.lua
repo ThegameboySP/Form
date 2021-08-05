@@ -7,16 +7,20 @@ local NULL = Symbol.named("null")
 
 local new = Instance.new
 
-local function make(ref)
-	local c = BaseComponent.new(ref or {}, {})
-	c.isTesting = true
-	return c
-end
-
-local function run(class, ref, config, state)
-	local c = class:run(ref or {}, {config = config or {}, state = state})
-	c.isTesting = true
-	return c
+local function run(class, ref, config, layers)
+	if layers then
+		local c = class:run(ref or {}, {
+			config = config,
+			layers = {[Symbol.named("base")] = layers}
+		})
+		
+		c.isTesting = true
+		return c
+	else
+		local c = class:run(ref or {}, {config = config or {}})
+		c.isTesting = true
+		return c
+	end
 end
 
 return function()
@@ -342,7 +346,7 @@ return function()
 		end)
 
 		it("should keep layer order when setting existing layer", function()
-			local c = run(Reloadable, {}, {Test = 1}, {Test = 1})
+			local c = run(Reloadable, {}, nil, {config = {Test = 1}, state = {Test = 1}})
 			expect(c.config.Test).to.equal(1)
 			expect(c.state.Test).to.equal(1)
 
@@ -549,7 +553,7 @@ return function()
 				run(TestComponent, {}, {})
 			end).to.throw()
 
-			local c = run(TestComponent, {}, {}, {test = 1})
+			local c = run(TestComponent, {}, nil, {state = {test = 1}})
 			c.Layers:Set("layer2")
 			local layers = ComponentsUtils.deepCopy(c.Layers:get())
 

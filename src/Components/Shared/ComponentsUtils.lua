@@ -51,6 +51,27 @@ function ComponentsUtils.union(...)
 end
 
 
+function ComponentsUtils.assign(to, ...)
+	for _, tbl in ipairs({...}) do
+		for k, v in pairs(tbl) do
+			to[k] = v
+		end
+	end
+
+	return to
+end
+
+
+-- a1 -> a2
+function ComponentsUtils.assignJoin(a1, a2)
+	for _, item in ipairs(a1) do
+		table.insert(a2, item)
+	end
+
+	return a2
+end
+
+
 -- tbl1 -> tbl2
 function ComponentsUtils.shallowMerge(tbl1, tbl2)
 	local c = ComponentsUtils.shallowCopy(tbl2)

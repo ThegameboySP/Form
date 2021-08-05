@@ -52,7 +52,7 @@ return function()
 			local schema = bp.new(folder, temp)
 
 			local values = {}
-			schema.Matched:Connect(function(found)
+			schema:OnMatched(function(found)
 				table.insert(values, found)
 			end)
 

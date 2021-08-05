@@ -2,7 +2,6 @@ local RunService = game:GetService("RunService")
 
 local ComponentCollection = require(script.Parent.ComponentCollection)
 local Reducers = require(script.Parent.Parent.Shared.Reducers)
-local ComponentMode = require(script.Parent.Parent.Shared.ComponentMode)
 local SignalMixin = require(script.Parent.SignalMixin)
 
 local Manager = {
@@ -12,62 +11,26 @@ local Manager = {
 Manager.__index = Manager
 
 function Manager.new(name)
-	assert(type(name) == "string")
+	assert(type(name) == "string", "Expected 'string'")
 
 	local self = SignalMixin.new(setmetatable({
 		Classes = {};
 		Name = name;
 
 		_hooks = {};
-		_profiles = {};
 	}, Manager))
 	
 	self._collection = ComponentCollection.new(self)
-
-	self._collection:On("RefAdded", function(ref)
-		local profile = {ref = ref, componentsOrder = {}, mode = nil}
-		self._profiles[ref] = profile
-		self:Fire("RefAdded", ref, profile)
+	self._collection:On("ClassRegistered", function(class)
+		self.Classes[class.BaseName] = class
+		self:Fire("ClassRegistered", class)
 	end)
 
-	self._collection:On("RefRemoving", function(ref)
-		local profile = self._profiles[ref]
-		local mode = profile.mode
-		if mode == ComponentMode.Destroy then
-			ref.Parent = nil
-		end
-
-		self:Fire("RefRemoving", ref, profile)
-	end)
-
-	self._collection:On("RefRemoved", function(ref)
-		local profile = self._profiles[ref]
-		self._profiles[ref] = nil
-		self:Fire("RefRemoved", ref, profile)
-	end)
-
-	self._collection:On("ComponentAdded", function(comp, keywords)
-		local ref = comp.ref
-		local profile = self._profiles[ref]
-		table.insert(profile.componentsOrder, comp)
-		profile.mode = comp.mode
-
-		self:Fire("ComponentAdded", comp, keywords)
-	end)
-
-	self._collection:On("ComponentRemoved", function(comp)
-		local ref = comp.ref
-		local profile = self._profiles[ref]
-		local order = profile.componentsOrder
-		table.remove(order, table.find(order, comp))
-
-		local lastComp = order[#order]
-		if lastComp then
-			profile.mode = lastComp.mode
-		end
-
-		self:Fire("ComponentRemoved", comp)
-	end)
+	self:_forward(self._collection, "RefAdded")
+	self:_forward(self._collection, "RefRemoving")
+	self:_forward(self._collection, "RefRemoved")
+	self:_forward(self._collection, "ComponentAdded")
+	self:_forward(self._collection, "ComponentRemoved")
 
 	return self
 end
@@ -90,11 +53,6 @@ end
 
 function Manager:RemoveComponent(ref, classResolvable)
 	return self._collection:RemoveComponent(ref, classResolvable)
-end
-
-
-function Manager:HasComponent(ref, classResolvable)
-	return self._collection:HasComponent(ref, classResolvable)
 end
 
 
@@ -129,11 +87,6 @@ function Manager:RunHooks(name, ...)
 end
 
 
-function Manager:GetProfile(ref)
-	return self._profiles[ref]
-end
-
-
 function Manager:DebugPrint(...)
 	if self.DEBUG then
 		warn("[Composite]", ...)
@@ -150,6 +103,13 @@ end
 
 function Manager:Warn(...)
 	warn("[Composite warning]", ...)
+end
+
+
+function Manager:_forward(obj, eventName)
+	return obj:On(eventName, function(...)
+		self:Fire(eventName, ...)
+	end)
 end
 
 return SignalMixin.wrap(Manager)

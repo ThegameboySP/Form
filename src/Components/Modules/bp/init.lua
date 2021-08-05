@@ -1,6 +1,6 @@
 local Maid = require(script.Parent.Maid)
 local Tracker = require(script.Parent.Tracker)
-local InstanceWeakTable = require(script.Parent.InstanceWeakTable)
+local runCoroutineOrWarn = require(script.Parent.Parent.Composite.runCoroutineOrWarn)
 
 local bp = {}
 bp.__index = bp
@@ -57,6 +57,28 @@ bp.attribute = function(attr, value)
 	end
 end
 
+bp.componentFilter = function(filter)
+	return function(comp, maid, add, remove)
+		local filterAndAdd = function(subComp)
+			if not filter(subComp) then return end
+			add(subComp)
+		end
+		maid:Add(comp:On("ComponentAdded", filterAndAdd))
+		maid:Add(comp:On("ComponentRemoved", remove))
+
+		for _, subComp in pairs(comp.added) do
+			filterAndAdd(subComp)
+		end
+	end
+end
+
+bp.component = bp.componentFilter(PASS)
+bp.componentOf = function(class)
+	return bp.componentFilter(function(comp)
+		return comp:GetClass() == class
+	end)
+end
+
 local function nest(schema, tracker, dict, source)
 	for getter, value in pairs(dict) do
 		local subTracker = Tracker.new()
@@ -86,11 +108,11 @@ local function nest(schema, tracker, dict, source)
 					end)
 					destTracker:SetSource(subTracker)
 					destTracker:OnAdded(function(ret)
-						schema._matched:Add(ret)
-						schema._signal:Fire(ret)
+						schema._matched[ret] = true
+						schema:_fireMatched(ret)
 					end)
 					destTracker.Removed:Connect(function(ret)
-						schema._matched:Remove(ret)
+						schema._matched[ret] = nil
 					end)
 				end
 			elseif t == "table" then
@@ -112,31 +134,45 @@ function bp.new(instance, dict)
 end
 
 function bp._new()
-	local event = Instance.new("BindableEvent")
 	return setmetatable({
 		_maid = Maid.new();
-		_signal = event;
-		_matched = InstanceWeakTable.new();
-		Matched = event.Event;
+		_matched = {};
+		_listeners = {};
 	}, bp)
 end
 
 function bp:Destroy()
 	self._maid:DoCleaning()
-	self._matched:Destroy()
-	self._signal:Destroy()
+	table.clear(self._listeners)
+	table.clear(self._matched)
 end
 
 function bp:OnMatched(handler)
-	for _, i in pairs(self._matched:GetAdded()) do
+	for i in pairs(self._matched) do
 		handler(i)
 	end
+	table.insert(self._listeners, handler)
 
-	return self.Matched:Connect(handler)
+	return function()
+		local index = table.find(self._listeners, handler)
+		if index == nil then return end
+		table.remove(self._listeners, index) 
+	end
+end
+
+function bp:_fireMatched(...)
+	for _, listener in ipairs(self._listeners) do
+		runCoroutineOrWarn("Listener errored: %s\nTraceback: %s", listener, ...)
+	end
 end
 
 function bp:GetMatched()
-	return self._matched:GetAdded()
+	local array = {}
+	for matched in pairs(self._matched) do
+		table.insert(array, matched)
+	end
+
+	return array
 end
 
 return bp

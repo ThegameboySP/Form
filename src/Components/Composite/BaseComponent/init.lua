@@ -29,6 +29,7 @@ local BaseComponent = SignalMixin.wrap({
 	BaseName = "BaseComponent";
 	isServer = RunService:IsServer();
 	isTesting = false;
+	isComponent = true;
 
 	Maid = Maid;
 	inst = UserUtils;
@@ -80,6 +81,12 @@ BaseComponent.mul = op(1, function(c, n) return c * n end)
 BaseComponent.div = op(1, function(c, n) return c / n end)
 BaseComponent.mod = op(0, function(c, n) return c % n end)
 
+local function setLayersFromKeywords(comp, keywords)
+	for name, layer in pairs(keywords.layers or {}) do
+		comp.Layers:Set(name, layer.config, layer.state)
+	end
+end
+
 function BaseComponent.new(ref)
 	local self = SignalMixin.new(setmetatable({
 		BaseName = BaseComponent.BaseName;
@@ -99,16 +106,15 @@ function BaseComponent.new(ref)
 
 	self.maid:Add(function()
 		self:Fire("Destroying")
-		self:DisconnectAll()
 
 		if self.Layers then
-		self.Layers:Destroy()
+			self.Layers:Destroy()
 		end
 		if self.Binding then
-		self.Binding:Destroy()
+			self.Binding:Destroy()
 		end
 		if self.Pause then
-		self.Pause:Destroy()
+			self.Pause:Destroy()
 		end
 		if self.Remote then
 			self.Remote:Destroy()
@@ -119,6 +125,8 @@ function BaseComponent.new(ref)
 		self.Main = DESTROYED_ERROR
 
 		self.isDestroyed = true
+		self:Fire("Destroyed")
+		self:DisconnectAll()
 	end)
 
 	return self
@@ -226,10 +234,8 @@ function BaseComponent:PreStart(keywords)
 			self._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
 		end)
 
-	self.Layers:Set(Symbol.named("base"), keywords.config, keywords.state)
-	for name, layer in pairs(keywords.layers or {}) do
-		self.Layers:Set(name, layer.config, layer.state)
-	end
+		self.Layers:SetConfig(Symbol.named("base"), keywords.config)
+		setLayersFromKeywords(self, keywords)
 	end
 
 	if embedded.Pause then
@@ -258,9 +264,9 @@ do
 	function BaseComponent:Fire(key, ...)
 		if type(key) == "string" then
 			local methodName = "On" .. key
-		if type(self[methodName]) == "function" then
-			self[methodName](self, ...)
-		end
+			if type(self[methodName]) == "function" then
+				self[methodName](self, ...)
+			end
 		end
 
 		fire(self, key, ...)
@@ -325,40 +331,53 @@ function BaseComponent:SubscribeAnd(keypath, handler)
 end
 
 
+-- Creates a new component out of the class and keywords and assigns it,
+-- but doesn't start it. Errors if the class is already added.
+function BaseComponent:PreStartComponent(class, keywords)
+	assert(not self.added[class], "Cannot add a class which already is already added!")
+	keywords = keywords or {}
+
+	local comp = class.new(keywords.target or self)
+	comp.man = self.man
+	setLayersFromKeywords(comp, keywords)
+
+	local id = comp:PreStart(keywords)
+	self:Fire("ComponentAdding", comp, keywords.config or {})
+	self.added[class] = comp
+	
+	local maidId = self.maid:GiveTask(comp)
+	comp:On("Destroying", function()
+		self.maid:Remove(maidId)
+		self.added[class] = nil
+		self:Fire("ComponentRemoved", comp)
+	end)
+
+	return comp, id
+end
+
+
+-- Creates a new component out of the class and keywords and assigns it,
+-- then starts it. If the component already exists, adds layers.
 function BaseComponent:GetOrAddComponent(class, keywords)
 	keywords = keywords or {}
 
 	if self.added[class] == nil then
-		local comp = class.new(keywords.target or self)
-		comp.man = self.man
-		local ret = table.pack(comp:PreStart(keywords))
-		
+		local comp, id = self:PreStartComponent(class, keywords)
 		comp:Start()
-		local id = self.maid:GiveTask(comp)
-
-		comp:On("Destroying", function()
-			self.maid:Remove(id)
-			self.added[class] = nil
-			self:Fire("ComponentRemoved", comp)
-		end)
-
-		self.added[class] = comp
-		self:Fire("ComponentAdded", comp)
-		return comp, table.unpack(ret, 1, ret.n)
+		self:Fire("ComponentAdded", comp, keywords.config or {})
+		return comp, id
 	end
 
 	local comp = self.added[class]
-	local id
-	if keywords.config or keywords.state then
-		id = #comp.Layers:get() + 1
-		comp.Layers:Set(id, keywords.config, keywords.state)
+	setLayersFromKeywords(comp, keywords)
+
+	if keywords.config then
+		local id = comp.Layers:NewId()
+		comp.Layers:SetConfig(id, keywords.config)
+		return comp, id
 	end
 
-	for name, layer in pairs(keywords.layers or {}) do
-		self.Layers:Set(name, layer.config, layer.state)
-	end
-
-	return comp, id
+	return comp
 end
 
 

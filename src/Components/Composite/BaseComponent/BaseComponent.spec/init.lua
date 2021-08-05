@@ -1,6 +1,7 @@
 local BaseComponent = require(script.Parent)
 local Reloadable = require(script.Reloadable)
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
+local t = require(script.Parent.Parent.Parent.Modules.t)
 local ComponentsUtils = require(script.Parent.Parent.Parent.Shared.ComponentsUtils)
 local spy = require(script.Parent.Parent.Parent.Testing.spy)
 local NULL = Symbol.named("null")
@@ -417,28 +418,28 @@ return function()
 		it("should only fire Paused and Unpaused when there was a change", function()
 			local c = run(PauseComponent)
 			local p = c.Pause
-			local t = {}
-			local func = spy(t)
+			local tbl = {}
+			local func = spy(tbl)
 
 			c:On("Paused", func)
 			c:On("Unpaused", func)
 
 			p:Pause()
 			p:Pause()
-			expect(t.Count).to.equal(1)
-			expect(t.Params[1][1]).to.equal(nil)
+			expect(tbl.Count).to.equal(1)
+			expect(tbl.Params[1][1]).to.equal(nil)
 
 			p:Unpause()
 			p:Unpause()
-			expect(t.Count).to.equal(2)
-			expect(t.Params[2][1]).to.equal(nil)
+			expect(tbl.Count).to.equal(2)
+			expect(tbl.Params[2][1]).to.equal(nil)
 		end)
 
 		it("should suppress all Wrap'ed events when paused", function()
 			local c = run(PauseComponent)
 			local p = c.Pause
-			local t = {}
-			local func = p:Wrap(spy(t))
+			local tbl = {}
+			local func = p:Wrap(spy(tbl))
 
 			p:Pause()
 			c:On("Test", func)
@@ -449,7 +450,7 @@ return function()
 			bindable.Event:Connect(func)
 			bindable:Fire()
 
-			expect(t.Count).to.equal(0)
+			expect(tbl.Count).to.equal(0)
 		end)
 	end)
 
@@ -487,37 +488,12 @@ return function()
 	end)
 
 	describe("Interfaces", function()
-		it("should cache the interfaces on first-time :run()", function()
-			local TestComponent = BaseComponent:extend("Test")
-			function TestComponent.getInterfaces(t)
-				return {
-					IRef = t.table;
-					IConfig = t.interface({});
-					IState = t.interface({});
-				}
-			end
-			
-			expect(TestComponent.IRef).to.equal(BaseComponent.IRef)
-			expect(TestComponent.IConfig).to.equal(BaseComponent.IConfig)
-			expect(TestComponent.IState).to.equal(BaseComponent.IState)
-
-			run(TestComponent)
-
-			expect(type(TestComponent.IRef)).to.equal("function")
-			expect(TestComponent.IRef).to.never.equal(BaseComponent.IRef)
-			expect(type(TestComponent.IConfig)).to.equal("function")
-			expect(TestComponent.IConfig).to.never.equal(BaseComponent.IConfig)
-			expect(type(TestComponent.IState)).to.equal("function")
-			expect(TestComponent.IState).to.never.equal(BaseComponent.IState)
-		end)
-
 		it("IConfig: should error on bad config layer and bad final config, while canceling the transaction", function()
-			local TestComponent = BaseComponent:extend("Test")
-			function TestComponent.getInterfaces(t)
-				return {IConfig = t.strictInterface({test = function(item)
+			local TestComponent = BaseComponent:extend("Test", {
+				IConfig = t.strictInterface({test = function(item)
 					return item == 1
-				end})}
-			end
+				end})
+			})
 
 			-- On initialization:
 			expect(function()
@@ -541,12 +517,11 @@ return function()
 		end)
 
 		it("IState: should error on bad state layer and bad final state, while canceling the transaction", function()
-			local TestComponent = BaseComponent:extend("Test")
-			function TestComponent.getInterfaces(t)
-				return {IState = t.strictInterface({test = function(item)
+			local TestComponent = BaseComponent:extend("Test", {
+				IState = t.strictInterface({test = function(item)
 					return item == 1
-				end})}
-			end
+				end})
+			})
 
 			-- On initialization:
 			expect(function()
@@ -575,10 +550,9 @@ return function()
 		end)
 
 		it("IRef: should error on bad reference", function()
-			local TestComponent = BaseComponent:extend("Test")
-			function TestComponent.getInterfaces(t)
-				return {IRef = t.instanceIsA("Folder")}
-			end
+			local TestComponent = BaseComponent:extend("Test", {
+				IRef = t.instanceIsA("Folder")
+			})
 
 			expect(function()
 				run(TestComponent, {})

@@ -3,7 +3,6 @@ local Players = game:GetService("Players")
 
 local Maid = require(script.Parent.Parent.Modules.Maid)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
-local t = require(script.Parent.Parent.Modules.t)
 
 local IComponentKeywords = require(script.IComponentKeywords)
 local ComponentsUtils = require(script.Parent.Parent.Shared.ComponentsUtils)
@@ -23,6 +22,7 @@ local Remote = require(script.Remote)
 local Binding = require(script.Binding)
 local Pause = require(script.Pause)
 
+local PASS = function() return true end
 local BaseComponent = SignalMixin.wrap({
 	EmbeddedComponents = {"Layers", "Binding", "Pause"};
 	NetworkMode = NetworkMode.ServerClient;
@@ -30,6 +30,10 @@ local BaseComponent = SignalMixin.wrap({
 	isServer = RunService:IsServer();
 	isTesting = false;
 	isComponent = true;
+
+	IRef = PASS;
+	IConfig = PASS;
+	IState = PASS;
 
 	Maid = Maid;
 	inst = UserUtils;
@@ -60,7 +64,6 @@ local BaseComponent = SignalMixin.wrap({
 })
 BaseComponent.__index = BaseComponent
 
-local PASS = function() return true end
 local DESTROYED_ERROR = function()
 	error("Cannot run a component that is destroyed!")
 end
@@ -144,7 +147,6 @@ end
 function BaseComponent:extend(name, structure)
 	structure = structure or {}
 	structure.BaseName = Utils.getBaseComponentName(name)
-	structure[Symbol.named("cached")] = false
 
 	local newClass = setmetatable(structure, BaseComponent)
 	newClass.__index = newClass
@@ -157,18 +159,6 @@ function BaseComponent:extend(name, structure)
 	end
 
 	return newClass
-end
-
-
-function BaseComponent.cache(class)
-	if class[Symbol.named("cached")] then return end
-
-	local interfaces = class.getInterfaces(t)
-	class.IRef = interfaces.IRef or PASS
-	class.IConfig = interfaces.IConfig or PASS
-	class.IState = interfaces.IState or PASS
-
-	class[Symbol.named("cached")] = true
 end
 
 
@@ -205,7 +195,6 @@ function BaseComponent:PreStart(keywords)
 	keywords = keywords or {}
 	assert(IComponentKeywords(keywords))
 
-	self.cache(self:GetClass())
 	do
 		local ok, err = self.IRef(self.ref)
 		if not ok then

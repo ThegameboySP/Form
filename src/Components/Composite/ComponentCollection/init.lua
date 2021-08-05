@@ -28,7 +28,6 @@ function ComponentCollection:Register(class)
 	self._classesByName[name] = class
 	self._classesByRef[class] = class
 	
-	class:cache()
 	self:Fire("ClassRegistered", class)
 end
 

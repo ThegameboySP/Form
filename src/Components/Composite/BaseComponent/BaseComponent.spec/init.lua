@@ -8,6 +8,8 @@ local NULL = Symbol.named("null")
 
 local new = Instance.new
 
+local TestComponent = BaseComponent:extend("TestComponent")
+
 local function run(class, ref, config, layers)
 	if layers then
 		local c = class:run(ref or {}, {
@@ -27,16 +29,16 @@ end
 return function()
 	describe("Lifecycle methods", function()
 		it("run: should invoke :PreInit, :Init, and :Main in order, once", function()
-			local TestComponent = BaseComponent:extend("Test")
+			local ExpectationComponent = BaseComponent:extend("Test")
 
 			local t1 = {}
-			TestComponent.PreInit = spy(t1)
+			ExpectationComponent.PreInit = spy(t1)
 			local t2 = {}
-			TestComponent.Init = spy(t2)
+			ExpectationComponent.Init = spy(t2)
 			local t3 = {}
-			TestComponent.Main = spy(t3)
+			ExpectationComponent.Main = spy(t3)
 
-			local comp = TestComponent:run()
+			local comp = ExpectationComponent:run()
 			expect(t1.Count).to.equal(1)
 			expect(t1.Params[1][1]).to.equal(comp)
 			expect(t2.Count).to.equal(1)
@@ -48,7 +50,7 @@ return function()
 
 	describe("State layers", function()
 		it("should merge base", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 
 			c:SetState({
 				test = 1;
@@ -67,7 +69,7 @@ return function()
 		end)
 
 		it("should add state on top of base", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			c:SetState({
 				test1 = true;
 				test2 = c.add(2);
@@ -89,7 +91,7 @@ return function()
 		end)
 
 		it("should merge existing layer", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			c.Layers:MergeState("test", {
 				test1 = false;
 				test2 = true;
@@ -103,7 +105,7 @@ return function()
 		end)
 
 		it("should compound layers with functions", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			c.Layers:SetState("second", {
 				time = 3;
 			})
@@ -115,14 +117,14 @@ return function()
 		end)
 
 		it("should never error when trying to remove non-existent layer", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			expect(function()
 				c.Layers:RemoveState("test")
 			end).to.never.throw()
 		end)
 
 		it("should remove existing layer", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			c:SetState({test1 = false})
 			c.Layers:SetState("test", {
 				test1 = true;
@@ -136,7 +138,7 @@ return function()
 		end)
 
 		it("should remove a key when it encounters null symbol", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			c:SetState({test = true})
 
 			expect(c.state.test).to.equal(true)
@@ -147,7 +149,7 @@ return function()
 
 	describe("Subscription", function()
 		it("should subscribe in a nested path", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			local value
 			c:Subscribe("nested.test1", function(v)
 				value = v
@@ -163,7 +165,7 @@ return function()
 		end)
 
 		it("should subscribe and call by current value of nested path", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			local values = {}
 			c:SetState({
 				nested = {
@@ -187,7 +189,7 @@ return function()
 		end)
 
 		it("should never fire if there was no change", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			local values = {}
 			c:Subscribe("test", function(test)
 				table.insert(values, test)
@@ -217,7 +219,7 @@ return function()
 		end)
 
 		it("should subscribe to tables of state", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			local values = {}
 			c:Subscribe("nested", function(nested)
 				table.insert(values, nested)
@@ -236,7 +238,7 @@ return function()
 		end)
 
 		it("should subscribe to deletions of state", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			c:SetState({test = true})
 
 			local values = {}
@@ -456,7 +458,7 @@ return function()
 
 	describe("Sleep", function()
 		it("should yield the thread until the given time", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			local resumed = false
 			coroutine.wrap(function()
 				c.sleep(2)
@@ -469,7 +471,7 @@ return function()
 		end)
 
 		it("should not count time when paused", function()
-			local c = run(BaseComponent)
+			local c = run(TestComponent)
 			local resumed = false
 			coroutine.wrap(function()
 				c.sleep(2)
@@ -489,7 +491,7 @@ return function()
 
 	describe("Interfaces", function()
 		it("IConfig: should error on bad config layer and bad final config, while canceling the transaction", function()
-			local TestComponent = BaseComponent:extend("Test", {
+			local ExpectationComponent = BaseComponent:extend("Test", {
 				IConfig = t.strictInterface({test = function(item)
 					return item == 1
 				end})
@@ -497,10 +499,10 @@ return function()
 
 			-- On initialization:
 			expect(function()
-				run(TestComponent, {}, {})
+				run(ExpectationComponent, {}, {})
 			end).to.throw()
 
-			local c = run(TestComponent, {}, {test = 1})
+			local c = run(ExpectationComponent, {}, {test = 1})
 			c.Layers:Set("layer2")
 			local layers = ComponentsUtils.deepCopy(c.Layers:get())
 
@@ -517,7 +519,7 @@ return function()
 		end)
 
 		it("IState: should error on bad state layer and bad final state, while canceling the transaction", function()
-			local TestComponent = BaseComponent:extend("Test", {
+			local ExpectationComponent = BaseComponent:extend("Test", {
 				IState = t.strictInterface({test = function(item)
 					return item == 1
 				end})
@@ -525,10 +527,10 @@ return function()
 
 			-- On initialization:
 			expect(function()
-				run(TestComponent, {}, {})
+				run(ExpectationComponent, {}, {})
 			end).to.throw()
 
-			local c = run(TestComponent, {}, nil, {state = {test = 1}})
+			local c = run(ExpectationComponent, {}, nil, {state = {test = 1}})
 			c.Layers:Set("layer2")
 			local layers = ComponentsUtils.deepCopy(c.Layers:get())
 
@@ -550,44 +552,44 @@ return function()
 		end)
 
 		it("IRef: should error on bad reference", function()
-			local TestComponent = BaseComponent:extend("Test", {
+			local ExpectationComponent = BaseComponent:extend("Test", {
 				IRef = t.instanceIsA("Folder")
 			})
 
 			expect(function()
-				run(TestComponent, {})
+				run(ExpectationComponent, {})
 			end).to.throw()
 
 			expect(function()
-				run(TestComponent, new("Folder"))
+				run(ExpectationComponent, new("Folder"))
 			end).to.never.throw()
 		end)
 	end)
 
 	describe("Subcomponents", function()
-		local TestComponent = BaseComponent:extend("Test", {
+		local ExpectationComponent = BaseComponent:extend("Test", {
 			EmbeddedComponents = {"Layers"}
 		})
 
 		it("should add a component to itself", function()
-			local c = run(BaseComponent)
-			local subComp, id = c:GetOrAddComponent(TestComponent, {config = {key1 = true}})
-			expect(c.added[TestComponent]).to.equal(subComp)
-			expect(subComp:GetClass()).to.equal(TestComponent)
+			local c = run(TestComponent)
+			local subComp, id = c:GetOrAddComponent(ExpectationComponent, {config = {key1 = true}})
+			expect(c.added[ExpectationComponent]).to.equal(subComp)
+			expect(subComp:GetClass()).to.equal(ExpectationComponent)
 
 			expect(subComp.isDestroyed).to.equal(false)
 			subComp.Layers:Remove(id)
 			expect(subComp.isDestroyed).to.equal(true)
-			expect(c.added[TestComponent]).to.equal(nil)
+			expect(c.added[ExpectationComponent]).to.equal(nil)
 		end)
 
 		it("should remove a component from itself", function()
-			local c = run(BaseComponent)
-			local subComp = c:GetOrAddComponent(TestComponent, {config = {key1 = true}})
-			expect(c.added[TestComponent]).to.equal(subComp)
+			local c = run(TestComponent)
+			local subComp = c:GetOrAddComponent(ExpectationComponent, {config = {key1 = true}})
+			expect(c.added[ExpectationComponent]).to.equal(subComp)
 
-			c:RemoveComponent(TestComponent)
-			expect(c.added[TestComponent]).to.equal(nil)
+			c:RemoveComponent(ExpectationComponent)
+			expect(c.added[ExpectationComponent]).to.equal(nil)
 		end)
 	end)
 end

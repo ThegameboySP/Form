@@ -90,10 +90,13 @@ local function setLayersFromKeywords(comp, keywords)
 	end
 end
 
-function BaseComponent.new(ref)
-	local self = SignalMixin.new(setmetatable({
-		BaseName = BaseComponent.BaseName;
+function BaseComponent.new(ref, keywords)
+	assert(IComponentKeywords(keywords))
+	local class = keywords.class
 
+	local self = SignalMixin.new(setmetatable({
+		BaseName = class.BaseName;
+		
 		ref = ref;
 		maid = Maid.new();
 		
@@ -101,11 +104,11 @@ function BaseComponent.new(ref)
 		config = {};
 		state = setmetatable({}, StateMetatable);
 		isDestroyed = false;
-		initialized = false;
+		isInitialized = false;
 
 		_subscriptions = KeypathSubscriptions.new();
 		_cycles = {};
-	}, BaseComponent))
+	}, class))
 
 	self.maid:Add(function()
 		self:Fire("Destroying")
@@ -132,15 +135,54 @@ function BaseComponent.new(ref)
 		self:DisconnectAll()
 	end)
 
+	do
+		local ok, err = self.IRef(self.ref)
+		if not ok then
+			error(("Invalid reference: %s"):format(err or ""))
+		end
+	end
+
+	local embedded = ComponentsUtils.arrayToHash(self.EmbeddedComponents)
+	self.Binding = Binding.new(self)
+	self.sleep = makeSleep(self)
+
+	if embedded.Layers then
+		self.Layers = Layers.new(self)
+		self.Layers:On("Resolved", function(resolvedConfig, resolvedState)
+			local old = self.config
+			self.config = resolvedConfig or self.config
+
+			if self.isInitialized and resolvedConfig then
+				local diff = ComponentsUtils.diff(resolvedConfig, old)
+				self:Fire("NewConfig", diff, old)
+			end
+
+			-- Fire state update last so that :OnNewConfig() has a chance to do something to internal state first.
+			local oldState = self.state
+			self.state = setmetatable(resolvedState, StateMetatable)
+			self._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
+		end)
+
+		self.Layers:SetConfig(Symbol.named("base"), keywords.config)
+		setLayersFromKeywords(self, keywords)
+	end
+
+	if embedded.Pause then
+		self.Pause = Pause.new(self)
+	end
+
+	if embedded.Remote and typeof(self.ref) == "Instance" then
+		self.Remote = Remote.new(self)
+	end
+
 	return self
 end
 
 
 function BaseComponent:run(ref, keywords)
-	local comp = self.new(ref)
-	local id = comp:PreStart(keywords)
+	local comp = self.new(ref, keywords)
 	comp:Start()
-	return comp, id
+	return comp, Symbol.named("base")
 end
 
 
@@ -151,11 +193,10 @@ function BaseComponent:extend(name, structure)
 	local newClass = setmetatable(structure, BaseComponent)
 	newClass.__index = newClass
 
-	function newClass.new(ref)
-		local this = setmetatable(self.new(ref), newClass)
-		-- For easy inspecting.
-		this.BaseName = newClass.BaseName
-		return this
+	function newClass.new(ref, keywords)
+		keywords = keywords or {}
+		keywords.class = keywords.class or newClass
+		return self.new(ref, keywords)
 	end
 
 	return newClass
@@ -190,61 +231,14 @@ function BaseComponent:GetClass()
 end
 
 
-function BaseComponent:PreStart(keywords)
-	assert(not self.initialized, "Cannot start an initialized component!")
-	keywords = keywords or {}
-	assert(IComponentKeywords(keywords))
-
-	do
-		local ok, err = self.IRef(self.ref)
-		if not ok then
-			error(("Invalid reference: %s"):format(err or ""))
-		end
-	end
-
-	local embedded = ComponentsUtils.arrayToHash(self.EmbeddedComponents)
-	self.Binding = Binding.new(self)
-	self.sleep = makeSleep(self)
-
-	if embedded.Layers then
-		self.Layers = Layers.new(self)
-		self.Layers:On("Resolved", function(resolvedConfig, resolvedState)
-			local old = self.config
-			self.config = resolvedConfig or self.config
-
-			if self.initialized and resolvedConfig then
-				local diff = ComponentsUtils.diff(resolvedConfig, old)
-				self:Fire("NewConfig", diff, old)
-			end
-
-			-- Fire state update last so that :OnNewConfig() has a chance to do something to internal state first.
-			local oldState = self.state
-			self.state = setmetatable(resolvedState, StateMetatable)
-			self._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
-		end)
-
-		self.Layers:SetConfig(Symbol.named("base"), keywords.config)
-		setLayersFromKeywords(self, keywords)
-	end
-
-	if embedded.Pause then
-		self.Pause = Pause.new(self)
-	end
-
-	if embedded.Remote and typeof(self.ref) == "Instance" then
-		self.Remote = Remote.new(self)
-	end
-
-	return Symbol.named("base")
-end
-
-
 function BaseComponent:Start()
+	if self.isInitialized then return end
+
 	coroutine.wrap(self.PreInit)(self)
 	coroutine.wrap(self.Init)(self)
 	coroutine.wrap(self.Main)(self)
 
-	self.initialized = true
+	self.isInitialized = true
 end
 
 
@@ -326,11 +320,11 @@ function BaseComponent:PreStartComponent(class, keywords)
 	assert(not self.added[class], "Cannot add a class which already is already added!")
 	keywords = keywords or {}
 
-	local comp = class.new(keywords.target or self)
+	keywords.class = class
+	local comp = class.new(keywords.target or self, keywords)
 	comp.man = self.man
 	setLayersFromKeywords(comp, keywords)
 
-	local id = comp:PreStart(keywords)
 	self:Fire("ComponentAdding", comp, keywords.config or {})
 	self.added[class] = comp
 	
@@ -341,7 +335,7 @@ function BaseComponent:PreStartComponent(class, keywords)
 		self:Fire("ComponentRemoved", comp)
 	end)
 
-	return comp, id
+	return comp, Symbol.named("base")
 end
 
 

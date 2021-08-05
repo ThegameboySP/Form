@@ -172,7 +172,7 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywordsCo
 		table.insert(comps, comp)
 		if not didRun then continue end
 
-		comp.initialized = true
+		comp.isInitialized = true
 		self:Fire("ComponentAdded", comp, config)
 	end
 

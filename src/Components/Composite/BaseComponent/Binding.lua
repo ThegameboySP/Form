@@ -87,4 +87,10 @@ function Binding:SpawnNextFrame(handler, ...)
 	end
 end
 
+
+function Binding:GetTime()
+	local man = self._base.man
+	return man and man:GetTime() or tick()
+end
+
 return Binding

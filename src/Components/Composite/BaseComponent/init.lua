@@ -368,9 +368,4 @@ function BaseComponent:Bind(event, handler)
 	return self.maid:Add(event:Connect(handler))
 end
 
-
-function BaseComponent:GetTime()
-	return self.man and self.man:GetTime() or tick()
-end
-
 return BaseComponent

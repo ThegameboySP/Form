@@ -106,6 +106,11 @@ function Manager:Warn(...)
 end
 
 
+function Manager:GetTime()
+	return tick()
+end
+
+
 function Manager:_forward(obj, eventName)
 	return obj:On(eventName, function(...)
 		self:Fire(eventName, ...)

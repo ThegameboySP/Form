@@ -19,9 +19,9 @@ function Binding.new(base)
 		_testBound = {};
 
 		_signals = {
-			PostSimulation = base.PostSimulation or RunService.Heartbeat;
-			PreRender = base.PreRender or RunService.RenderStepped;
-			PreSimulation = base.PreSimulation or RunService.Stepped;
+			Heartbeat = base.PostSimulation or RunService.Heartbeat;
+			RenderStepped = base.PreRender or RunService.RenderStepped;
+			Stepped = base.PreSimulation or RunService.Stepped;
 		};
 	}, Binding)
 end
@@ -38,9 +38,13 @@ function Binding:_advance(delta, binding)
 	assert(self._base.isTesting, "Component is not testing!")
 	delta = delta or (1 / 60)
 
-	local tbl = binding == nil and self._testBound or self._testBound[binding] or {}
-	for _, handlers in pairs(tbl) do
-		for _, handler in ipairs(handlers) do
+	local tbls = self._testBound
+	if binding then
+		tbls = {self._testBound[binding] or {}}
+	end
+	
+	for _, tbl in pairs(tbls) do
+		for _, handler in pairs(tbl) do
 			handler(delta)
 		end
 	end
@@ -50,7 +54,11 @@ end
 function Binding:Connect(binding, handler)
 	if not self._base.isTesting then
 		local resolvedBinding = EVENT_MAP[binding] or binding
-		return self._signals[resolvedBinding]:Connect(self._base.Pause:Wrap(handler))
+		local con = self._signals[resolvedBinding]:Connect(handler)
+
+		return function()
+			con:Disconnect()
+		end
 	else
 		self._testBound[binding] = self._testBound[binding] or {}
 		local handlers = self._testBound[binding]
@@ -76,13 +84,16 @@ function Binding:SpawnNextFrame(handler, ...)
 		local argLen = #args
 
 		local destruct
-		local con, id = self:Bind("PostSimulation", function()
+		local bindDestructor = self:Bind("PostSimulation", function()
 			destruct()
 			handler(table.unpack(args, 1, argLen))
 		end)
+
+		local destructed = false
 		destruct = function()
-			if not con.Connected then return end
-			self._maid:Remove(id)
+			if destructed then return end
+			destructed = true
+			bindDestructor()
 		end
 
 		return destruct

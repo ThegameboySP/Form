@@ -11,6 +11,7 @@ return {
 	Prototypes = require(script.Extensions.Prototypes);
 	Groups = require(script.Extensions.Groups);
 
+	TimeCycle = require(script.Modules.TimeCycle);
 	Maid = require(script.Modules.Maid);
 	t = require(script.Modules.t);
 	bp = require(script.Modules.bp);

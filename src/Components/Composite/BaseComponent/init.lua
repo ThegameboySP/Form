@@ -10,7 +10,6 @@ local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
 local SignalMixin = require(script.Parent.SignalMixin)
-local TimeCycle = require(script.TimeCycle)
 local makeSleep = require(script.makeSleep)
 
 local KeypathSubscriptions = require(script.KeypathSubscriptions)
@@ -107,7 +106,6 @@ function BaseComponent.new(ref, keywords)
 		isInitialized = false;
 
 		_subscriptions = KeypathSubscriptions.new();
-		_cycles = {};
 	}, class))
 
 	self.maid:Add(function()
@@ -373,24 +371,6 @@ end
 
 function BaseComponent:GetTime()
 	return self.man and self.man:GetTime() or tick()
-end
-
-
-function BaseComponent:SetCycle(name, cycleLen)
-	local cycle = self._cycles[name]
-	if cycle == nil then
-		cycle = TimeCycle.new(cycleLen)
-		self._cycles[name] = cycle
-	else
-		cycle:SetLength(cycleLen)
-	end
-
-	return cycle
-end
-
-
-function BaseComponent:GetCycle(name)
-	return self._cycles[name]
 end
 
 return BaseComponent

@@ -109,28 +109,7 @@ function BaseComponent.new(ref, keywords)
 	}, class))
 
 	self.maid:Add(function()
-		self:Fire("Destroying")
-
-		if self.Layers then
-			self.Layers:Destroy()
-		end
-		if self.Binding then
-			self.Binding:Destroy()
-		end
-		if self.Pause then
-			self.Pause:Destroy()
-		end
-		if self.Remote then
-			self.Remote:Destroy()
-		end
 		
-		self.PreInit = DESTROYED_ERROR
-		self.Init = DESTROYED_ERROR
-		self.Main = DESTROYED_ERROR
-
-		self.isDestroyed = true
-		self:Fire("Destroyed")
-		self:DisconnectAll()
 	end)
 
 	do
@@ -202,7 +181,29 @@ end
 
 
 function BaseComponent:Destroy(...)
+	self:Fire("Destroying")
 	self.maid:DoCleaning(...)
+
+	if self.Layers then
+		self.Layers:Destroy()
+	end
+	if self.Binding then
+		self.Binding:Destroy()
+	end
+	if self.Pause then
+		self.Pause:Destroy()
+	end
+	if self.Remote then
+		self.Remote:Destroy()
+	end
+	
+	self.PreInit = DESTROYED_ERROR
+	self.Init = DESTROYED_ERROR
+	self.Main = DESTROYED_ERROR
+
+	self.isDestroyed = true
+	self:Fire("Destroyed")
+	self:DisconnectAll()
 end
 
 

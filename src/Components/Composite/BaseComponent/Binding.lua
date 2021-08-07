@@ -16,8 +16,13 @@ function Binding.new(base)
 	return setmetatable({
 		_base = base;
 		_maid = Maid.new();
-
 		_testBound = {};
+
+		_signals = {
+			PostSimulation = base.PostSimulation or RunService.Heartbeat;
+			PreRender = base.PreRender or RunService.RenderStepped;
+			PreSimulation = base.PreSimulation or RunService.Stepped;
+		};
 	}, Binding)
 end
 
@@ -45,7 +50,7 @@ end
 function Binding:Connect(binding, handler)
 	if not self._base.isTesting then
 		local resolvedBinding = EVENT_MAP[binding] or binding
-		return RunService[resolvedBinding]:Connect(self._base.Pause:Wrap(handler))
+		return self._signals[resolvedBinding]:Connect(self._base.Pause:Wrap(handler))
 	else
 		self._testBound[binding] = self._testBound[binding] or {}
 		local handlers = self._testBound[binding]

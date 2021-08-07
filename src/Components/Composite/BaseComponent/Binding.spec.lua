@@ -1,7 +1,9 @@
 local RunService = game:GetService("RunService")
 
 local BaseComponent = require(script.Parent)
-local TestComponent = BaseComponent:extend("TestComponent")
+local TestComponent = BaseComponent:extend("TestComponent", {
+	EmbeddedComponents = {"Binding"};
+})
 
 local function newBase(isTesting)
 	local comp = TestComponent:run({})
@@ -11,6 +13,7 @@ end
 
 local function newClass(signals)
 	local class = BaseComponent:extend("Test", signals)
+	class.EmbeddedComponents = {"Binding"}
 	local comp = class:run()
 	return comp.Binding, comp
 end

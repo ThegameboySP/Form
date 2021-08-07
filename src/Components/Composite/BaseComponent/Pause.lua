@@ -1,4 +1,5 @@
 local Pause = {}
+Pause.ClassName = "Pause"
 Pause.__index = Pause
 
 function Pause.new(comp)
@@ -6,6 +7,17 @@ function Pause.new(comp)
 		_base = comp;
 		_isPaused = false;
 	}, Pause)
+end
+
+
+function Pause:Init()
+	local binding = self._base.Binding
+	if binding then
+		local connect = binding.Connect
+		binding.Connect = function(this, bindingStr, handler)
+			return connect(this, bindingStr, self:Wrap(handler))
+		end
+	end
 end
 
 
@@ -17,7 +29,7 @@ end
 function Pause:Wrap(func)
 	return function(...)
 		if self:IsPaused() then return end
-		func(...)
+		return func(...)
 	end
 end
 

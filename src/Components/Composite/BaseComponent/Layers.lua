@@ -2,30 +2,57 @@ local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 local ComponentsUtils = require(script.Parent.Parent.Parent.Shared.ComponentsUtils)
 local Reducers = require(script.Parent.Parent.Parent.Shared.Reducers)
 local StateMetatable = require(script.Parent.StateMetatable)
-local SignalMixin = require(script.Parent.Parent.SignalMixin)
-local Maid = require(script.Parent.Parent.Parent.Modules.Maid)
 local Utils = require(script.Parent.Utils)
 
 local function setStateMt(state)
 	return setmetatable(state, StateMetatable)
 end
 
-local Layers = SignalMixin.wrap({})
+local Layers = {}
+Layers.ClassName = "Layers"
 Layers.__index = Layers
 
+function Layers.setLayersFromKeywords(self, keywords)
+	for name, layer in pairs(keywords.layers or {}) do
+		self:Set(name, layer.config, layer.state)
+	end
+end
+
 function Layers.new(base)
-	return SignalMixin.new(setmetatable({
+	return setmetatable({
 		_base = base;
-		_maid = Maid.new();
 
 		_layers = {};
 		_layerOrder = {};
-	}, Layers))
+	}, Layers)
+end
+
+
+function Layers:Init(keywords)
+	self:SetConfig(Symbol.named("base"), keywords.config)
+	Layers.setLayersFromKeywords(self, keywords)
+end
+
+
+function Layers:_onResolved(resolvedConfig, resolvedState)
+	local comp = self._base
+	local old = comp.config
+	comp.config = resolvedConfig or comp.config
+
+	if comp.isInitialized and resolvedConfig then
+		local diff = ComponentsUtils.diff(resolvedConfig, old)
+		comp:Fire("NewConfig", diff, old)
+	end
+
+	-- Fire state update last so that :OnNewConfig() has a chance to do something to internal state first.
+	local oldState = comp.state
+	comp.state = setmetatable(resolvedState, StateMetatable)
+	comp._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
 end
 
 
 function Layers:Destroy()
-	self._maid:DoCleaning()
+	
 end
 
 
@@ -232,7 +259,7 @@ function Layers:_resolve(changedKey, config, state)
 		end
 	end
 
-	self:Fire("Resolved", resolvedConfig, resolvedState)
+	self:_onResolved(resolvedConfig, resolvedState)
 end
 
 return Layers

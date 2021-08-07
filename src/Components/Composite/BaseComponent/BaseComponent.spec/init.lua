@@ -254,7 +254,7 @@ return function()
 
 	describe("Remote", function()
 		local RemoteComponent = BaseComponent:extend("RemoteComponent", {
-			EmbeddedComponents = {"Remote"}
+			EmbeddedComponents = {"Remote", "Binding"}
 		})
 
 		it("should register remote events", function()
@@ -403,7 +403,9 @@ return function()
 	end)
 
 	describe("Pause", function()
-		local PauseComponent = BaseComponent:extend("PauseComponent")
+		local PauseComponent = BaseComponent:extend("PauseComponent", {
+			EmbeddedComponents = {"Pause"};
+		})
 		it("should pause and unpause", function()
 			local c = run(PauseComponent)
 			local p = c.Pause
@@ -457,8 +459,12 @@ return function()
 	end)
 
 	describe("Sleep", function()
+		local SleepComponent = BaseComponent:extend("SleepComponent", {
+			EmbeddedComponents = {"Sleep", "Pause", "Binding"};
+		})
+
 		it("should yield the thread until the given time", function()
-			local c = run(TestComponent)
+			local c = run(SleepComponent)
 			local resumed = false
 			coroutine.wrap(function()
 				c.sleep(2)
@@ -471,7 +477,7 @@ return function()
 		end)
 
 		it("should not count time when paused", function()
-			local c = run(TestComponent)
+			local c = run(SleepComponent)
 			local resumed = false
 			coroutine.wrap(function()
 				c.sleep(2)

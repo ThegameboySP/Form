@@ -5,6 +5,7 @@ local Maid = require(script.Parent.Parent.Parent.Modules.Maid)
 local UserUtils = require(script.Parent.Parent.User.UserUtils)
 
 local Remote = {}
+Remote.ClassName = "Remote"
 Remote.__index = Remote
 
 local ON_SERVER_ERROR = "Can only be called on the server!"

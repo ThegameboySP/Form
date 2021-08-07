@@ -3,6 +3,7 @@ local RunService = game:GetService("RunService")
 local Maid = require(script.Parent.Parent.Parent.Modules.Maid)
 
 local Binding = {}
+Binding.ClassName = "Binding"
 Binding.__index = Binding
 
 local EVENT_MAP = {

@@ -10,7 +10,6 @@ local NetworkMode = require(script.Parent.Parent.Shared.NetworkMode)
 local UserUtils = require(script.Parent.User.UserUtils)
 local FuncUtils = require(script.Parent.User.FuncUtils)
 local SignalMixin = require(script.Parent.SignalMixin)
-local makeSleep = require(script.makeSleep)
 
 local KeypathSubscriptions = require(script.KeypathSubscriptions)
 local StateMetatable = require(script.StateMetatable)
@@ -20,10 +19,22 @@ local Layers = require(script.Layers)
 local Remote = require(script.Remote)
 local Binding = require(script.Binding)
 local Pause = require(script.Pause)
+local Sleep = require(script.Sleep)
 
 local PASS = function() return true end
+
+local embeddedClasses = setmetatable({
+	Layers = Layers;
+	Remote = Remote;
+	Binding = Binding;
+	Pause = Pause;
+	Sleep = Sleep;
+}, {__index = function(_, name)
+	error(("No embedded component by name: %q"):format(name))
+end})
+
 local BaseComponent = SignalMixin.wrap({
-	EmbeddedComponents = {"Layers", "Binding", "Pause"};
+	EmbeddedComponents = {"Layers"};
 	NetworkMode = NetworkMode.ServerClient;
 	BaseName = "BaseComponent";
 	isServer = RunService:IsServer();
@@ -83,12 +94,6 @@ BaseComponent.mul = op(1, function(c, n) return c * n end)
 BaseComponent.div = op(1, function(c, n) return c / n end)
 BaseComponent.mod = op(0, function(c, n) return c % n end)
 
-local function setLayersFromKeywords(comp, keywords)
-	for name, layer in pairs(keywords.layers or {}) do
-		comp.Layers:Set(name, layer.config, layer.state)
-	end
-end
-
 function BaseComponent.new(ref, keywords)
 	assert(IComponentKeywords(keywords))
 	local class = keywords.class
@@ -108,10 +113,6 @@ function BaseComponent.new(ref, keywords)
 		_subscriptions = KeypathSubscriptions.new();
 	}, class))
 
-	self.maid:Add(function()
-		
-	end)
-
 	do
 		local ok, err = self.IRef(self.ref)
 		if not ok then
@@ -119,40 +120,39 @@ function BaseComponent.new(ref, keywords)
 		end
 	end
 
-	local embedded = ComponentsUtils.arrayToHash(self.EmbeddedComponents)
-	self.Binding = Binding.new(self)
-	self.sleep = makeSleep(self)
-
-	if embedded.Layers then
-		self.Layers = Layers.new(self)
-		self.Layers:On("Resolved", function(resolvedConfig, resolvedState)
-			local old = self.config
-			self.config = resolvedConfig or self.config
-
-			if self.isInitialized and resolvedConfig then
-				local diff = ComponentsUtils.diff(resolvedConfig, old)
-				self:Fire("NewConfig", diff, old)
+	local added = {}
+	local embedded = class.EmbeddedComponents
+	local dict = ComponentsUtils.arrayToHash(embedded)
+	for _, name in pairs(embedded) do
+		local embeddedClass = embeddedClasses[name]
+		if embeddedClass.Required then
+			for _, requiredName in pairs(embeddedClass.Required) do
+				if dict[requiredName] == nil then
+					error(("Embedded component %s requires %s, but it isn't defined in class!"):format(name, requiredName))
+				end
 			end
-
-			-- Fire state update last so that :OnNewConfig() has a chance to do something to internal state first.
-			local oldState = self.state
-			self.state = setmetatable(resolvedState, StateMetatable)
-			self._subscriptions:FireFromDelta(Utils.stateDiff(resolvedState, oldState))
-		end)
-
-		self.Layers:SetConfig(Symbol.named("base"), keywords.config)
-		setLayersFromKeywords(self, keywords)
+		end
+		
+		local resolvedName = embeddedClass.Name or name
+		self[resolvedName] = self.maid:Add(embeddedClass.new(self))
+		added[embeddedClass] = self[resolvedName]
 	end
 
-	if embedded.Pause then
-		self.Pause = Pause.new(self)
-	end
-
-	if embedded.Remote and typeof(self.ref) == "Instance" then
-		self.Remote = Remote.new(self)
+	for embeddedClass, obj in pairs(added) do
+		if embeddedClass.Init then
+			embeddedClass.Init(obj, keywords)
+		end
 	end
 
 	return self
+end
+
+
+function BaseComponent:registerEmbeddedComponent(class)
+	if rawget(embeddedClasses, class) then
+		error(("Already registered %q!"):format(class.ClassName))
+	end
+	embeddedClasses[class.ClassName] = class
 end
 
 
@@ -309,7 +309,7 @@ function BaseComponent:PreStartComponent(class, keywords)
 	keywords.class = class
 	local comp = class.new(keywords.target or self, keywords)
 	comp.man = self.man
-	setLayersFromKeywords(comp, keywords)
+	Layers.setLayersFromKeywords(comp, keywords)
 
 	self:Fire("ComponentAdding", comp, keywords.config or {})
 	self.added[class] = comp
@@ -338,7 +338,7 @@ function BaseComponent:GetOrAddComponent(class, keywords)
 	end
 
 	local comp = self.added[class]
-	setLayersFromKeywords(comp, keywords)
+	Layers.setLayersFromKeywords(comp, keywords)
 
 	if keywords.config then
 		local id = comp.Layers:NewId()

@@ -22,7 +22,7 @@ function Manager.new(name)
 	
 	self._collection = ComponentCollection.new(self)
 	self._collection:On("ClassRegistered", function(class)
-		self.Classes[class.BaseName] = class
+		self.Classes[class.ClassName] = class
 		self:Fire("ClassRegistered", class)
 	end)
 

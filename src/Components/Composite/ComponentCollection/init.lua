@@ -20,7 +20,7 @@ function ComponentCollection.new(man)
 end
 
 function ComponentCollection:Register(class)
-	local name = class.BaseName
+	local name = class.ClassName
 	assert(type(name) == "string", "Expected 'string'")
 	assert(type(class) == "table", "Expected 'table'")
 	assert(self._classesByName[name] == nil, "A class already exists by this name!")

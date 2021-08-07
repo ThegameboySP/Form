@@ -57,7 +57,7 @@ return function()
 			end).to.throw()
 
 			local TestComp = BaseComponent:extend("Test")
-			TestComp.BaseName = true
+			TestComp.ClassName = true
 			expect(function()
 				c:Register(TestComp)
 			end).to.throw()

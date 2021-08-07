@@ -36,7 +36,7 @@ end})
 local BaseComponent = SignalMixin.wrap({
 	EmbeddedComponents = {"Layers"};
 	NetworkMode = NetworkMode.ServerClient;
-	BaseName = "BaseComponent";
+	ClassName = "BaseComponent";
 	isServer = RunService:IsServer();
 	isTesting = false;
 	isComponent = true;
@@ -99,7 +99,7 @@ function BaseComponent.new(ref, keywords)
 	local class = keywords.class
 
 	local self = SignalMixin.new(setmetatable({
-		BaseName = class.BaseName;
+		ClassName = class.ClassName;
 		
 		ref = ref;
 		maid = Maid.new();
@@ -165,7 +165,7 @@ end
 
 function BaseComponent:extend(name, structure)
 	structure = structure or {}
-	structure.BaseName = Utils.getBaseComponentName(name)
+	structure.ClassName = name
 
 	local newClass = setmetatable(structure, BaseComponent)
 	newClass.__index = newClass

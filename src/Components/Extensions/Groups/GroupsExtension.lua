@@ -48,14 +48,14 @@ function GroupsExtension.new(man)
 	man:On("ComponentAdded", function(comp)
 		if comp.Groups then
 			local groups = self._comps[comp.ref]
-			groups.Layers:SetConfig(comp.BaseName, comp.Groups)
+			groups.Layers:SetConfig(comp.ClassName, comp.Groups)
 		end
 	end)
 
 	man:On("ComponentRemoved", function(comp)
 		local groups = self._comps[comp.ref]
 		if groups == nil then return end
-		groups.Layers:Remove(comp.BaseName)
+		groups.Layers:Remove(comp.ClassName)
 	end)
 
 	return self

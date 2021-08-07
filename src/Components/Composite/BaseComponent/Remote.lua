@@ -28,7 +28,7 @@ function Remote:RegisterEvents(...)
 	assert(typeof(self._base.ref) == "Instance")
 	assert(self._base.isServer, ON_SERVER_ERROR)
 
-	local folder = getOrMakeRemoteEventFolder(self._base.ref, self._base.BaseName)
+	local folder = getOrMakeRemoteEventFolder(self._base.ref, self._base.ClassName)
 	for k, v in next, {...} do
 		local remote = Instance.new("RemoteEvent")
 
@@ -49,7 +49,7 @@ end
 function Remote:_getRemoteEventSchema(func)
 	return bp.new(self._base.ref, {
 		[bp.childNamed("RemoteEvents")] = {
-			[bp.childNamed(self._base.BaseName)] = {
+			[bp.childNamed(self._base.ClassName)] = {
 				[bp.attribute("Loaded", true)] = func or function(context)
 					local remoteFdr = context.source.ref
 					return remoteFdr
@@ -62,7 +62,7 @@ end
 function Remote:FireAllClients(eventName, ...)
 	assert(typeof(self._base.ref) == "Instance")
 
-	local remote = getOrMakeRemoteEventFolder(self._base.ref, self._base.BaseName):FindFirstChild(eventName)
+	local remote = getOrMakeRemoteEventFolder(self._base.ref, self._base.ClassName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self._base.ref:GetFullName(), eventName))
 	end
@@ -81,7 +81,7 @@ end
 function Remote:FireClient(eventName, client, ...)
 	assert(typeof(self._base.ref) == "Instance")
 
-	local remote = getOrMakeRemoteEventFolder(self._base.ref, self._base.BaseName):FindFirstChild(eventName)
+	local remote = getOrMakeRemoteEventFolder(self._base.ref, self._base.ClassName):FindFirstChild(eventName)
 	if remote == nil then
 		error(NO_REMOTE_ERROR:format(self._base.ref:GetFullName(), eventName))
 	end
@@ -129,7 +129,7 @@ function Remote:_connectEvent(eventName, handler)
 	maid:Add(self._base.Binding:SpawnNextFrame(function()
 		if self._base.isServer and not self._base.isTesting then
 			maid:Add(
-				(getOrMakeRemoteEventFolder(self._base.ref, self._base.BaseName)
+				(getOrMakeRemoteEventFolder(self._base.ref, self._base.ClassName)
 				:FindFirstChild(eventName) or error("No event named " .. eventName .. "!"))
 				.OnServerEvent:Connect(handler)
 			)

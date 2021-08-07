@@ -101,14 +101,4 @@ function Utils.deepMergeState(from, to)
 	end
 end
 
-function Utils.getBaseComponentName(name)
-	local base = name
-    local prefix = base:sub(1, 2)
-    if prefix == "S_" or prefix == "C_" then
-        base = base:sub(3, -1) 
-    end
-
-	return base
-end
-
 return Utils

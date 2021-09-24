@@ -51,11 +51,16 @@ return function()
 			expect(t.Count).to.equal(1)
 		end)
 
+		it("ComponentAdding", function()
+			local t, comp = makeSignal("ComponentAdding")
+			expect(t.Count).to.equal(1)
+			expect(t.Params[1][1]).to.equal(comp)
+		end)
+
 		it("ComponentAdded", function()
 			local t, comp = makeSignal("ComponentAdded")
 			expect(t.Count).to.equal(1)
 			expect(t.Params[1][1]).to.equal(comp)
-			expect(type(t.Params[1][2])).to.equal("table")
 		end)
 
 		it("ComponentRemoved", function()

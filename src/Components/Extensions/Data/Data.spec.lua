@@ -1,25 +1,23 @@
 local Data = require(script.Parent.Data)
 local t = require(script.Parent.Parent.Parent.Modules.t)
 local Ops = require(script.Parent.Ops)
-local BaseComponent = require(script.Parent)
-local TestComponent = BaseComponent:extend("TestComponent")
 
 local MockExtension = {
 	SetDirty = function() end;
 }
 
 return function()
-	local comp = TestComponent:run()
+	local mockComp = {}
 
 	it("should use 1 layer", function()
-		local data = Data.new(MockExtension, comp)
+		local data = Data.new(MockExtension, mockComp)
 		data:InsertIfNil("layer1")
 		data:Set("layer1", "key", "value")
 		expect(data.buffer.key).to.equal("value")
 	end)
 
 	it("should use 2 layers, newest overwriting old", function()
-		local data = Data.new(MockExtension, comp)
+		local data = Data.new(MockExtension, mockComp)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:Set("layer1", "key", "no")
@@ -29,7 +27,7 @@ return function()
 	end)
 
 	it("should remove layers, maintaining the linked list", function()
-		local data = Data.new(MockExtension, comp)
+		local data = Data.new(MockExtension, mockComp)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:InsertIfNil("layer3")
@@ -49,7 +47,7 @@ return function()
 	end)
 
 	it("should compute transforms on get", function()
-		local data = Data.new(MockExtension, comp)
+		local data = Data.new(MockExtension, mockComp)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:InsertIfNil("layer3")
@@ -66,15 +64,17 @@ return function()
 		expect(data:Get("key")).to.equal(2)
 	end)
 
-	it("should set a layer right after the key's layer", function()
-		local data = Data.new(MockExtension, comp)
+	local function betweenLayer(method)
+		local data = Data.new(MockExtension, mockComp)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 
 		data:Set("layer1", "test", false)
 		data:Set("layer1", "test2", true)
 		data:Set("layer2", "test", "moo")
-		local key = data:CreateLayerAt("layer1", "layer1.5", {
+		
+		local key = "layer1.5"
+		method(data, key, {
 			test = true;
 		})
 
@@ -82,10 +82,22 @@ return function()
 		expect(data.top.test).to.equal("moo")
 		expect(data.layers[key].test).to.equal(true)
 		expect(data.layers[key].test2).to.equal(true)
+	end
+
+	it("should set a layer right after the key's layer", function()
+		betweenLayer(function(data, keyToSet, layerToSet)
+			data:CreateLayerAt("layer1", keyToSet, layerToSet)
+		end)
+	end)
+
+	it("should set a layer right before the key's layer", function()
+		betweenLayer(function(data, keyToSet, layerToSet)
+			data:CreateLayerBefore("layer2", keyToSet, layerToSet)
+		end)
 	end)
 
 	it("should throw a type error", function()
-		local data = Data.new(MockExtension, comp, {
+		local data = Data.new(MockExtension, mockComp, {
 			number = t.number;
 			string = t.string;
 		})
@@ -109,8 +121,8 @@ return function()
 	end)
 
 	it("should return an array of values for the key, ignoring default layer", function()
-		local data = Data.new(MockExtension, comp)
-		data:SetLayer(data.Default, {
+		local data = Data.new(MockExtension, mockComp)
+		data:SetLayer("default", {
 			test = 1;
 		})
 		data:SetLayer("layer1", {
@@ -137,12 +149,12 @@ return function()
 	end)
 
 	it("should always respect the final layer", function()
-		local data = Data.new(MockExtension, comp)
-		data:SetLayer(data.Final, {})
+		local data = Data.new(MockExtension, mockComp)
+		data:SetLayer("final", {})
 		data:SetLayer("layer2", {})
 
-		expect(data.layersArray[1]).to.equal(data.layers[data.Final])
-		expect(data.top).to.equal(data.layers[data.Final])
+		expect(data.layersArray[1]).to.equal(data.layers.final)
+		expect(data.top).to.equal(data.layers.final)
 		expect(data.layersArray[2]).to.equal(data.layers.layer2)
 	end)
 end

@@ -1,45 +1,42 @@
 local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
-local SignalMixin = require(script.Parent.SignalMixin)
-local Symbol = require(script.Parent.Parent.Modules.Symbol)
-local IKeywords = require(script.Parent.IKeywords)
 local Root = require(script.Root)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
 
-local BASE = Symbol.named("base")
-
-function ComponentCollection.new(man)
-	return SignalMixin.new(setmetatable({
+function ComponentCollection.new(man, callbacks)
+	return setmetatable({
 		_man = man;
 		
 		_classesByName = {};
 		_classesByRef = {};
 		_wrapperByRef = {};
-	}, ComponentCollection))
+
+		_callbacks = callbacks;
+	}, ComponentCollection)
 end
 
 function ComponentCollection:Register(class)
+	assert(type(class) == "table", "Expected 'table'")
 	local name = class.ClassName
 	assert(type(name) == "string", "Expected 'string'")
-	assert(type(class) == "table", "Expected 'table'")
 	assert(self._classesByName[name] == nil, "A class already exists by this name!")
 
 	self._classesByName[name] = class
 	self._classesByRef[class] = class
 	
-	self:Fire("ClassRegistered", class)
+	self._callbacks.ClassRegistered(class)
 end
 
 
-function ComponentCollection:_resolve(classResolvable)
+function ComponentCollection:Resolve(classResolvable)
 	return self._classesByName[classResolvable]
 		or self._classesByRef[classResolvable]
 end
 
 
-function ComponentCollection:_resolveOrError(classResolvable)
-	return self:_resolve(classResolvable)
+function ComponentCollection:ResolveOrError(classResolvable)
+	return self:Resolve(classResolvable)
 		or error("No registered class: " .. tostring(classResolvable))
 end
 
@@ -47,26 +44,21 @@ end
 function ComponentCollection:_getOrAddWrapper(ref)
 	local wrapper = self._wrapperByRef[ref]
 	if wrapper == nil then
-		wrapper = Root:run(ref)
+		local callbacks = self._callbacks
+		wrapper = Root.new(self._man, ref, {
+			ComponentAdding = callbacks.ComponentAdding;
+			ComponentAdded = callbacks.ComponentAdded;
+			ComponentRemoved = callbacks.ComponentRemoved;
+			Destroying = function(...)
+				callbacks.RefRemoving(ref, ...)
+			end;
+			Destroyed = function(...)
+				callbacks.RefRemoved(ref, ...)
+			end
+		})
 		self._wrapperByRef[ref] = wrapper
 
-		wrapper:On("ComponentAdding", function(...)
-			self:Fire("ComponentAdding", ...)
-		end)
-
-		wrapper:On("ComponentAdded", function(...)
-			self:Fire("ComponentAdded", ...)
-		end)
-		
-		wrapper:On("ComponentRemoved", function(...)
-			self:Fire("ComponentRemoved", ...)
-		end)
-
-		wrapper:On("Destroyed", function()
-			self:RemoveRef(ref)
-		end)
-
-		self:Fire("RefAdded", ref)
+		callbacks.RefAdded(ref)
 	end
 
 	return wrapper
@@ -74,53 +66,13 @@ end
 
 
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
-	keywords = keywords or {}
-	local comp, id = self:_newComponent(ref, classResolvable, keywords)
-	if id ~= BASE then
-		return comp, id
-	end
-
-	self:_runComponent(comp, keywords.config)
-	return comp, id
-end
-
-function ComponentCollection:_newComponent(ref, classResolvable, keywords)
 	assert(typeof(ref) == "Instance", "Expected 'Instance'")
-	assert(IKeywords(keywords))
-	
-	local class = self:_resolveOrError(classResolvable)
-	local wrapper = self:_getOrAddWrapper(ref)
-	if wrapper.added[class] then
-		return wrapper:GetOrAddComponent(class, {
-			config = keywords.config;
-			layers = keywords.layers;
-		})
-	end
-
-	local comp = wrapper:PreStartComponent(class, {
-		config = keywords.config,
-		layers = keywords.layers;
-		target = ref;
-	})
-	comp.man = self._man
-
-	return comp, BASE
+	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, keywords)
 end
 
 
 local function errored(_, comp)
 	return comp.ref:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
-end
-
-
-function ComponentCollection:_runComponent(comp, config)
-	local ok, err = pcall(comp.Start, comp)
-
-	if ok then
-		self._wrapperByRef[comp.ref]:Fire("ComponentAdded", comp, config or {})
-	else
-		warn(errored(nil, comp):format(err))
-	end
 end
 
 
@@ -147,22 +99,21 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywordsCo
 	local ids = {}
 
 	for i, ref in ipairs(refs) do
-		local class = self:_resolveOrError(classResolvables[i])
+		local class = self:ResolveOrError(classResolvables[i])
 		local keywords = keywordsCollection[i] or {}
-		local comp, id = self:_newComponent(ref, class, keywords)
+		-- local comp, id = self:_newComponent(ref, class, keywords)
 		ids[comp] = ids[comp] or {}
 		table.insert(ids[comp], id)
 
-		table.insert(tbls, {id == BASE, comp, keywords.config})
+		table.insert(tbls, {id == "base", comp, keywords.config})
 	end
 
-	local tbls2 = run(tbls, "PreInit")
-	local tbls3 = run(tbls2, "Init")
-	local tbls4 = run(tbls3, "Main")
+	local tbls2 = run(tbls, "Init")
+	local tbls3 = run(tbls2, "Main")
 
 	local comps = {}
 	local added = {}
-	for _, tbl in ipairs(tbls4) do
+	for _, tbl in ipairs(tbls3) do
 		local didRun = tbl[1]
 		local comp = tbl[2]
 		local config = tbl[3]
@@ -182,40 +133,27 @@ end
 
 function ComponentCollection:RemoveRef(ref)
 	local wrapper = self._wrapperByRef[ref]
-	if wrapper == nil then return end
-	if wrapper.destroying then return end
-	wrapper.destroying = true
-
-	self:Fire("RefRemoving", ref)
-
-	for class in next, wrapper.added do
-		self:RemoveComponent(ref, class)
+	if wrapper then
+		wrapper:Destroy()
 	end
-	self._wrapperByRef[ref] = nil
-
-	self:Fire("RefRemoved", ref)
 end
 
 
 function ComponentCollection:RemoveComponent(ref, classResolvable)
-	local class = self:_resolveOrError(classResolvable)
 	local wrapper = self._wrapperByRef[ref]
 	if not wrapper then return end
-	local comp = wrapper.added[class]
-	if not comp then return end
-
-	-- Will trigger the connection defined in :GetOrMakeComponent.
-	comp:Destroy()
+	wrapper:RemoveComponent(classResolvable)
 end
 
 
 function ComponentCollection:GetComponent(ref, classResolvable)
-	local class = self:_resolveOrError(classResolvable)
 	local wrapper = self._wrapperByRef[ref]
-	if wrapper == nil then return nil end
+	if wrapper then
+		return wrapper:GetComponent(classResolvable)
+	end
 
-	return wrapper.added[class]
+	return nil
 end
 
 
-return SignalMixin.wrap(ComponentCollection)
+return ComponentCollection

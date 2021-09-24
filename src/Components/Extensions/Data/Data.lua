@@ -1,39 +1,53 @@
-local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
-
 local Data = {}
 Data.__index = Data
 
-local FINAL = Symbol.named("final")
-local DEFAULT = Symbol.named("default")
-Data.Final = FINAL
-Data.Default = DEFAULT
-
 function Data.new(extension, base, checkers)
-	local bufferMt = {}
-
 	return setmetatable({
 		_extension = extension;
 		_base = base;
 		_onKeyChanged = base.OnKeyChanged;
 		_checkers = checkers;
 		
-		buffer = setmetatable({}, bufferMt);
-		_bufferMt = bufferMt;
+		buffer = setmetatable({}, {});
 		layers = {};
 		layersArray = {};
 		top = nil;
 	}, Data)
 end
 
-local function checkValue(checker, key, value)
+function Data:Destroy()
+	self.buffer = nil
+	self.layers = nil
+	self.layersArray = nil
+	self.top = nil
+end
+
+local function checkOrError(checker, k, v)
 	if checker == nil then
-		error(("No checker for key %q!"):format(key))
+		error(("No checker for key %q!"):format(k))
 	end
 
-	local ok, err = checker(value)
+	local ok, err = checker(v)
 	if not ok then
 		error(err)
 	end
+end
+
+function Data:_checkOrError(toCheck)
+	if self._checkers then
+		for k, v in pairs(toCheck) do
+			checkOrError(self._checkers[k], k, v)
+		end
+	end
+end
+
+function Data:_getLayerOrError(layerKey)
+	local layer = self.layers[layerKey]
+	if layer == nil then
+		error(("No layer by key %q!"):format(layerKey))
+	end
+
+	return layer
 end
 
 function Data:NewId()
@@ -41,13 +55,9 @@ function Data:NewId()
 end
 
 function Data:_insert(key, layerToSet)
-	if self._checkers then
-		for k, v in pairs(layerToSet) do
-			checkValue(self._checkers[k], k, v)
-		end
-	end
+	self:_checkOrError(layerToSet)
 
-	local finalLayer = self.layers[FINAL]
+	local finalLayer = self.layers.final
 	if finalLayer then
 		local topMt = getmetatable(self.top)
 		local last = topMt.__index
@@ -74,7 +84,7 @@ function Data:_insert(key, layerToSet)
 
 		self.layers[key] = layerToSet
 		self.top = layerToSet
-		self._bufferMt.__index = layerToSet
+		getmetatable(self.buffer).__index = layerToSet
 		table.insert(self.layersArray, layerToSet)
 	end
 
@@ -97,10 +107,7 @@ function Data:InsertIfNil(key)
 	return layer
 end
 
-function Data:Remove(layerKey)
-	local layer = self.layers[layerKey]
-	if layer == nil then return end
-
+function Data:_remove(layer)
 	local mt = getmetatable(layer)
 	local nextNode = mt.__index
 	getmetatable(mt.prev).__index = nextNode
@@ -110,6 +117,13 @@ function Data:Remove(layerKey)
 	end
 
 	table.remove(self.layersArray, table.find(self.layersArray, layer))
+end
+
+function Data:Remove(layerKey)
+	local layer = self.layers[layerKey]
+	if layer == nil then return end
+
+	self:_remove(layer)
 
 	for k, v in pairs(layer) do
 		self.buffer[k] = nil
@@ -119,86 +133,93 @@ function Data:Remove(layerKey)
 	end
 end
 
-function Data:SetLayer(layerKey, layerToSet)
-	local buffer = self.buffer
-	local existingLayer = self.layers[layerKey]
-
-	if existingLayer then
-		if self._checkers then
-			for k, v in pairs(layerToSet) do
-				checkValue(self._checkers[k], k, v)
-			end
-		end
-
-		self.layers[layerKey] = setmetatable(layerToSet, getmetatable(existingLayer))
-		local index = table.find(self.layersArray, existingLayer)
-		self.layersArray[index] = layerToSet
-
-		for k in pairs(existingLayer) do
-			buffer[k] = nil
-		end
-
-		for k, v in pairs(layerToSet) do
-			self.buffer[k] = nil
-			if self._onKeyChanged then
-				self._onKeyChanged(self._base, layerKey, k, v, nil)
-			end
-		end
-	else
-		self:_insert(layerKey, layerToSet)
-	end
-end
-
-function Data:CreateLayerAt(key, keyToSet, layerToSet)
-	local layer = self.layers[key]
-	if layer == nil then
-		return self:_insert(key, layerToSet)
-	end
-
-	if self._checkers then
-		for k, v in pairs(layerToSet) do
-			checkValue(self._checkers[k], k, v)
-		end
-	end
-
-	local existingLayer = self.layers[keyToSet]
-	if existingLayer then
-		self:Remove(keyToSet)
-	end
-
-	local layerMt = getmetatable(layer)
-	local prevMt = getmetatable(layerMt.prev)
-
-	setmetatable(layerToSet, {__index = layer, prev = prevMt.prev})
-	prevMt.__index = layerToSet
-	layerMt.prev = layerToSet
-
-	self.layers[keyToSet] = layerToSet
-	
-	local index = table.find(self.layersArray, layer)
-	table.insert(self.layersArray, index + 1, layerToSet)
-
+function Data:_layerOverwritten(layerKey, existingLayer, layerToSet)
 	existingLayer = existingLayer or {}
+
 	for k, v in pairs(layerToSet) do
 		self.buffer[k] = nil
 
 		local oldValue = rawget(existingLayer, k)
-		if self._onKeyChanged and oldValue ~= v then
-			self._onKeyChanged(self._base, key, k, v, oldValue)
+		if oldValue ~= v then
+			self._extension:SetDirty(self._base, k, oldValue)
+
+			if self._onKeyChanged then
+				self._onKeyChanged(self._base, k, k, v, oldValue)
+			end
 		end
 	end
 
 	for k, v in pairs(existingLayer) do
 		if layerToSet[k] == nil then
 			self.buffer[k] = nil
+			self._extension:SetDirty(self._base, k, v)
 
 			if self._onKeyChanged then
-				self._onKeyChanged(self._base, key, k, nil, v)
+				self._onKeyChanged(self._base, layerKey, k, nil, v)
 			end
 		end
 	end
+end
 
-	return keyToSet
+function Data:SetLayer(layerKey, layerToSet)
+	local existingLayer = self.layers[layerKey]
+
+	if existingLayer then
+		self:_checkOrError(layerToSet)
+
+		self.layers[layerKey] = setmetatable(layerToSet, getmetatable(existingLayer))
+		local index = table.find(self.layersArray, existingLayer)
+		self.layersArray[index] = layerToSet
+
+		self:_layerOverwritten(layerKey, existingLayer, layerToSet)
+	else
+		self:_insert(layerKey, layerToSet)
+	end
+end
+
+function Data:CreateLayerAt(layerKey, keyToSet, layerToSet)
+	self:_checkOrError(layerToSet)
+	local layer = self:_getLayerOrError(layerKey)
+
+	local existingLayer = self.layers[keyToSet]
+	if existingLayer then
+		self:_remove(existingLayer)
+	end
+
+	local layerMt = getmetatable(layer)
+	setmetatable(layerToSet, {__index = layer, prev = layerMt.prev})
+	getmetatable(layerMt.prev).__index = layerToSet
+	layerMt.prev = layerToSet
+
+	self.layers[keyToSet] = layerToSet
+
+	local index = table.find(self.layersArray, layer)
+	table.insert(self.layersArray, index + 1, layerToSet)
+
+	self:_layerOverwritten(layerKey, existingLayer, layerToSet)
+end
+
+function Data:CreateLayerBefore(layerKey, keyToSet, layerToSet)
+	self:_checkOrError(layerToSet)
+	local layer = self:_getLayerOrError(layerKey)
+
+	local existingLayer = self.layers[keyToSet]
+	if existingLayer then
+		self:_remove(keyToSet)
+	end
+
+	local layerMt = getmetatable(layer)
+	setmetatable(layerToSet, {__index = layerMt.__index, prev = layer})
+	if layerMt.__index then
+		getmetatable(layerMt.__index).prev = layerToSet
+	end
+	
+	self.layers[keyToSet] = layerToSet
+
+	local index = table.find(self.layersArray, layer)
+	table.insert(self.layersArray, index, layerToSet)
+
+	self:_layerOverwritten(layerKey, existingLayer, layerToSet)
 end
 
 function Data:_set(layerKey, key, value)
@@ -207,7 +228,7 @@ function Data:_set(layerKey, key, value)
 	layer[key] = value
 	self.buffer[key] = nil
 
-	self._extension:SetDirty(self._base, key)
+	self._extension:SetDirty(self._base, key, oldValue)
 
 	if self._onKeyChanged then
 		self._onKeyChanged(self._base, layerKey, key, value, oldValue)
@@ -216,18 +237,14 @@ end
 
 function Data:Set(layerKey, key, value)
 	if self._checkers and value ~= nil then
-		checkValue(self._checkers[key], key, value)
+		checkOrError(self._checkers[key], key, value)
 	end
 
 	self:_set(layerKey, key, value)
 end
 
 function Data:MergeLayer(layerKey, delta)
-	if self._checkers then
-		for key, value in pairs(delta) do
-			checkValue(self._checkers[key], key, value)
-		end
-	end
+	self:_checkOrError(delta)
 
 	for key, value in pairs(delta) do
 		self:_set(layerKey, key, value)
@@ -260,7 +277,7 @@ function Data:GetValues(key)
 	local values = {}
 	local i = 0
 
-	local defaultLayer = self.layers[DEFAULT]
+	local defaultLayer = self.layers.default
 	for _, layer in ipairs(self.layersArray) do
 		if layer == defaultLayer then continue end
 		

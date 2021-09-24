@@ -5,7 +5,7 @@ local Reducers = {}
 function Reducers.merge(values)
 	local final = {}
 	for _, value in ipairs(values) do
-		final = ComponentsUtils.deepMerge(value, final)
+		final = ComponentsUtils.copylessDeepMerge(value, final)
 	end
 
 	return final

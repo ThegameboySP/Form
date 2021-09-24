@@ -3,41 +3,64 @@ local RunService = game:GetService("RunService")
 local ComponentCollection = require(script.Parent.ComponentCollection)
 local Reducers = require(script.Parent.Parent.Shared.Reducers)
 local SignalMixin = require(script.Parent.SignalMixin)
+local Data = require(script.Parent.Parent.Extensions.Data)
 
-local Manager = {
+local Manager = SignalMixin.wrap({
 	DEBUG = true;
-	isServer = RunService:IsServer();
-}
+	IsTesting = false;
+	IsServer = RunService:IsServer();
+	IsRunning = RunService:IsRunning();
+})
 Manager.__index = Manager
 
 function Manager.new(name)
 	assert(type(name) == "string", "Expected 'string'")
 
 	local self = SignalMixin.new(setmetatable({
+		Data = nil;
+
 		Classes = {};
+		Embedded = {};
 		Name = name;
 
 		_hooks = {};
+		_collection = nil;
 	}, Manager))
 	
-	self._collection = ComponentCollection.new(self)
-	self._collection:On("ClassRegistered", function(class)
-		self.Classes[class.ClassName] = class
-		self:Fire("ClassRegistered", class)
-	end)
+	self._collection = ComponentCollection.new(self, {
+		ComponentAdding = self:_forward("ComponentAdding");
+		ComponentAdded = self:_forward("ComponentAdded");
+		ComponentRemoved = self:_forward("ComponentRemoved");
 
-	self:_forward(self._collection, "RefAdded")
-	self:_forward(self._collection, "RefRemoving")
-	self:_forward(self._collection, "RefRemoved")
-	self:_forward(self._collection, "ComponentAdded")
-	self:_forward(self._collection, "ComponentRemoved")
+		RefAdded = self:_forward("RefAdded");
+		RefRemoving = self:_forward("RefRemoving");
+		RefRemoved = self:_forward("RefRemoved");
+
+		ClassRegistered = function(class)
+			self.Classes[class.ClassName] = class
+			self:Fire("ClassRegistered", class)
+		end
+	})
+
+	self.Data = Data(self)
 
 	return self
 end
 
 
 function Manager:RegisterComponent(class)
+	if self.Classes[class.ClassName] then
+		error(("Already registered class %q!"):format(class.ClassName), 2)
+	end
 	self._collection:Register(class)
+end
+
+
+function Manager:RegisterEmbedded(class)
+	if self.Embedded[class.ClassName] then
+		error(("Already registered embedded class %q!"):format(class.ClassName), 2)
+	end
+	self.Embedded[class.ClassName] = class
 end
 
 
@@ -58,6 +81,16 @@ end
 
 function Manager:RemoveRef(ref)
 	return self._collection:RemoveRef(ref)
+end
+
+
+function Manager:Resolve(resolvable)
+	return self._collection:Resolve(resolvable)
+end
+
+
+function Manager:ResolveOrError(resolvable)
+	return self._collection:ResolveOrError(resolvable)
 end
 
 
@@ -111,10 +144,10 @@ function Manager:GetTime()
 end
 
 
-function Manager:_forward(obj, eventName)
-	return obj:On(eventName, function(...)
+function Manager:_forward(eventName)
+	return function(...)
 		self:Fire(eventName, ...)
-	end)
+	end
 end
 
-return SignalMixin.wrap(Manager)
+return Manager

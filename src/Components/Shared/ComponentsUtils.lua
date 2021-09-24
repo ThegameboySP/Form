@@ -30,7 +30,7 @@ end
 
 function ComponentsUtils.shallowCopy(tbl)
 	local newTbl = {}
-	for k, v in next, tbl do
+	for k, v in pairs(tbl) do
 		newTbl[k] = v
 	end
 
@@ -75,7 +75,7 @@ end
 -- tbl1 -> tbl2
 function ComponentsUtils.shallowMerge(tbl1, tbl2)
 	local c = ComponentsUtils.shallowCopy(tbl2)
-	for k, v in next, tbl1 do
+	for k, v in pairs(tbl1) do
 		c[k] = v
 	end
 	
@@ -87,9 +87,13 @@ end
 function ComponentsUtils.deepMerge(tbl1, tbl2)
 	local c = ComponentsUtils.deepCopy(tbl2)
 
-	for k, v in next, tbl1 do
+	for k, v in pairs(tbl1) do
 		if type(v) == "table" then
-			local ct = type(c[k]) == "table" and c[k] or {}
+			local ct = tbl2[k]
+			if type(ct) == "table" then
+				ct = {}
+			end
+
 			c[k] = ComponentsUtils.deepMerge(v, ct)
 		else
 			c[k] = v
@@ -98,6 +102,25 @@ function ComponentsUtils.deepMerge(tbl1, tbl2)
 
 	return c
 end
+
+
+local function copylessDeepMerge(tbl1, tbl2)
+	for k, v in pairs(tbl1) do
+		if type(v) == "table" then
+			local tbl2v = tbl2[k]
+			if type(tbl2v) == "table" then
+				tbl2v = {}
+			end
+
+			tbl2[k] = copylessDeepMerge(v, tbl2v)
+		else
+			tbl2[k] = v
+		end
+	end
+
+	return tbl2
+end
+ComponentsUtils.copylessDeepMerge = copylessDeepMerge
 
 
 -- Assumes non-table keys.
@@ -136,13 +159,13 @@ end
 
 
 function ComponentsUtils.shallowCompare(tbl1, tbl2)
-	for k, v in next, tbl1 do
+	for k, v in pairs(tbl1) do
 		if tbl2[k] ~= v then
 			return false
 		end
 	end
 
-	for k, v in next, tbl2 do
+	for k, v in pairs(tbl2) do
 		if tbl1[k] ~= v then
 			return false
 		end
@@ -192,7 +215,7 @@ end
 
 
 function ComponentsUtils.isInTable(tbl, value)
-	for _, v in next, tbl do
+	for _, v in pairs(tbl) do
 		if v == value then
 			return true
 		end
@@ -204,7 +227,7 @@ end
 
 function ComponentsUtils.arrayToHash(array)
 	local hash = {}
-	for _, value in next, array do
+	for _, value in pairs(array) do
 		hash[value] = true
 	end
 
@@ -215,7 +238,7 @@ end
 function ComponentsUtils.hashToArray(hash)
 	local array = {}
 	local len = 0
-	for item in next, hash do
+	for item in pairs(hash) do
 		len += 1
 		array[len] = item
 	end

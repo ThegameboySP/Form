@@ -1,4 +1,5 @@
 local Root = require(script.Root)
+local Types = require(script.Parent.Types)
 
 local ComponentCollection = {}
 ComponentCollection.__index = ComponentCollection
@@ -16,9 +17,8 @@ function ComponentCollection.new(man, callbacks)
 end
 
 function ComponentCollection:Register(class)
-	assert(type(class) == "table", "Expected 'table'")
+	assert(Types.ComponentDefinition(class))
 	local name = class.ClassName
-	assert(type(name) == "string", "Expected 'string'")
 	assert(self._classesByName[name] == nil, "A class already exists by this name!")
 
 	if class.NetworkMode == "Server" and not self._man.IsServer then
@@ -103,7 +103,7 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, keywordsCo
 	end
 
 	local tbls2 = run(tbls, "Init")
-	local tbls3 = run(tbls2, "Main")
+	local tbls3 = run(tbls2, "Start")
 
 	local comps = {}
 	local added = {}

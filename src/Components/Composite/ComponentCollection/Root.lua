@@ -71,7 +71,7 @@ function Root:GetOrAddComponent(resolvable, layer)
 	local comp = self.added[class]
 	if comp == nil then
 		local newComponent, id = self:PreStartComponent(class, layer)
-		newComponent:Start()
+		newComponent:Run()
 		self._callbacks.ComponentAdded(newComponent)
 
 		return newComponent, id

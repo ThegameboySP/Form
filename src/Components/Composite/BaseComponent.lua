@@ -48,7 +48,7 @@ function BaseComponent:Destroy()
 	self:Fire("Destroying")
 	
 	self.Init = DESTROYED_ERROR
-	self.Main = DESTROYED_ERROR
+	self.Start = DESTROYED_ERROR
 
 	self:Fire("Destroyed")
 	self._hooks:DisconnectAll()
@@ -66,15 +66,15 @@ function BaseComponent:GetClass()
 	return getmetatable(self)
 end
 
-function BaseComponent:Start()
+function BaseComponent:Run()
 	if self.isInitialized then return end
 
 	if self.Init then
 		self:Init()
 	end
 
-	if self.Main then
-		self:Main()
+	if self.Start then
+		self:Start()
 	end
 
 	self.isInitialized = true

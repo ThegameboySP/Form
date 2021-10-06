@@ -186,7 +186,7 @@ function PrototypesExtension:_runPrototypes(prototypes)
 
 		for componentName in pairs(self._man.Classes) do
 			if not CollectionService:HasTag(instance, componentName) then continue end
-			if self._man:HasComponent(instance, componentName) then continue end
+			if self._man:GetComponent(instance, componentName) then continue end
 
 			table.insert(newComponents, {
 				cloneProfile = profile;
@@ -219,16 +219,7 @@ function PrototypesExtension:_runPrototypes(prototypes)
 	end
 	
 	local comps = self._man:BulkAddComponent(refs, classes, keywords)
-	local events = {}
-	for _, comp in ipairs(comps) do
-		table.insert(events, {comp.ref, comp, {config = comp.config}})
-	end
-
-	for _, event in ipairs(events) do
-		self._man:Fire("ComponentAdded", event[1], event[2], event[3])
-	end
-
-	return newComponents
+	return comps
 end
 
 function PrototypesExtension:RunFilter(filter)

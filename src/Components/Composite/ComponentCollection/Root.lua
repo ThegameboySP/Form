@@ -1,9 +1,5 @@
-local t = require(script.Parent.Parent.Parent.Modules.t)
-
 local Root = {}
 Root.__index = Root
-
-local NO_DATA = {}
 
 --[[
 	Bridges the gap between Manager and components.
@@ -12,148 +8,88 @@ local NO_DATA = {}
 	allowing the interface to act like a component.
 ]]
 
+local NO_KEY = {}
 
 function Root.new(man, ref, callbacks)
 	return setmetatable({
 		ref = ref;
 		man = man;
 		_callbacks = callbacks;
-
 		added = {};
-		isDestroying = false;
-		ids = {};
 	}, Root)
 end
 
 function Root:Destroy()
-	if self.isDestroying then return end
+	if rawget(self, "isDestroying") then return end
 	self.isDestroying = true
 	self._callbacks.Destroying()
 
 	for _, comp in pairs(self.added) do
 		comp:Destroy()
 	end
-	self.added = nil
-	self.ids = nil
 
 	self._callbacks.Destroyed()
+end
+
+function Root:_newId(comp, key)
+	local id = #comp._rootIds + 1
+	comp._rootIds[id] = key or NO_KEY
+	return id
 end
 
 function Root:GetComponent(resolvable)
 	return self.man:GetComponent(self.ref, resolvable)
 end
 
-function Root:_newLayer(comp, key)
-	local entry = self.ids[comp]
-	if entry == nil then
-		entry = {}
-		self.ids[comp] = entry
+function Root:PreStartComponent(class, layer)
+	if class.CheckRef then
+		assert(class.CheckRef(self.ref))
 	end
 
-	local new = #entry + 1
-	entry[new] = key or NO_DATA
-
-	return new
-end
-
-function Root:PreStartComponent(class, keywords)
-	if self.added[class] then
-		error(("Already added class %q on reference %q!"):format(
-			class.ClassName, self.ref:GetFullName()
-		))
-	end
-
-	if class.checkRef then
-		assert(class.checkRef(self.ref))
-	end
-
-	local comp = class.new(self.ref)
-
-	local embeddeds = {}
-	for _, embedded in pairs(self.man.Embedded) do
-		if embedded.shouldApply and not embedded.shouldApply(comp) then continue end
-
-		comp[embedded.ClassName] = embedded.new(comp)
-		if embedded.Init then
-			table.insert(embeddeds, embedded)
-		end
-	end
-
-	for _, embedded in pairs(embeddeds) do
-		embedded:Init()
-	end
-
-	local layer = keywords.layer
-	if layer then
-		comp.Data:CreateLayerBefore(
-			"base", layer.key or comp.Data:NewId(), layer.data
-		)
-	end
+	local comp = class.new(self.ref, self.man, self)
 
 	self._callbacks.ComponentAdding(comp)
 	self.added[class] = comp
-	if keywords.onAdding then
-		keywords.onAdding(comp)
-	end
-	
-	comp:On("Destroying", function()
-		self.added[class] = nil
-		self.ids[comp] = nil
 
-		self._callbacks.ComponentRemoved(comp)
-		if not next(self.added) then
-			self:Destroy()
-		end
-	end)
-
-	return comp, self:_newLayer(comp, layer and layer.key)
-end
-
-local IKeywords = t.strictInterface({
-	layer = t.optional(t.strictInterface({
-		key = t.optional(t.string);
-		data = t.table;
-	}));
-
-	onAdding = t.optional(t.callback);
-})
-function Root:GetOrAddComponent(resolvable, keywords)
-	keywords = keywords or {}
-	assert(IKeywords(keywords))
-	
-	local class = self.man:ResolveOrError(resolvable)
-	if self.added[class] == nil then
-		local comp, id = self:PreStartComponent(class, keywords)
-		comp:Start()
-		self._callbacks.ComponentAdded(comp)
-
-		return comp, id
-	end
-
-	local comp = self.added[class]
 	local key
-	if keywords.layer then
-		key = keywords.layer.key or comp.Data:NewId()
-		comp.Data:CreateLayerBefore(
-			"base", key, keywords.layer.data
-		)
+	if layer then
+		key = layer.key or comp.Data:NewId()
+		if comp.Data.layers[key] then
+			comp.Data:SetLayer(key, layer.data)
+		else
+			comp.Data:CreateLayerBefore(
+				"base", key, layer.data
+			)
+		end
 	end
 
-	return comp, self:_newLayer(comp, key or comp.Data:NewId())
+	return comp, self:_newId(comp, key)
 end
 
-function Root:RemoveLayer(resolvable, layerKey)
-	local class = self.man:ResolveOrError(resolvable)
+function Root:GetOrAddComponent(resolvable, layer)
+	local class = self.man._collection:ResolveOrError(resolvable)
 	local comp = self.added[class]
-	if comp == nil then return end
+	if comp == nil then
+		local newComponent, id = self:PreStartComponent(class, layer)
+		newComponent:Start()
+		self._callbacks.ComponentAdded(newComponent)
 
-	local entry = self.ids[comp]
-	comp.Data:RemoveLayer(entry[layerKey])
-	entry[layerKey] = nil
-
-	if not next(entry) then
-		self:RemoveComponent(class)
+		return newComponent, id
 	end
+
+	local key
+	if layer then
+		key = layer.key or comp.Data:NewId()
+		if comp.Data.layers[key] then
+			comp.Data:SetLayer(key, layer.data)
+		else
+			comp.Data:CreateLayerBefore(
+				"base", key, layer.data
+			)
+		end
+	end
+
+	return comp, self:_newId(comp, key)
 end
 
 function Root:RemoveComponent(resolvable, ...)
@@ -162,6 +98,18 @@ function Root:RemoveComponent(resolvable, ...)
 	if comp == nil then return end
 
 	comp:Destroy(...)
+end
+
+function Root:RemoveLayer(comp, id)
+	local key = comp._rootIds[id]
+	if key ~= NO_KEY then
+		comp.Data:Remove(key)
+	end
+
+	comp._rootIds[id] = nil
+	if next(comp._rootIds) == nil then
+		comp:Destroy()
+	end
 end
 
 -- function Root:QueueDestroyRef()

@@ -97,8 +97,6 @@ return function()
 			expect(ret2).to.equal(comp)
 			expect(id1).to.never.equal(id2)
 		end)
-
-
 	end)
 	
 	describe("BulkAddComponent", function()

@@ -5,11 +5,14 @@ return {
 	Manager = require(script.Composite.Manager);
 
 	BaseComponent = require(script.Composite.BaseComponent);
-	UserUtils = require(script.Composite.User.UserUtils);
-	FuncUtils = require(script.Composite.User.FuncUtils);
+	MaidComponent = require(script.Composite.MaidComponent);
+	Utils = require(script.Shared.ComponentsUtils);
 
-	Prototypes = require(script.Extensions.Prototypes);
-	Groups = require(script.Extensions.Groups);
+	-- Prototypes = require(script.Extensions.Prototypes);
+	-- Groups = require(script.Extensions.Groups);
+	Replication = require(script.Extensions.Replication);
+	Remote = require(script.Extensions.Remote);
+	Binding = require(script.Extensions.Binding);
 
 	TimeCycle = require(script.Modules.TimeCycle);
 	Maid = require(script.Modules.Maid);

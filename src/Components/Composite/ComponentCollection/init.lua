@@ -1,4 +1,3 @@
-local runCoroutineOrWarn = require(script.Parent.runCoroutineOrWarn)
 local Root = require(script.Root)
 
 local ComponentCollection = {}
@@ -10,7 +9,7 @@ function ComponentCollection.new(man, callbacks)
 		
 		_classesByName = {};
 		_classesByRef = {};
-		_wrapperByRef = {};
+		_rootByRef = {};
 
 		_callbacks = callbacks;
 	}, ComponentCollection)
@@ -21,6 +20,12 @@ function ComponentCollection:Register(class)
 	local name = class.ClassName
 	assert(type(name) == "string", "Expected 'string'")
 	assert(self._classesByName[name] == nil, "A class already exists by this name!")
+
+	if class.NetworkMode == "Server" and not self._man.IsServer then
+		error("Cannot register a server component on the client!")
+	elseif class.NetworkMode == "Client" and self._man.IsServer then 
+		error("Cannot register a client component on the server!")
+	end
 
 	self._classesByName[name] = class
 	self._classesByRef[class] = class
@@ -42,32 +47,21 @@ end
 
 
 function ComponentCollection:_getOrAddWrapper(ref)
-	local wrapper = self._wrapperByRef[ref]
+	local wrapper = self._rootByRef[ref]
 	if wrapper == nil then
-		local callbacks = self._callbacks
-		wrapper = Root.new(self._man, ref, {
-			ComponentAdding = callbacks.ComponentAdding;
-			ComponentAdded = callbacks.ComponentAdded;
-			ComponentRemoved = callbacks.ComponentRemoved;
-			Destroying = function(...)
-				callbacks.RefRemoving(ref, ...)
-			end;
-			Destroyed = function(...)
-				callbacks.RefRemoved(ref, ...)
-			end
-		})
-		self._wrapperByRef[ref] = wrapper
+		wrapper = Root.new(self._man, ref, self._callbacks)
+		self._rootByRef[ref] = wrapper
 
-		callbacks.RefAdded(ref)
+		self._callbacks.RefAdded(ref)
 	end
 
 	return wrapper
 end
 
 
-function ComponentCollection:GetOrAddComponent(ref, classResolvable, keywords)
+function ComponentCollection:GetOrAddComponent(ref, classResolvable, layer)
 	assert(typeof(ref) == "Instance", "Expected 'Instance'")
-	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, keywords)
+	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, layer)
 end
 
 
@@ -132,7 +126,7 @@ end
 
 
 function ComponentCollection:RemoveRef(ref)
-	local wrapper = self._wrapperByRef[ref]
+	local wrapper = self._rootByRef[ref]
 	if wrapper then
 		wrapper:Destroy()
 	end
@@ -140,16 +134,16 @@ end
 
 
 function ComponentCollection:RemoveComponent(ref, classResolvable)
-	local wrapper = self._wrapperByRef[ref]
+	local wrapper = self._rootByRef[ref]
 	if not wrapper then return end
 	wrapper:RemoveComponent(classResolvable)
 end
 
 
 function ComponentCollection:GetComponent(ref, classResolvable)
-	local wrapper = self._wrapperByRef[ref]
+	local wrapper = self._rootByRef[ref]
 	if wrapper then
-		return wrapper:GetComponent(classResolvable)
+		return wrapper.added[self:ResolveOrError(classResolvable)]
 	end
 
 	return nil

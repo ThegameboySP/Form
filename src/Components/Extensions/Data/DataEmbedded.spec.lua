@@ -1,5 +1,5 @@
-local Data = require(script.Parent.Data)
 local t = require(script.Parent.Parent.Parent.Modules.t)
+local DataEmbedded = require(script.Parent.DataEmbedded)
 local Ops = require(script.Parent.Ops)
 
 local MockExtension = {
@@ -7,17 +7,15 @@ local MockExtension = {
 }
 
 return function()
-	local mockComp = {}
-
 	it("should use 1 layer", function()
-		local data = Data.new(MockExtension, mockComp)
+		local data = DataEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:Set("layer1", "key", "value")
 		expect(data.buffer.key).to.equal("value")
 	end)
 
 	it("should use 2 layers, newest overwriting old", function()
-		local data = Data.new(MockExtension, mockComp)
+		local data = DataEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:Set("layer1", "key", "no")
@@ -27,7 +25,7 @@ return function()
 	end)
 
 	it("should remove layers, maintaining the linked list", function()
-		local data = Data.new(MockExtension, mockComp)
+		local data = DataEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:InsertIfNil("layer3")
@@ -47,7 +45,7 @@ return function()
 	end)
 
 	it("should compute transforms on get", function()
-		local data = Data.new(MockExtension, mockComp)
+		local data = DataEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:InsertIfNil("layer3")
@@ -65,7 +63,7 @@ return function()
 	end)
 
 	local function betweenLayer(method)
-		local data = Data.new(MockExtension, mockComp)
+		local data = DataEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 
@@ -78,7 +76,6 @@ return function()
 			test = true;
 		})
 
-		expect(rawget(data.layersArray[2], "test")).to.equal(true)
 		expect(data.top.test).to.equal("moo")
 		expect(data.layers[key].test).to.equal(true)
 		expect(data.layers[key].test2).to.equal(true)
@@ -97,7 +94,7 @@ return function()
 	end)
 
 	it("should throw a type error", function()
-		local data = Data.new(MockExtension, mockComp, {
+		local data = DataEmbedded.new(MockExtension, {
 			number = t.number;
 			string = t.string;
 		})
@@ -118,43 +115,5 @@ return function()
 		data:SetLayer("layer1", {
 			number = 1;
 		})
-	end)
-
-	it("should return an array of values for the key, ignoring default layer", function()
-		local data = Data.new(MockExtension, mockComp)
-		data:SetLayer("default", {
-			test = 1;
-		})
-		data:SetLayer("layer1", {
-			test = Ops.add(1);
-		})
-		data:SetLayer("layer2", {
-			test = Ops.add(2);
-		})
-		data:SetLayer("layer3", {
-			test = 3;
-		})
-		data:SetLayer("layer4", {
-			test = Ops.add(1);
-		})
-		data:SetLayer("layer5", {
-			test = 5;
-		})
-		
-		local values = data:GetValues("test")
-		expect(#values).to.equal(3)
-		expect(values[1]).to.equal(3)
-		expect(values[2]).to.equal(4)
-		expect(values[3]).to.equal(5)
-	end)
-
-	it("should always respect the final layer", function()
-		local data = Data.new(MockExtension, mockComp)
-		data:SetLayer("final", {})
-		data:SetLayer("layer2", {})
-
-		expect(data.layersArray[1]).to.equal(data.layers.final)
-		expect(data.top).to.equal(data.layers.final)
-		expect(data.layersArray[2]).to.equal(data.layers.layer2)
 	end)
 end

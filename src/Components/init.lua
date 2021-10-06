@@ -1,11 +1,11 @@
 local Symbol = require(script.Modules.Symbol)
 
 return {
-	lib = require(script.Composite.lib);
-	Manager = require(script.Composite.Manager);
+	lib = require(script.Form.lib);
+	Manager = require(script.Form.Manager);
 
-	BaseComponent = require(script.Composite.BaseComponent);
-	MaidComponent = require(script.Composite.MaidComponent);
+	BaseComponent = require(script.Form.BaseComponent);
+	MaidComponent = require(script.Form.MaidComponent);
 	Utils = require(script.Shared.ComponentsUtils);
 
 	-- Prototypes = require(script.Extensions.Prototypes);

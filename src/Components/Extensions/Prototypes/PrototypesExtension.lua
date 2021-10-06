@@ -168,7 +168,7 @@ function PrototypesExtension:_runPrototypes(prototypes)
 		if clone == nil then
 			local instance = prototype.instance
 
-			-- If this is a Composite clone, we can safely conclude another manager is at work. Continue.
+			-- If this is a Form clone, we can safely conclude another manager is at work. Continue.
 			if instance:GetAttribute("CompositeClone") then
 				continue
 			else

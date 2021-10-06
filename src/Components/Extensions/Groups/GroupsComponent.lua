@@ -1,4 +1,4 @@
-local BaseComponent = require(script.Parent.Parent.Parent.Composite.BaseComponent)
+local BaseComponent = require(script.Parent.Parent.Parent.Form.BaseComponent)
 local ComponentsUtils = require(script.Parent.Parent.Parent.Shared.ComponentsUtils)
 local GroupsComponent = BaseComponent:extend("GroupsComponent")
 

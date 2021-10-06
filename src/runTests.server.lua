@@ -1,3 +1,3 @@
 require(script.Parent.TestEZ).TestBootstrap:run({
-	game:GetService("ReplicatedStorage").Composite
+	game:GetService("ReplicatedStorage").Form
 })

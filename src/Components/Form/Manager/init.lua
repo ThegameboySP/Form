@@ -125,20 +125,20 @@ end
 
 function Manager:DebugPrint(...)
 	if self.DEBUG then
-		warn("[Composite]", ...)
+		warn("[Form]", ...)
 	end
 end
 
 
 function Manager:VerbosePrint(...)
 	if self.DEBUG then
-		warn("[Composite verbose]", ...)
+		warn("[Form verbose]", ...)
 	end
 end
 
 
 function Manager:Warn(...)
-	warn("[Composite warning]", ...)
+	warn("[Form warning]", ...)
 end
 
 return Manager

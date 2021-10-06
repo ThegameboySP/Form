@@ -1,4 +1,4 @@
-local SignalMixin = require(script.Parent.Parent.Parent.Composite.SignalMixin)
+local SignalMixin = require(script.Parent.Parent.Parent.Form.SignalMixin)
 local Group = require(script.Parent.Group)
 local GroupsComponent = require(script.Parent.GroupsComponent)
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)

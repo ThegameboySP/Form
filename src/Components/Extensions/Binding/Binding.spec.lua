@@ -1,5 +1,5 @@
-local BaseComponent = require(script.Parent.Parent.Parent.Composite.BaseComponent)
-local Manager = require(script.Parent.Parent.Parent.Composite.Manager)
+local BaseComponent = require(script.Parent.Parent.Parent.Form.BaseComponent)
+local Manager = require(script.Parent.Parent.Parent.Form.Manager)
 local Binding = require(script.Parent)
 local spy = require(script.Parent.Parent.Parent.Testing.spy)
 

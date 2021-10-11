@@ -97,10 +97,9 @@ return function()
 			called = true
 		end)
 		
-		task.defer(function()
-			expect(called).to.equal(true)
-			expect(type(destruct)).to.equal("function")
-		end)
+		ext.PostSimulation:Wait()
+		expect(called).to.equal(true)
+		expect(type(destruct)).to.equal("function")
 	end)
 
 	it("should pause and unpause", function()

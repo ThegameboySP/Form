@@ -1,3 +1,5 @@
+local RunService = game:GetService("RunService")
+
 local Manager = require(script.Parent.Parent.Parent.Form.Manager)
 local BaseComponent = require(script.Parent.Parent.Parent.Form.BaseComponent)
 local Remote = require(script.Parent)
@@ -34,9 +36,8 @@ return function()
 		s.Remote:RegisterEvents({"Test"})
 		s.Remote:FireAllClients("Test", "test")
 
-		task.delay(0, function()
-			expect(#values).to.equal(1)
-			expect(values[1]).to.equal("test")
-		end)
+		RunService.Heartbeat:Wait()
+		expect(#values).to.equal(1)
+		expect(values[1]).to.equal("test")
 	end)
 end

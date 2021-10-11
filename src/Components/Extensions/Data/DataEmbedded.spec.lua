@@ -2,11 +2,11 @@ local t = require(script.Parent.Parent.Parent.Modules.t)
 local DataEmbedded = require(script.Parent.DataEmbedded)
 local Ops = require(script.Parent.Ops)
 
-local MockExtension = {
-	SetDirty = function() end;
-}
-
 return function()
+	local MockExtension = {
+		pending = {}
+	}
+	
 	it("should use 1 layer", function()
 		local data = DataEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")

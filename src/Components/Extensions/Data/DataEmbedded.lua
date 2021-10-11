@@ -1,10 +1,12 @@
 local Ops = require(script.Parent.Ops)
 local Hooks = require(script.Parent.Parent.Parent.Form.Hooks)
+local Constants = require(script.Parent.Parent.Parent.Form.Constants)
 
 local Data = {}
 Data.Ops = Ops
 Data.__index = Data
 
+local NONE = Constants.None
 local ALL = {}
 
 function Data.new(extension, checkers, defaults)
@@ -17,7 +19,8 @@ function Data.new(extension, checkers, defaults)
 		
 		buffer = setmetatable(buffer, buffer);
 		layers = {};
-		final = {};
+		set = {};
+		_delta = {};
 
 		_subscriptions = Hooks.new();
 	}, Data)
@@ -29,12 +32,15 @@ function Data:Destroy()
 	self.layers = nil
 	self.top = nil
 	self.bottom = nil
-	self.final = nil
+	self.set = nil
+	self._delta = nil
 end
 
-function Data:_subscribe(key, currentValue, handler)
-	return self._subscriptions:On(key, function(newValue)
-		if newValue == currentValue then return end
+function Data:_subscribe(key, currentValue, handler, didInitiallyRun)
+	return self._subscriptions:On(key, function()
+		local newValue = self:Get(key)
+		if newValue == currentValue and didInitiallyRun == true then return end
+		didInitiallyRun = true
 
 		local oldValue = currentValue
 		currentValue = newValue
@@ -43,7 +49,7 @@ function Data:_subscribe(key, currentValue, handler)
 end
 
 function Data:On(key, handler)
-	return self:_subscribe(key, self.final[key], handler)
+	return self:_subscribe(key, self:Get(key), handler, false)
 end
 
 function Data:OnAll(handler)
@@ -51,41 +57,34 @@ function Data:OnAll(handler)
 end
 
 function Data:For(key, handler)
-	local currentValue = self.final[key]
+	local currentValue = self:Get(key)
 	if currentValue ~= nil then
 		handler(currentValue, nil)
+		return self:_subscribe(key, currentValue, handler, true)
 	end
 
-	return self:_subscribe(key, currentValue, handler)
+	return self:_subscribe(key, currentValue, handler, false)
 end
 
 function Data:ForAll(handler)
-	if next(self.final) then
-		handler(self.final, nil)
+	if next(self._delta) then
+		handler(self._delta)
 	end
 
 	return self._subscriptions:On(ALL, handler)
 end
 
-function Data:onDelta(delta)
-	local old = self.final
+function Data:onUpdate()
 	local subscriptions = self._subscriptions
+	local delta = self._delta
 
-	local new = {}
-	for k, v in pairs(old) do
-		new[k] = v
+	for k in pairs(delta) do
+		subscriptions:Fire(k)
 	end
 
-	for k, v in pairs(delta) do
-		new[k] = v
-	end
+	subscriptions:Fire(ALL, delta)
 
-	self.final = new
-	for k, v in pairs(delta) do
-		subscriptions:Fire(k, v, old[k])
-	end
-
-	subscriptions:Fire(ALL, delta, new, old)
+	table.clear(delta)
 end
 
 local function checkOrError(checker, k, v)
@@ -101,7 +100,9 @@ end
 
 function Data:_setDirty(k)
 	self.buffer[k] = nil
-	self._extension:SetDirty(self, k)
+	self._delta[k] = true
+	self.set[k] = true
+	self._extension.pending[self] = true
 end
 
 function Data:_checkOrError(toCheck)
@@ -275,10 +276,13 @@ function Data:Set(layerKey, key, value)
 end
 
 function Data:MergeLayer(layerKey, delta)
-	self:_checkOrError(delta)
-
 	for key, value in pairs(delta) do
-		self:_set(layerKey, key, value)
+		if value == NONE then
+			self:_set(layerKey, key, nil)
+		else
+			checkOrError(self._checkers[key], key, value)
+			self:_set(layerKey, key, value)
+		end
 	end
 end
 

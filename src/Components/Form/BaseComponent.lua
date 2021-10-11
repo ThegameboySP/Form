@@ -95,4 +95,12 @@ function BaseComponent:On(key, handler)
 	return self._hooks:On(key, handler)
 end
 
+function BaseComponent:Set(key, value)
+	self.Data:Set("base", key, value)
+end
+
+function BaseComponent:Get(key)
+	return self.Data:Get(key)
+end
+
 return BaseComponent

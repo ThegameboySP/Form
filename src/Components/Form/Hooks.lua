@@ -15,7 +15,8 @@ end
 
 function Connection:Disconnect()
 	if self._hook == false then
-		error("Can't disconnect a connection twice.", 2)
+		-- Connection has already been disconnected.
+		return
 	end
 
 	local head = self._hook[self._name]
@@ -35,6 +36,7 @@ function Connection:Disconnect()
 	self._hook = false
 end
 Connection.Destroy = Connection.Disconnect
+Connection.__call = Connection.Disconnect
 
 function Hooks.new()
 	return setmetatable({}, Hooks)

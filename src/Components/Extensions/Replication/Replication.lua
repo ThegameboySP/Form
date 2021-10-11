@@ -1,12 +1,14 @@
-local ReplicationExtension = require(script.Parent.ReplicationExtension)
+local ServerReplicationExtension = require(script.Parent.ServerReplicationExtension)
+local ClientReplicationExtension = require(script.Parent.ClientReplicationExtension)
 
-return function(man)
+return function(man, callbacks)
 	if man.Replication then return end
 
-	man.Replication = ReplicationExtension.new(man)
 	if man.IsServer then
-		man.Replication:InitServer()
+		man.Replication = ServerReplicationExtension.new(man, callbacks)
+		man.Replication:Init()
 	else
-		man.Replication:InitClient()
+		man.Replication = ClientReplicationExtension.new(man)
+		man.Replication:Init()
 	end
 end

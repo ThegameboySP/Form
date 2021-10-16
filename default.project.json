@@ -1,27 +1,6 @@
 {
 	"name": "Form",
 	"tree": {
-		"$className": "DataModel",
-
-		"ReplicatedStorage": {
-			"$ignoreUnknownInstances": true,
-			"Form": {
-				"$path": "src/Components"
-			}
-		},
-	
-		"TestService": {
-			"$ignoreUnknownInstances": true,
-			"$properties": {
-				"ExecuteWithStudioRun": true
-			},
-
-			"TestEZ": {
-				"$path": "modules/TestEZ"
-			},
-			"componentsRun": {
-				"$path": "src/runTests.server.lua"
-			}
-		}
+		"$path": "src"
 	}
 }

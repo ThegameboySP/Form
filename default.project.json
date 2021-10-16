@@ -1,6 +1,6 @@
 {
 	"name": "Form",
 	"tree": {
-		"$path": "src"
+		"$path": "src/Components"
 	}
 }

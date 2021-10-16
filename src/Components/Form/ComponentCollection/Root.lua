@@ -1,3 +1,6 @@
+local Hooks = require(script.Parent.Parent.Hooks)
+local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
+
 local Root = {}
 Root.__index = Root
 
@@ -8,13 +11,15 @@ Root.__index = Root
 	allowing the interface to act like a component.
 ]]
 
-local NO_KEY = {}
+local RAN = Symbol.named("ran")
+local NO_KEY = Symbol.new("noKey")
 
 function Root.new(man, ref, callbacks)
 	return setmetatable({
 		ref = ref;
 		man = man;
 		_callbacks = callbacks;
+		_hooks = Hooks.new();
 		added = {};
 	}, Root)
 end
@@ -23,12 +28,14 @@ function Root:Destroy()
 	if rawget(self, "isDestroying") then return end
 	self.isDestroying = true
 	self._callbacks.Destroying()
+	self._hooks:Fire("Destroying")
 
 	for _, comp in pairs(self.added) do
 		comp:Destroy()
 	end
 
 	self._callbacks.Destroyed()
+	self._hooks:Fire("Destroyed")
 end
 
 function Root:_newId(comp, key)
@@ -49,6 +56,7 @@ function Root:PreStartComponent(class, layer)
 	local comp = class.new(self.ref, self.man, self)
 
 	self._callbacks.ComponentAdding(comp)
+	self._hooks:Fire("ComponentAdding", comp)
 	self.added[class] = comp
 
 	local key
@@ -71,8 +79,10 @@ function Root:GetOrAddComponent(resolvable, layer)
 	local comp = self.added[class]
 	if comp == nil then
 		local newComponent, id = self:PreStartComponent(class, layer)
-		newComponent:Run()
-		self._callbacks.ComponentAdded(newComponent)
+		newComponent._hooks:OnAlways(RAN, function()
+			self._callbacks.ComponentAdded(newComponent)
+			self._hooks:Fire("ComponentAdded", newComponent)
+		end)
 
 		return newComponent, id
 	end
@@ -121,6 +131,14 @@ end
 function Root:DestroyRef()
 	self:Destroy()
 	self.ref:Destroy()
+end
+
+function Root:On(eventName, handler)
+	return self._hooks:On(eventName, handler)
+end
+
+function Root:Fire(eventName, ...)
+	self._hooks:Fire(eventName, ...)
 end
 
 return Root

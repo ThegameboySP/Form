@@ -1,4 +1,5 @@
 local Hooks = require(script.Parent.Hooks)
+local Symbol = require(script.Parent.Parent.Modules.Symbol)
 
 local BaseComponent = {
 	ClassName = "BaseComponent";
@@ -6,6 +7,7 @@ local BaseComponent = {
 }
 BaseComponent.__index = BaseComponent
 
+local RAN = Symbol.named("ran")
 local DESTROYED_ERROR = function()
 	error("Cannot run a component that is destroyed!")
 end
@@ -78,6 +80,9 @@ function BaseComponent:Run()
 	end
 
 	self.isInitialized = true
+	self:Fire(RAN)
+
+	return self
 end
 
 function BaseComponent:Fire(key, ...)

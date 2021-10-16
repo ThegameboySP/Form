@@ -29,7 +29,7 @@ return function()
 			m:On(name, spy(t))
 
 			local ref = new("Folder")
-			local comp = m:GetOrAddComponent(ref, BaseComponent)
+			local comp = m:GetOrAddComponent(ref, BaseComponent):Run()
 
 			return t, comp
 		end

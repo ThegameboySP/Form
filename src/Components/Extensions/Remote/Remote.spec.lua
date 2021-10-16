@@ -10,7 +10,7 @@ local function run(ref)
 	m:RegisterComponent(BaseComponent)
 	Remote.use(m)
 
-	local c = m:GetOrAddComponent(ref, BaseComponent)
+	local c = m:GetOrAddComponent(ref, BaseComponent):Run()
 	return c, m
 end
 

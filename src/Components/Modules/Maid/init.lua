@@ -95,8 +95,9 @@ function Maid:GiveTask(task, destructorName, id)
 		self:Remove(id)
 	end
 
-	id = id or #tasks + 1
-	tasks[id] = {task, resolvedDestruct}
+	local entry = {task, resolvedDestruct}
+	id = id or entry
+	tasks[id] = entry
 
 	return id
 end

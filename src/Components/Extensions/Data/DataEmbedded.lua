@@ -36,11 +36,10 @@ function Data:Destroy()
 	self._delta = nil
 end
 
-function Data:_subscribe(key, currentValue, handler, didInitiallyRun)
+function Data:_subscribe(key, currentValue, handler)
 	return self._subscriptions:On(key, function()
 		local newValue = self:Get(key)
-		if newValue == currentValue and didInitiallyRun == true then return end
-		didInitiallyRun = true
+		if newValue == currentValue then return end
 
 		local oldValue = currentValue
 		currentValue = newValue
@@ -49,7 +48,7 @@ function Data:_subscribe(key, currentValue, handler, didInitiallyRun)
 end
 
 function Data:On(key, handler)
-	return self:_subscribe(key, self:Get(key), handler, false)
+	return self:_subscribe(key, self:Get(key), handler)
 end
 
 function Data:OnAll(handler)
@@ -60,10 +59,10 @@ function Data:For(key, handler)
 	local currentValue = self:Get(key)
 	if currentValue ~= nil then
 		handler(currentValue, nil)
-		return self:_subscribe(key, currentValue, handler, true)
+		return self:_subscribe(key, currentValue, handler)
 	end
 
-	return self:_subscribe(key, currentValue, handler, false)
+	return self:_subscribe(key, currentValue, handler)
 end
 
 function Data:ForAll(handler)
@@ -92,6 +91,10 @@ local function checkOrError(checker, k, v)
 		error(("No checker for key %q!"):format(k))
 	end
 
+	if type(v) == "function" then
+		return
+	end
+	
 	local ok, err = checker(v)
 	if not ok then
 		error(err)

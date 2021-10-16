@@ -5,7 +5,7 @@ return {
 	Manager = require(script.Form.Manager);
 
 	BaseComponent = require(script.Form.BaseComponent);
-	MaidComponent = require(script.Form.MaidComponent);
+	withMaid = require(script.Form.withMaidTrait);
 	Utils = require(script.Shared.ComponentsUtils);
 
 	-- Prototypes = require(script.Extensions.Prototypes);

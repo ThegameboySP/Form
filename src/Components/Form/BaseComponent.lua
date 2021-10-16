@@ -2,6 +2,7 @@ local Hooks = require(script.Parent.Hooks)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
 
 local BaseComponent = {
+	Ops = require(script.Parent.Parent.Extensions.Data).Ops;
 	ClassName = "BaseComponent";
 	IsComponent = true;
 }
@@ -28,8 +29,12 @@ end
 
 function BaseComponent:extend(name, class)
 	class = class or {}
+
 	for k, v in pairs(self) do
-		if class[k] ~= nil then continue end
+		if class[k] ~= nil then
+			continue
+		end
+		
 		class[k] = v
 	end
 	
@@ -66,6 +71,17 @@ end
 
 function BaseComponent:GetClass()
 	return getmetatable(self)
+end
+
+function BaseComponent:CheckClassOrError(class)
+	if self.CheckSubclass then
+		local ok, err = self.CheckSubclass(class)
+		if not ok then
+			error(("Error class %q: %s"):format(self.ClassName, err), 2)
+		end
+	end
+
+	return class
 end
 
 function BaseComponent:Run()

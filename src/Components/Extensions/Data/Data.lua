@@ -1,5 +1,8 @@
 local DataEmbedded = require(script.Parent.DataEmbedded)
 local DataExtension = require(script.Parent.DataExtension)
+local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
+
+local PRIORITY = Symbol.named("priority")
 
 return function(man)
 	if man.Data then return end
@@ -28,10 +31,10 @@ return function(man)
 			-- end
 			
 			if not man.IsServer then
-				data:_rawInsert("remote", {})
+				data:_rawInsert("remote", {[PRIORITY] = 0})
 			end
 
-			data:_rawInsert("base", {})
+			data:_rawInsert("base", {[PRIORITY] = 5})
 
 			return data
 		end;

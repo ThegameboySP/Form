@@ -139,4 +139,16 @@ return function()
 		expect(#called).to.equal(2)
 		expect(called[2]).to.equal(2)
 	end)
+
+	it("should set a layer at the proper priority position", function()
+		local data = DataEmbedded.new(MockExtension)
+		data:CreateLayerAtPriority("test", 1, {key = 1})
+		expect(data.top.key).to.equal(1)
+
+		data:CreateLayerAtPriority("test2", 0, {key = 0})
+		expect(data.top.key).to.equal(1)
+
+		data:CreateLayerAtPriority("test3", 2, {key = 2})
+		expect(data.top.key).to.equal(2)
+	end)
 end

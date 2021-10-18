@@ -1,5 +1,6 @@
 local Ops = require(script.Parent.Ops)
 local Hooks = require(script.Parent.Parent.Parent.Form.Hooks)
+local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 local Constants = require(script.Parent.Parent.Parent.Form.Constants)
 
 local Data = {}
@@ -34,6 +35,7 @@ function Object:For(handler)
 end
 
 local NONE = Constants.None
+local PRIORITY = Symbol.named("priority")
 local ALL = {}
 
 function Data.new(extension, checkers, defaults)
@@ -244,6 +246,20 @@ function Data:SetLayer(layerKey, layerToSet)
 	end
 end
 
+function Data:_createLayerAt(at, keyToSet, layerToSet)
+	layerToSet.__index = at
+	layerToSet.prev = at.prev
+	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
+
+	at.prev.__index = layerToSet
+	at.prev = layerToSet
+
+	if at == self.top then
+		self.top = layerToSet
+		self.buffer.__index = layerToSet
+	end
+end
+
 function Data:CreateLayerAt(layerKey, keyToSet, layerToSet)
 	if self.layers[keyToSet] then
 		error(("Already inserted layer %q!"):format(keyToSet))
@@ -255,17 +271,21 @@ function Data:CreateLayerAt(layerKey, keyToSet, layerToSet)
 		self:_setDirty(k)
 	end
 
-	layerToSet.__index = layer
-	layerToSet.prev = layer.prev
+	self:_createLayerAt(layer, keyToSet, layerToSet)
+end
+
+function Data:_createLayerBefore(layer, keyToSet, layerToSet)
+	layerToSet.__index = layer.__index
+	layerToSet.prev = layer
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
 
-	layer.prev.__index = layerToSet
-	layer.prev = layerToSet
-
-	if layer == self.top then
-		self.top = layerToSet
-		self.buffer.__index = layerToSet
+	if layer.__index then
+		layer.__index.prev = layerToSet
+	else
+		self.bottom = layerToSet
 	end
+
+	layer.__index = layerToSet
 end
 
 function Data:CreateLayerBefore(layerKey, keyToSet, layerToSet)
@@ -279,17 +299,39 @@ function Data:CreateLayerBefore(layerKey, keyToSet, layerToSet)
 		self:_setDirty(k)
 	end
 
-	layerToSet.__index = layer.__index
-	layerToSet.prev = layer
-	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
+	self:_createLayerBefore(layer, keyToSet, layerToSet)
+end
 
-	if layer.__index then
-		layer.__index.prev = layerToSet
-	else
-		self.bottom = layerToSet
+function Data:CreateLayerAtPriority(layerKey, priority, layerToSet)
+	if self.layers[layerKey] then
+		error(("Already inserted layer %q!"):format(layerKey))
+	end
+	self:_checkOrError(layerToSet)
+
+	for k in pairs(layerToSet) do
+		self:_setDirty(k)
+	end
+	layerToSet[PRIORITY] = priority
+
+	local current = self.top
+	local buffer = self.buffer
+	local selected
+	while current and current ~= buffer do
+		local currentPriority = rawget(current, PRIORITY) or 0
+		if priority >= currentPriority then
+			selected = current
+			break
+		end
+		current = current.__index
 	end
 
-	layer.__index = layerToSet
+	if selected then
+		self:_createLayerAt(selected, layerKey, layerToSet)
+	elseif self.bottom then
+		self:_createLayerBefore(self.bottom, layerKey, layerToSet)
+	else
+		self:_rawInsert(layerKey, layerToSet)
+	end
 end
 
 function Data:_set(layerKey, key, value)

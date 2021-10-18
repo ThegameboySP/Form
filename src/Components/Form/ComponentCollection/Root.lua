@@ -62,12 +62,13 @@ function Root:PreStartComponent(class, layer)
 	local key
 	if layer then
 		key = layer.key or comp.Data:NewId()
+
 		if comp.Data.layers[key] then
 			comp.Data:SetLayer(key, layer.data)
+		elseif layer.priority then
+			comp.Data:CreateLayerAtPriority(key, layer.priority, layer.data)
 		else
-			comp.Data:CreateLayerBefore(
-				"base", key, layer.data
-			)
+			comp.Data:CreateLayerBefore("base", key, layer.data)
 		end
 	end
 
@@ -90,12 +91,13 @@ function Root:GetOrAddComponent(resolvable, layer)
 	local key
 	if layer then
 		key = layer.key or comp.Data:NewId()
+		
 		if comp.Data.layers[key] then
 			comp.Data:SetLayer(key, layer.data)
+		elseif layer.priority then
+			comp.Data:CreateLayerAtPriority(key, layer.priority, layer.data)
 		else
-			comp.Data:CreateLayerBefore(
-				"base", key, layer.data
-			)
+			comp.Data:CreateLayerBefore("base", key, layer.data)
 		end
 	end
 

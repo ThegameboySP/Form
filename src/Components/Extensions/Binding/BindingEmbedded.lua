@@ -1,3 +1,5 @@
+local BindingExtension = require(script.Parent.BindingExtension)
+
 local BindingEmbedded = {}
 BindingEmbedded.ClassName = "Binding"
 BindingEmbedded.__index = BindingEmbedded
@@ -10,7 +12,7 @@ local EVENT_MAP = {
 
 function BindingEmbedded.new(base)
 	local self = setmetatable({
-		_base = base;
+		_ref = base;
 		_destructors = {};
 		_extension = base.man.Binding;
 		_isPaused = false;
@@ -23,7 +25,6 @@ function BindingEmbedded.new(base)
 	return self
 end
 
-
 function BindingEmbedded:Destroy()
 	for destructor in pairs(self._destructors) do
 		destructor()
@@ -31,21 +32,23 @@ function BindingEmbedded:Destroy()
 	self._destructors = nil
 end
 
-
-function BindingEmbedded:Connect(binding, handler)
+function BindingEmbedded:_connectAtPriority(binding, priority, handler)
 	handler = self:PauseWrap(handler)
-	local resolvedBinding = self._base[EVENT_MAP[binding] or binding]
+	local resolvedBinding = self._ref[EVENT_MAP[binding] or binding]
 	
 	if resolvedBinding then
-		local con = resolvedBinding:Connect(handler)
+		local con = resolvedBinding:ConnectAtPriority(priority, handler)
 		return function()
 			con:Disconnect()
 		end
 	end
 
-	return self._base.man.Binding:Connect(binding, handler)
+	return self._ref.man.Binding:_connectAtPriority(binding, priority, handler)
 end
 
+function BindingEmbedded:Connect(binding, handler)
+	return self:_connectAtPriority(binding, 0, handler)
+end
 
 function BindingEmbedded:Bind(binding, handler)
 	local destruct = self:Connect(binding, handler)
@@ -57,76 +60,16 @@ function BindingEmbedded:Bind(binding, handler)
 	end
 end
 
-
-function BindingEmbedded:ToFunction(name)
-	local method = self[name] or error("No method named " .. name)
-	return function(...)
-		return method(self, ...)
-	end
-end
-
-
-function BindingEmbedded:Wait(seconds)
-	local timestamp = tick()
-	local duration = 0
-	local co = coroutine.running()
-
-	local destruct
-	destruct = self:Connect("PostSimulation", function(dt)
-		duration += dt
-		if duration >= seconds then
-			destruct()
-			task.spawn(co, tick() - timestamp)
-		end
-	end)
-
-	return coroutine.yield()
-end
-
-
-function BindingEmbedded:Delay(seconds, handler)
-	local duration = 0
-
-	local destruct
-	destruct = self:Connect("PostSimulation", function(dt)
-		duration += dt
-		if duration >= seconds then
-			destruct()
-			handler()
-		end
-	end)
-end
-
-
-function BindingEmbedded:PauseWrap(handler)
-	return function(...)
-		if self._isPaused then return end
-		handler(...)
-	end
-end
-
-
-function BindingEmbedded:IsPaused()
-	return self._isPaused
-end
-
-
-function BindingEmbedded:Pause()
-	if self._isPaused then return end
-	self._isPaused = true
-	self._base:Fire("Paused")
-end
-
-
-function BindingEmbedded:Unpause()
-	if not self._isPaused then return end
-	self._isPaused = false
-	self._base:Fire("Unpaused")
-end
-
+BindingEmbedded.ToFunction = BindingExtension.ToFunction
+BindingEmbedded.Wait = BindingExtension.Wait
+BindingEmbedded.Delay = BindingExtension.Delay
+BindingEmbedded.PauseWrap = BindingExtension.PauseWrap
+BindingEmbedded.IsPaused = BindingExtension.IsPaused
+BindingEmbedded.Pause = BindingExtension.Pause
+BindingEmbedded.Unpause = BindingExtension.Unpause
 
 function BindingEmbedded:GetTime()
-	local timeFunction = self._base.TimeFunction
+	local timeFunction = self._ref.TimeFunction
 	return
 		timeFunction and timeFunction()
 		or self._extension:GetTime()

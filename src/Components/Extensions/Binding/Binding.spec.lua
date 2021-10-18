@@ -1,6 +1,5 @@
 local BaseComponent = require(script.Parent.Parent.Parent.Form.BaseComponent)
 local Manager = require(script.Parent.Parent.Parent.Form.Manager)
-local Binding = require(script.Parent)
 local spy = require(script.Parent.Parent.Parent.Testing.spy)
 
 local TestComponent = BaseComponent:extend("TestComponent", {
@@ -10,39 +9,28 @@ local TestComponent = BaseComponent:extend("TestComponent", {
 local function newBase(isTesting, class)
 	local resolvedClass = class or TestComponent
 	local man = Manager.new("test")
+	if isTesting then
+		man.Binding:DisconnectFromRunService()
+	end
+
 	man:RegisterComponent(class or resolvedClass)
 	man.IsTesting = isTesting
-	Binding.use(man)
 
 	local comp = man:GetOrAddComponent(Instance.new("Folder"), resolvedClass):Run()
 	return man.Binding, comp.Binding, comp
 end
 
-return function()
-	it("Connect: should accept component signal overrides", function()
-		local PostSimulation = Instance.new("BindableEvent")
-		local ext = newBase(false)
-		ext.PostSimulation = PostSimulation.Event
-
-		local called = false
-		ext:Connect("PostSimulation", function()
-			called = true
-		end)
-		PostSimulation:Fire()
-
-		expect(called).to.equal(true)
-	end)
-	
+return function()	
 	it("Bind: should bind to component, destructing when component destroys", function()
 		local ext, embedded, comp = newBase(true)
 		local called = 0
 		embedded:Bind("PostSimulation", function()
 			called += 1
 		end)
-		ext:_advance(0, "PostSimulation")
+		ext.PostSimulation:Fire()
 
 		comp:Destroy()
-		ext:_advance(0, "PostSimulation")
+		ext.PostSimulation:Fire()
 		expect(called).to.equal(1)
 	end)
 
@@ -52,30 +40,12 @@ return function()
 		local destruct = embedded:Bind("PostSimulation", function()
 			called += 1
 		end)
-		ext:_advance(0, "PostSimulation")
+		ext.PostSimulation:Fire()
 
 		destruct()
 		destruct()
-		ext:_advance(0, "PostSimulation")
+		ext.PostSimulation:Fire()
 		expect(called).to.equal(1)
-	end)
-
-	it("_advance: should advance all internal event names", function()
-		local binding = newBase(true)
-		local didCall1 = false
-		local didCall2 = false
-
-		binding:Connect("PostSimulation", function()
-			didCall1 = true
-		end)
-
-		binding:Connect("PreRender", function()
-			didCall2 = true
-		end)
-
-		binding:_advance(0)
-		expect(didCall1).to.equal(true)
-		expect(didCall2).to.equal(true)
 	end)
 
 	it("Connect: should connect to internal event names", function()
@@ -85,7 +55,7 @@ return function()
 			calledTimes += 1
 		end)
 
-		ext:_advance(0, "PostSimulation")
+		ext.PostSimulation:Fire()
 		expect(calledTimes).to.equal(1)
 	end)
 
@@ -94,12 +64,13 @@ return function()
 		local called = false
 		local destruct
 		destruct = ext:Connect("PostSimulation", function()
+			destruct()
 			called = true
 		end)
 		
 		ext.PostSimulation:Wait()
+		ext.PostSimulation:Wait()
 		expect(called).to.equal(true)
-		expect(type(destruct)).to.equal("function")
 	end)
 
 	it("should pause and unpause", function()
@@ -153,33 +124,39 @@ return function()
 	end)
 
 	it("Wait: should yield the thread until the given time", function()
-		local _, _, c = newBase(true)
+		local ext, _, c = newBase(true)
 		local resumed = false
 		coroutine.wrap(function()
 			c.Binding:Wait(2)
 			resumed = true
 		end)()
+		c.TimeFunction = function()
+			return os.clock() + 2
+		end
 
 		expect(resumed).to.equal(false)
-		c.man.Binding:_advance(2)
+		ext.Defer:Fire()
 		expect(resumed).to.equal(true)
 	end)
 
 	it("Wait: should not count time when paused", function()
-		local _, _, c = newBase(true)
+		local ext, _, c = newBase(true)
 		local resumed = false
 		coroutine.wrap(function()
 			c.Binding:Wait(2)
 			resumed = true
 		end)()
 
+		c.TimeFunction = function()
+			return os.clock() + 8
+		end
+
 		c.Binding:Pause()
-		c.man.Binding:_advance(4)
-		c.man.Binding:_advance(4)
+		ext.Defer:Fire()
 		expect(resumed).to.equal(false)
 
 		c.Binding:Unpause()
-		c.man.Binding:_advance(2)
+		ext.Defer:Fire()
 		expect(resumed).to.equal(true)
 	end)
 end

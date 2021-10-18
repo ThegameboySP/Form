@@ -3,6 +3,7 @@ local RunService = game:GetService("RunService")
 local ComponentCollection = require(script.Parent.ComponentCollection)
 local Hooks = require(script.Parent.Hooks)
 local Data = require(script.Parent.Parent.Extensions.Data)
+local Binding = require(script.Parent.Parent.Extensions.Binding)
 
 local Manager = {
 	DEBUG = true;
@@ -56,7 +57,8 @@ function Manager.new(name)
 		end
 	})
 
-	self.Data = Data.use(self)
+	Binding.use(self)
+	Data.use(self)
 
 	return self
 end

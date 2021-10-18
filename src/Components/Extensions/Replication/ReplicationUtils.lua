@@ -1,5 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local Players = game:GetService("Players")
 
 local ReplicationUtils = {}
 
@@ -8,6 +9,7 @@ function ReplicationUtils.onReplicatedOnce(ref, callback)
 		ref:IsDescendantOf(ReplicatedStorage)
 		or ref:IsDescendantOf(workspace)
 		or ref:IsDescendantOf(ReplicatedFirst)
+		or ref:IsDescendantOf(Players)
 	then
 		callback()
 		return
@@ -15,7 +17,7 @@ function ReplicationUtils.onReplicatedOnce(ref, callback)
 
 	local con
 	ref.AncestryChanged:Connect(function(_, parent)
-		if parent == ReplicatedStorage or parent == workspace or parent == ReplicatedFirst then
+		if parent == ReplicatedStorage or parent == workspace or parent == ReplicatedFirst or parent == Players then
 			con = callback()
 		elseif (parent == nil or parent.Parent == game) and con then
 			con:Disconnect()

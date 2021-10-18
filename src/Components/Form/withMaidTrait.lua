@@ -25,6 +25,8 @@ return function(class)
 			for event, handler in pairs(p1) do
 				self.maid:Add(event:Connect(handler))
 			end
+			
+			return
 		end
 
 		return self.maid:Add(p1:Connect(p2))

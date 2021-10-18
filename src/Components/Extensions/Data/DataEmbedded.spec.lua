@@ -3,9 +3,7 @@ local DataEmbedded = require(script.Parent.DataEmbedded)
 local Ops = require(script.Parent.Ops)
 
 return function()
-	local MockExtension = {
-		pending = {}
-	}
+	local MockExtension = {}
 	
 	it("should use 1 layer", function()
 		local data = DataEmbedded.new(MockExtension)
@@ -115,5 +113,30 @@ return function()
 		data:SetLayer("layer1", {
 			number = 1;
 		})
+	end)
+
+	it("should generate an object representing a key's current value", function()
+		local data = DataEmbedded.new(MockExtension)
+		data:InsertIfNil("base")
+
+		local object = data:GetObject("test")
+		expect(object:Get()).to.equal(nil)
+		expect(data:GetObject("test")).to.equal(object)
+
+		data:Set("base", "test", 1)
+		expect(object:Get()).to.equal(1)
+
+		local called = {}
+		object:For(function(value)
+			table.insert(called, value)
+		end)
+
+		expect(#called).to.equal(1)
+		expect(called[1]).to.equal(1)
+
+		data:Set("base", "test", 2)
+		data:onUpdate()
+		expect(#called).to.equal(2)
+		expect(called[2]).to.equal(2)
 	end)
 end

@@ -6,6 +6,33 @@ local Data = {}
 Data.Ops = Ops
 Data.__index = Data
 
+local Object = {}
+Object.__index = Object
+Object.__mode = "v"
+
+function Object.new(data, key)
+	return setmetatable({
+		_data = data or error("Data required");
+		_key = key or error("Key required");
+	}, Object)
+end
+
+function Object:Get()
+	if self._data then
+		return self._data:Get(self._key)
+	end
+	
+	return nil
+end
+
+function Object:On(handler)
+	return self._data:On(self._key, handler)
+end
+
+function Object:For(handler)
+	return self._data:For(self._key, handler)
+end
+
 local NONE = Constants.None
 local ALL = {}
 
@@ -21,6 +48,7 @@ function Data.new(extension, checkers, defaults)
 		layers = {};
 		set = {};
 		_delta = {};
+		_objects = {};
 
 		_subscriptions = Hooks.new();
 	}, Data)
@@ -105,7 +133,7 @@ function Data:_setDirty(k)
 	self.buffer[k] = nil
 	self._delta[k] = true
 	self.set[k] = true
-	self._extension.pending[self] = true
+	self._extension[self] = true
 end
 
 function Data:_checkOrError(toCheck)
@@ -289,10 +317,25 @@ function Data:MergeLayer(layerKey, delta)
 	end
 end
 
+function Data:GetObject(key)
+	local object = self._objects[key]
+	if object then
+		return object
+	end
+
+	object = Object.new(self, key)
+	self._objects[key] = object
+
+	return object
+end
+
 function Data:Get(key)
 	local value = self.buffer[key]
 	if type(value) == "function" then
 		local final
+		if self._defaults then
+			final = self._defaults[key]
+		end
 
 		local current = self.bottom
 		while current ~= self.buffer do

@@ -17,9 +17,9 @@ return function()
 		local ExpectationComponent = BaseComponent:extend("Test")
 
 		local t1 = {}
-		ExpectationComponent.Init = spy(t1)
+		ExpectationComponent.OnInit = spy(t1)
 		local t2 = {}
-		ExpectationComponent.Start = spy(t2)
+		ExpectationComponent.OnStart = spy(t2)
 
 		local comp = run(ExpectationComponent)
 		expect(t1.Count).to.equal(1)

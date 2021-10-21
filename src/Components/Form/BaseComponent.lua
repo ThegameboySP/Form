@@ -87,13 +87,8 @@ end
 function BaseComponent:Run()
 	if self.isInitialized then return end
 
-	if self.Init then
-		self:Init()
-	end
-
-	if self.Start then
-		self:Start()
-	end
+	self:FireWithMethodName("Init", "OnInit")
+	self:FireWithMethodName("Init", "OnStart")
 
 	self.isInitialized = true
 	self:Fire(RAN)
@@ -107,6 +102,15 @@ function BaseComponent:Fire(key, ...)
 		if type(method) == "function" then
 			method(self, ...)
 		end
+	end
+
+	self._hooks:Fire(key, ...)
+end
+
+function BaseComponent:FireWithMethodName(key, methodName, ...)
+	local method = self[methodName]
+	if method then
+		method(self, ...)
 	end
 
 	self._hooks:Fire(key, ...)

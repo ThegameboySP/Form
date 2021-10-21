@@ -21,7 +21,7 @@ function ReplicationExtension:Init()
 			end
 
 			local comp = self.man:GetComponent(ref, className)
-			if comp and comp.__replicated then
+			if comp and layers[comp] then
 				return self.man:Warn("Already added component " .. className)
 			end
 
@@ -32,7 +32,6 @@ function ReplicationExtension:Init()
 			newComp:Run()
 
 			layers[newComp] = id
-			newComp.__replicated = true
 		end)
 
 		self.remotes.ComponentRemoved.OnClientEvent:Connect(function(ref, className)

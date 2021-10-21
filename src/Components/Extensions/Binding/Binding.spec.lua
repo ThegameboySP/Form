@@ -16,7 +16,7 @@ local function newBase(isTesting, class)
 	man:RegisterComponent(class or resolvedClass)
 	man.IsTesting = isTesting
 
-	local comp = man:GetOrAddComponent(Instance.new("Folder"), resolvedClass):Run()
+	local comp = man:GetOrAddComponent(Instance.new("Folder"), resolvedClass)
 	return man.Binding, comp.Binding, comp
 end
 

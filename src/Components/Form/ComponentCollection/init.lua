@@ -60,13 +60,15 @@ end
 
 
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, layer)
-	assert(typeof(ref) == "Instance", "Expected 'Instance'")
-	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, layer)
+	local comp, id = self:GetOrAddComponentLoadless(ref, classResolvable, layer)
+	comp:Run()
+	return comp, id
 end
 
 
-local function errored(_, comp)
-	return comp.ref:GetFullName() .. ": Coroutine errored:\n%s\nTraceback: %s"
+function ComponentCollection:GetOrAddComponentLoadless(ref, classResolvable, layer)
+	assert(typeof(ref) == "Instance", "Expected 'Instance'")
+	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, layer)
 end
 
 

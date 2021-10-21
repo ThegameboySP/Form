@@ -69,7 +69,7 @@ return function()
 			m:On("ComponentAdded", spy(t))
 
 			local i = new("Folder")
-			local comp = m:GetOrAddComponent(i, "BaseComponent"):Run()
+			local comp = m:GetOrAddComponent(i, "BaseComponent")
 
 			expect(t.Count).to.equal(1)
 			expect(t.Params[1][1]).to.equal(comp)
@@ -81,8 +81,8 @@ return function()
 			m:On("ComponentAdded", spy(t))
 
 			local i = new("Folder")
-			m:GetOrAddComponent(i, "BaseComponent"):Run()
-			m:GetOrAddComponent(i, "BaseComponent"):Run()
+			m:GetOrAddComponent(i, "BaseComponent")
+			m:GetOrAddComponent(i, "BaseComponent")
 
 			expect(t.Count).to.equal(1)
 		end)
@@ -166,7 +166,7 @@ return function()
 			m:On("ComponentRemoved", spy(t))
 
 			local i = new("Folder")
-			local comp = m:GetOrAddComponent(i, "BaseComponent"):Run()
+			local comp = m:GetOrAddComponent(i, "BaseComponent")
 			m:RemoveComponent(i, "BaseComponent")
 
 			expect(t.Count).to.equal(1)
@@ -179,7 +179,7 @@ return function()
 			m:On("ComponentRemoved", spy(t))
 
 			local i = new("Folder")
-			local comp = m:GetOrAddComponent(i, "BaseComponent"):Run()
+			local comp = m:GetOrAddComponent(i, "BaseComponent")
 			comp:Destroy()
 
 			expect(t.Count).to.equal(1)

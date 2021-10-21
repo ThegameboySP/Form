@@ -8,7 +8,7 @@ local function run(class, ref)
 	man:RegisterComponent(class)
 	man.IsTesting = true
 
-	local comp = man:GetOrAddComponent(ref or Instance.new("Folder"), resolvedClass):Run()
+	local comp = man:GetOrAddComponent(ref or Instance.new("Folder"), resolvedClass)
 	return comp
 end
 

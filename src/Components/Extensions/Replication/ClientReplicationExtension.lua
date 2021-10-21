@@ -29,7 +29,6 @@ function ReplicationExtension:Init()
 				key = "remote";
 				data = data;
 			})
-			newComp:Run()
 
 			layers[newComp] = id
 		end)

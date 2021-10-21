@@ -1,4 +1,5 @@
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ComponentCollection = require(script.Parent.ComponentCollection)
 local Hooks = require(script.Parent.Hooks)
@@ -23,8 +24,7 @@ function Manager.new(name)
 	assert(type(name) == "string", "Expected 'string'")
 
 	local self = setmetatable({
-		Data = nil;
-		
+		Folder = Instance.new("Folder");
 		Classes = {};
 		Embedded = {};
 		Name = name;
@@ -33,6 +33,11 @@ function Manager.new(name)
 		_collection = nil;
 	}, Manager)
 	
+	if Manager.IsRunning then
+		self.Folder.Name = name
+		self.Folder.Parent = ReplicatedStorage
+	end
+
 	local hooks = self._hooks
 	self._collection = ComponentCollection.new(self, {
 		ComponentAdding = function(comp)

@@ -13,7 +13,8 @@ end
 function ReplicationExtension:Init()
 	local layers = setmetatable({}, {__mode = "k"})
 
-	task.defer(function()
+	-- Defer in case remotes are already queued. This should run first out of all Defer's this frame.
+	self.man.Binding.Defer:ConnectAtPriority(0, function()
 		self.remotes.ComponentAdded.OnClientEvent:Connect(function(ref, className, data)
 			if ref == nil then
 				return self.man:Warn("Ref came back as nil. Component: " .. className)
@@ -33,9 +34,7 @@ function ReplicationExtension:Init()
 			layers[newComp] = id
 			newComp.__replicated = true
 		end)
-	end)
 
-	task.defer(function()
 		self.remotes.ComponentRemoved.OnClientEvent:Connect(function(ref, className)
 			if ref == nil then
 				return self.man:Warn("Ref came back as nil. Component: " .. className)
@@ -48,9 +47,7 @@ function ReplicationExtension:Init()
 				comp.root:RemoveLayer(comp, layer)
 			end
 		end)
-	end)
 
-	task.defer(function()
 		self.remotes.StateChanged.OnClientEvent:Connect(function(ref, className, delta)
 			if ref == nil then
 				return self.man:Warn("Ref came back as nil. Component: " .. className)

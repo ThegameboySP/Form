@@ -2,6 +2,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local Players = game:GetService("Players")
 
+local getOrMake = require(script.Parent.Parent.Parent.Form.getOrMake)
+
 local ReplicationUtils = {}
 
 function ReplicationUtils.onReplicatedOnce(ref, callback)
@@ -42,22 +44,8 @@ function ReplicationUtils.getRemotes(man)
 	}
 end
 
-local function getOrMake(instance, name, class)
-	local child = instance:FindFirstChild(name)
-	if child then
-		return child
-	end
-
-	child = Instance.new(class)
-	child.Name = name
-	child.Parent = instance
-	
-	return child
-end
-
 function ReplicationUtils.makeRemotes(man)
-	local folder = getOrMake(ReplicatedStorage, man.Name, "Folder")
-	local remotes = getOrMake(folder, "Remotes", "Folder")
+	local remotes = getOrMake(man.Folder, "Remotes", "Folder")
 
 	return {
 		ComponentAdded = getOrMake(remotes, "ComponentAdded", "RemoteEvent");

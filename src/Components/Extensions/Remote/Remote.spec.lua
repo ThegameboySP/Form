@@ -15,29 +15,5 @@ local function run(ref)
 end
 
 return function()
-	it("should register remote events", function()
-		local i = Instance.new("Folder")
-		local c = run(i)
-		c.Remote:RegisterEvents({"Test"})
-		expect(i:FindFirstChildWhichIsA("RemoteEvent", true)).to.be.ok()
-	end)
-
-	it("should connect to server remote event once it's visible", function()
-		local i = Instance.new("Folder")
-		local s, m1 = run(i)
-		m1.IsServer = true
-		local c, m2 = run(i)
-		m2.IsServer = false
-
-		local values = {}
-		c.Remote:Connect("Test", function(_, value)
-			table.insert(values, value)
-		end)
-		s.Remote:RegisterEvents({"Test"})
-		s.Remote:FireAllClients("Test", "test")
-
-		RunService.Heartbeat:Wait()
-		expect(#values).to.equal(1)
-		expect(values[1]).to.equal("test")
-	end)
+	
 end

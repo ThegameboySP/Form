@@ -9,18 +9,6 @@ function RemoteEmbedded.new(base)
 	}, RemoteEmbedded)
 end
 
-function RemoteEmbedded:RegisterEvents(events)
-	return self._extension:RegisterEvents(self._base, events)
-end
-
-function RemoteEmbedded:RegisterFunctions(funcs)
-	return self._extension:RegisterFunctions(self._base, funcs)
-end
-
-function RemoteEmbedded:Connect(eventName, handler)
-	return self._extension:Connect(self._base, eventName, handler)
-end
-
 function RemoteEmbedded:FireServer(eventName, ...)
 	return self._extension:FireServer(self._base, eventName, ...)
 end

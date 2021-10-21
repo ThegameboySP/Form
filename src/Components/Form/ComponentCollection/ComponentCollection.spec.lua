@@ -8,18 +8,6 @@ local function make()
 	return m
 end
 
-local function shallowEquals(src, tbl)
-	for _, t in pairs({src, tbl}) do
-		for k, v in pairs(t) do
-			if v ~= tbl[k] or v ~= src[k] then
-				return false
-			end
-		end
-	end
-	
-	return true
-end
-
 local function count(dict)
 	local m = 0
 	for _ in pairs(dict) do
@@ -100,62 +88,36 @@ return function()
 	end)
 	
 	describe("BulkAddComponent", function()
-		local function add(refs)
+		it("should add components and fire ComponentAdded in order", function()
+			local refs = {new("Folder"), new("Folder")}
 			local m = make()
 			local t = {}
 			m:On("ComponentAdded", spy(t))
 
 			local classes = {"BaseComponent", "BaseComponent"}
-			local keywords = {{config = {test1 = true}}, {config = {test2 = true}}}
-			local comps, compIds = m:BulkAddComponent(refs, classes, keywords)
+			local layers = {{data = {test1 = true}}, {data = {test2 = true}}}
+			local comps, compIds = m:BulkAddComponent(refs, classes, layers)
 
 			for i=1, t.Count do
 				expect(t.Params[i][1]).to.equal(comps[i])
-				expect(shallowEquals(t.Params[i][2], keywords[i].config)).to.equal(true)
 			end
-
-			return comps, compIds, t
-		end
-
-		it("should add components and fire ComponentAdded in order", function()
-			local comps, compIds, t = add({new("Folder"), new("Folder")})
-			expect(#comps).to.equal(2)
+			
+			expect(count(comps)).to.equal(2)
 			expect(t.Count).to.equal(2)
-
 			expect(count(compIds)).to.equal(2)
-			for _, ids in pairs(compIds) do
-				expect(#ids).to.equal(1)
-				expect(ids[1]).to.equal("base")
-			end
-		end)
-
-		it("should never add a component twice to same reference", function()
-			local i = new("Folder")
-			local comps, compIds, t = add({i, i})
-
-			expect(#comps).to.equal(1)
-			expect(t.Count).to.equal(1)
-
-			expect(count(compIds)).to.equal(1)
-			local ids = compIds[comps[1]]
-			expect(ids[1]).to.equal("base")
-			expect(ids[2]).to.be.ok()
 		end)
 
 		it("should add a new layer to a pre-existing component, not firing ComponentAdded", function()
 			local i = new("Folder")
 			local m = make()
-			local comp, id = m:GetOrAddComponent(i, BaseComponent)
-			expect(id).to.equal("base")
 
 			local t = {}
 			m:On("ComponentAdded", spy(t))
 
-			local comps, compIds = m:BulkAddComponent({i}, {BaseComponent}, {})
-			expect(t.Count).to.equal(0)
+			local comps, compIds = m:BulkAddComponent({i, i}, {BaseComponent, BaseComponent}, {})
+			expect(t.Count).to.equal(1)
 			expect(#comps).to.equal(1)
-			expect(count(compIds)).to.equal(1)
-			expect(compIds[comp][1]).to.never.equal(BASE)
+			expect(#compIds[comps[1]]).to.equal(2)
 		end)
 	end)
 

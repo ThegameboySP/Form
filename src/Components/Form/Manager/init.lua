@@ -95,8 +95,8 @@ function Manager:GetComponent(ref, classResolvable)
 end
 
 
-function Manager:BulkAddComponent(refs, classes, configs)
-	return self._collection:BulkAddComponent(refs, classes, configs)
+function Manager:BulkAddComponent(refs, classes, layers)
+	return self._collection:BulkAddComponent(refs, classes, layers)
 end
 
 

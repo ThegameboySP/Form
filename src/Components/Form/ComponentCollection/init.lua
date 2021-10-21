@@ -72,58 +72,44 @@ function ComponentCollection:GetOrAddComponentLoadless(ref, classResolvable, lay
 end
 
 
-local function run(tbls, methodName)
-	local new = {}
-
-	for _, tbl in ipairs(tbls) do
-		local shouldRun, comp = tbl[1], tbl[2]
-		if shouldRun then
-			local ok = runCoroutineOrWarn(errored, comp[methodName], comp)
-			if ok then
-				table.insert(new, tbl)
-			end
-		else
-			table.insert(new, tbl)
-		end
-	end
-
-	return tbls
-end
-
-function ComponentCollection:BulkAddComponent(refs, classResolvables, keywordsCollection)
-	local tbls = {}
+function ComponentCollection:BulkAddComponent(refs, classResolvables, layersCollection)
+	local comps = {}
 	local ids = {}
 
 	for i, ref in ipairs(refs) do
-		local class = self:ResolveOrError(classResolvables[i])
-		local keywords = keywordsCollection[i] or {}
-		-- local comp, id = self:_newComponent(ref, class, keywords)
+		local resolvable = classResolvables[i]
+		local wasAdded = self:GetComponent(ref, resolvable) ~= nil
+
+		local comp, id = self:GetOrAddComponentLoadless(ref, resolvable, layersCollection[i])
 		ids[comp] = ids[comp] or {}
 		table.insert(ids[comp], id)
 
-		table.insert(tbls, {id == "base", comp, keywords.config})
+		if not wasAdded then
+			table.insert(comps, comp)
+		end
 	end
 
-	local tbls2 = run(tbls, "Init")
-	local tbls3 = run(tbls2, "Start")
+	for _, comp in ipairs(comps) do
+		comp:FireWithMethodName("Init", "OnInit")
+	end
 
-	local comps = {}
-	local added = {}
-	for _, tbl in ipairs(tbls3) do
-		local didRun = tbl[1]
-		local comp = tbl[2]
-		local config = tbl[3]
-		if added[comp] then continue end
-		added[comp] = true
+	for _, comp in ipairs(comps) do
+		comp:FireWithMethodName("Start", "OnStart")
+	end
 
-		table.insert(comps, comp)
-		if not didRun then continue end
+	local initializedComps = {}
+	local addedComps = {}
+	for _, comp in ipairs(comps) do
+		if addedComps[comp] then continue end
+		addedComps[comp] = true
+		table.insert(initializedComps, comp)
 
 		comp.isInitialized = true
-		self:Fire("ComponentAdded", comp, config)
+		self._rootByRef[comp.ref]:Fire("ComponentAdded", comp)
+		self._callbacks.ComponentAdded(comp)
 	end
 
-	return comps, ids
+	return initializedComps, ids
 end
 
 

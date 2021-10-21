@@ -3,12 +3,12 @@ local getOrMake = require(script.Parent.Parent.Parent.Form.getOrMake)
 local RemoteExtension = {}
 RemoteExtension.__index = RemoteExtension
 
-function RemoteExtension.new(man)
+function RemoteExtension.new(man, overrides)
 	return setmetatable({
 		man = man;
 		_compFunctions = setmetatable({}, {__mode = "k"});
-		_event = getOrMake(man.Folder, "GlobalRemoteEvent", "RemoteEvent");
-		_function = getOrMake(man.Folder, "GlobalRemoteFunction", "RemoteFunction");
+		_event = overrides and overrides.event or getOrMake(man.Folder, "GlobalRemoteEvent", "RemoteEvent");
+		_function = overrides and overrides.callback or getOrMake(man.Folder, "GlobalRemoteFunction", "RemoteFunction");
 	}, RemoteExtension)
 end
 
@@ -19,29 +19,29 @@ function RemoteExtension:Init()
 			if remoteFunctions == nil then return end
 			
 			for name, handler in pairs(remoteFunctions) do
-				self:OnInvoke(name, handler)
+				self:OnInvoke(comp, name, handler)
 			end
 		end)
 
-		self._event.OnServerEvent:Connect(function(ref, className, eventName, ...)
+		self._event.OnServerEvent:Connect(function(player, ref, className, eventName, ...)
 			if type(eventName) ~= "string" then return end
 			local comp = self.man:GetComponent(ref, className)
 			if comp == nil then return end
 
-			comp:Fire("Client" .. eventName, ...)
+			comp:Fire("Client" .. eventName, player, ...)
 		end)
 
-		self._function.OnInvoke = function(player, ref, className, funcName, ...)
+		self._function.OnServerInvoke = function(player, ref, className, funcName, ...)
 			if type(funcName) ~= "string" then return end
 			local comp = self.man:GetComponent(ref, className)
 			if comp == nil then return end
-
+			
 			local functions = self._compFunctions[comp]
 			if functions == nil then return end
 			local func = functions[funcName]
 			if func == nil then return end
 
-			func(comp, player, ...)
+			return func(comp, player, ...)
 		end
 	else
 		-- Defer in case remotes are already queued. This runs after Replication's Defer does.
@@ -79,7 +79,7 @@ function RemoteExtension:_setFunctionInvoke(comp, funcName, handler)
 		self._compFunctions[comp] = compFunctions
 	end
 
-	self._compFunctions[funcName] = handler
+	compFunctions[funcName] = handler
 end
 
 function RemoteExtension:OnInvoke(comp, funcName, handler)
@@ -95,13 +95,13 @@ function RemoteExtension:OnInvoke(comp, funcName, handler)
 			coroutine.yield()
 		end
 
-		handler(...)
+		return handler(...)
 	end)
 end
 
 function RemoteExtension:Invoke(comp, funcName, ...)
 	assert(not self.man.IsServer, "Invoke can only be called on the client!")
-	self._function:InvokeServer(comp.ref, comp.ClassName, funcName, ...)
+	return self._function:InvokeServer(comp.ref, comp.ClassName, funcName, ...)
 end
 
 return RemoteExtension

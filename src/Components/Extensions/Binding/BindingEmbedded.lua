@@ -16,6 +16,9 @@ function BindingEmbedded.new(base)
 		_destructors = {};
 		_extension = base.man.Binding;
 		_isPaused = false;
+		_pollIsDestroyed = function()
+			return base.isDestroying
+		end;
 	}, BindingEmbedded)
 
 	base:On("Destroying", function()
@@ -60,9 +63,15 @@ function BindingEmbedded:Bind(binding, handler)
 	end
 end
 
+function BindingEmbedded:Wait(seconds, handler)
+	return BindingExtension.Wait(self, seconds, handler, self._pollIsDestroyed)
+end
+
+function BindingEmbedded:Delay(seconds, handler)
+	return BindingExtension.Delay(self, seconds, handler, self._pollIsDestroyed)
+end
+
 BindingEmbedded.ToFunction = BindingExtension.ToFunction
-BindingEmbedded.Wait = BindingExtension.Wait
-BindingEmbedded.Delay = BindingExtension.Delay
 BindingEmbedded.PauseWrap = BindingExtension.PauseWrap
 BindingEmbedded.IsPaused = BindingExtension.IsPaused
 BindingEmbedded.Pause = BindingExtension.Pause

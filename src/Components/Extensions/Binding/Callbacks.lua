@@ -58,9 +58,14 @@ function Callbacks:ConnectAtPriority(priority, handler)
 	end
 	
 	local current = self._head
+	local prev
 	while current do
 		if current._priority <= priority then
 			local connection = newConnection(self, current, handler, priority)
+			if prev then
+				prev._next = connection
+			end
+
 			if self._head == current then
 				self._head = connection
 			end
@@ -74,7 +79,8 @@ function Callbacks:ConnectAtPriority(priority, handler)
 
 			return connection
 		end
-			
+		
+		prev = current
 		current = current._next
 	end
 
@@ -97,7 +103,6 @@ function Callbacks:Fire(...)
 		current = current._next
 	end
 end
-Callbacks.__call = Callbacks.Invoke
 
 function Callbacks:Wait()
 	local co = coroutine.running()

@@ -68,4 +68,20 @@ return function()
 		expect(called1).to.equal(true)
 		expect(called2).to.equal(false)
 	end)
+
+	it("should call connections in order", function()
+		local callbacks = Callbacks.new()
+
+		local called = {}
+		for i=1, 4 do
+			callbacks:ConnectAtPriority(4 - i, function()
+				table.insert(called, i)
+			end)
+		end
+
+		callbacks:Fire()
+		for index, i in ipairs(called) do
+			expect(i).to.equal(index)
+		end
+	end)
 end

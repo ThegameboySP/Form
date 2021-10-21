@@ -2,10 +2,11 @@ local RunService = game:GetService("RunService")
 
 local Callbacks = require(script.Parent.Callbacks)
 
-local Binding = {}
-Binding.ClassName = "BindingExtension"
-Binding.__index = Binding
+local BindingExtension = {}
+BindingExtension.ClassName = "BindingExtension"
+BindingExtension.__index = BindingExtension
 
+local RET_FALSE = function() return false end
 local EVENT_MAP = {
 	Heartbeat = "PostSimulation";
 	RenderStepped = "PreRender";
@@ -20,7 +21,7 @@ local function extractValue(value)
 	return value
 end
 
-function Binding.new(man)
+function BindingExtension.new(man)
 	local self = setmetatable({
 		_ref = man;
 		_cons = {};
@@ -32,20 +33,20 @@ function Binding.new(man)
 		PostSimulation = Callbacks.new();
 		PreSimulation = Callbacks.new();
 		Defer = Callbacks.new();
-	}, Binding)
+	}, BindingExtension)
 
 	self:Init()
 
 	return self
 end
 
-function Binding:DisconnectFromRunService()
+function BindingExtension:DisconnectFromRunService()
 	for _, con in pairs(self._cons) do
 		con:Disconnect()
 	end
 end
 
-function Binding:Init()
+function BindingExtension:Init()
 	if not self._ref.IsTesting then
 		table.insert(self._cons, RunService.Heartbeat:Connect(function(...)
 			self.PostSimulation:Fire(...)
@@ -64,35 +65,45 @@ function Binding:Init()
 	end
 end
 
-function Binding:_connectAtPriority(binding, priority, handler)
+function BindingExtension:_connectAtPriority(binding, priority, handler)
 	local con = self[EVENT_MAP[binding] or binding]:ConnectAtPriority(priority, handler)
 	return function()
 		con:Disconnect()
 	end
 end
 
-function Binding:Connect(binding, handler)
+function BindingExtension:Connect(binding, handler)
 	return self:_connectAtPriority(binding, 0, handler)
 end
 
-function Binding:ToFunction(name)
+function BindingExtension:ToFunction(name)
 	local method = self[name] or error("No method named " .. name)
 	return function(...)
 		return method(self, ...)
 	end
 end
 
-function Binding:Wait(seconds)
+function BindingExtension:Wait(seconds, isDestroyed)
+	isDestroyed = isDestroyed or RET_FALSE
 	local timestamp = self:GetTime()
 	local co = coroutine.running()
 
 	local disconnect
 	local con
+	local function destruct()
+		disconnect()
+		con:Disconnect()
+	end
+
 	disconnect = self:_connectAtPriority("Defer", 5, function()
+		if isDestroyed() then
+			destruct()
+			return
+		end
+
 		local delta = self:GetTime() - timestamp
-		if delta >= extractValue(seconds) then
-			disconnect()
-			con:Disconnect()
+		if delta >= extractValue(seconds) or 0 then
+			destruct()
 			task.spawn(co, delta)
 		end
 	end)
@@ -102,48 +113,60 @@ function Binding:Wait(seconds)
 	return coroutine.yield()
 end
 
-function Binding:Delay(seconds, handler)
+function BindingExtension:Delay(seconds, handler, isDestroyed)
+	isDestroyed = isDestroyed or RET_FALSE
 	local timestamp = self:GetTime()
 
 	local disconnect
 	local con
-	con = self:_connectAtPriority("Defer", 5, function()
+	local function destruct()
+		disconnect()
+		con:Disconnect()
+	end
+
+	disconnect = self:_connectAtPriority("Defer", 5, function()
+		if isDestroyed() then
+			destruct()
+			return
+		end
+
 		local delta = self:GetTime() - timestamp
-		if delta >= extractValue(seconds) then
-			disconnect()
-			con:Disconnect()
+		if delta >= extractValue(seconds) or 0 then
+			destruct()
 			handler(delta)
 		end
 	end)
 
 	con = self._ref:On("Destroying", disconnect)
+
+	return destruct
 end
 
-function Binding:PauseWrap(handler)
+function BindingExtension:PauseWrap(handler)
 	return function(...)
 		if self._isPaused then return end
 		handler(...)
 	end
 end
 
-function Binding:IsPaused()
+function BindingExtension:IsPaused()
 	return self._isPaused
 end
 
-function Binding:Pause()
+function BindingExtension:Pause()
 	if self._isPaused then return end
 	self._isPaused = true
 	self._ref:Fire("Paused")
 end
 
-function Binding:Unpause()
+function BindingExtension:Unpause()
 	if not self._isPaused then return end
 	self._isPaused = false
 	self._ref:Fire("Unpaused")
 end
 
-function Binding:GetTime()
+function BindingExtension:GetTime()
 	return self.TimeFunction()
 end
 
-return Binding
+return BindingExtension

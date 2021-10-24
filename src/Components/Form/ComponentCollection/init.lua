@@ -60,15 +60,14 @@ end
 
 
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, layer)
-	local comp, id = self:GetOrAddComponentLoadless(ref, classResolvable, layer)
-	comp:Run()
-	return comp, id
+	assert(typeof(ref) == "Instance", "Expected 'Instance'")
+	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, layer)
 end
 
 
 function ComponentCollection:GetOrAddComponentLoadless(ref, classResolvable, layer)
 	assert(typeof(ref) == "Instance", "Expected 'Instance'")
-	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, layer)
+	return self:_getOrAddWrapper(ref):GetOrAddComponentLoadless(classResolvable, layer)
 end
 
 

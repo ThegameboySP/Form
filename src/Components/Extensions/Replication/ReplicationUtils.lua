@@ -18,18 +18,17 @@ function ReplicationUtils.onReplicatedOnce(ref, callback)
 	end
 
 	local con
-	ref.AncestryChanged:Connect(function(_, parent)
+	con = ref.AncestryChanged:Connect(function(_, parent)
 		if parent == ReplicatedStorage or parent == workspace or parent == ReplicatedFirst or parent == Players then
-			con = callback()
+			callback()
+			con:Disconnect()
 		elseif (parent == nil or parent.Parent == game) and con then
 			con:Disconnect()
 		end
 	end)
 
 	return function()
-		if con then
-			con:Disconnect()
-		end
+		con:Disconnect()
 	end
 end
 

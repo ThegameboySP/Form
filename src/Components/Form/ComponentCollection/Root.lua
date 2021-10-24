@@ -75,7 +75,7 @@ function Root:PreStartComponent(class, layer)
 	return comp, self:_newId(comp, key)
 end
 
-function Root:GetOrAddComponent(resolvable, layer)
+function Root:GetOrAddComponentLoadless(resolvable, layer)
 	local class = self.man._collection:ResolveOrError(resolvable)
 	local comp = self.added[class]
 	if comp == nil then
@@ -102,6 +102,12 @@ function Root:GetOrAddComponent(resolvable, layer)
 	end
 
 	return comp, self:_newId(comp, key)
+end
+
+function Root:GetOrAddComponent(resolvable, layer)
+	local comp, id = self:GetOrAddComponentLoadless(resolvable, layer)
+	comp:Run()
+	return comp, id
 end
 
 function Root:RemoveComponent(resolvable, ...)

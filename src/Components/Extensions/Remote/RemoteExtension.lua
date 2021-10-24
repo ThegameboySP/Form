@@ -45,7 +45,10 @@ function RemoteExtension:Init()
 		end
 	else
 		-- Defer in case remotes are already queued. This runs after Replication's Defer does.
-		self.man.Binding.Defer:ConnectAtPriority(1, function()
+		local con
+		con = self.man.Binding.Defer:ConnectAtPriority(1, function()
+			con:Disconnect()
+			
 			self._event.OnClientEvent:Connect(function(ref, className, eventName, ...)
 				if type(eventName) ~= "string" then return end
 				local comp = self.man:GetComponent(ref, className)

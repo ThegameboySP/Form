@@ -6,7 +6,6 @@ local BindingExtension = {}
 BindingExtension.ClassName = "BindingExtension"
 BindingExtension.__index = BindingExtension
 
-local RET_FALSE = function() return false end
 local EVENT_MAP = {
 	Heartbeat = "PostSimulation";
 	RenderStepped = "PreRender";
@@ -19,6 +18,14 @@ local function extractValue(value)
 	end
 
 	return value
+end
+
+local function isDestroyed(value)
+	if type(value) == "table" then
+		return value:IsDestroyed()
+	end
+
+	return false
 end
 
 function BindingExtension.new(man)
@@ -83,8 +90,7 @@ function BindingExtension:ToFunction(name)
 	end
 end
 
-function BindingExtension:Wait(seconds, isDestroyed)
-	isDestroyed = isDestroyed or RET_FALSE
+function BindingExtension:Wait(value)
 	local timestamp = self:GetTime()
 	local co = coroutine.running()
 
@@ -96,13 +102,13 @@ function BindingExtension:Wait(seconds, isDestroyed)
 	end
 
 	disconnect = self:_connectAtPriority("Defer", 5, function()
-		if isDestroyed() then
+		if isDestroyed(value) then
 			destruct()
 			return
 		end
 
 		local delta = self:GetTime() - timestamp
-		if delta >= extractValue(seconds) or 0 then
+		if delta >= (extractValue(value) or 0) then
 			destruct()
 			task.spawn(co, delta)
 		end
@@ -113,8 +119,7 @@ function BindingExtension:Wait(seconds, isDestroyed)
 	return coroutine.yield()
 end
 
-function BindingExtension:Delay(seconds, handler, isDestroyed)
-	isDestroyed = isDestroyed or RET_FALSE
+function BindingExtension:Delay(value, handler)
 	local timestamp = self:GetTime()
 
 	local disconnect
@@ -125,13 +130,13 @@ function BindingExtension:Delay(seconds, handler, isDestroyed)
 	end
 
 	disconnect = self:_connectAtPriority("Defer", 5, function()
-		if isDestroyed() then
+		if isDestroyed(value) then
 			destruct()
 			return
 		end
 
 		local delta = self:GetTime() - timestamp
-		if delta >= extractValue(seconds) or 0 then
+		if delta >= (extractValue(value) or 0) then
 			destruct()
 			handler(delta)
 		end

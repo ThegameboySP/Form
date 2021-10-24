@@ -34,6 +34,10 @@ function Object:For(handler)
 	return self._data:For(self._key, handler)
 end
 
+function Object:IsDestroyed()
+	return not (self._data and self._data.buffer)
+end
+
 local NONE = Constants.None
 local PRIORITY = Symbol.named("priority")
 local ALL = {}
@@ -104,6 +108,7 @@ function Data:ForAll(handler)
 end
 
 function Data:onUpdate()
+	if self.buffer == nil then return end
 	local subscriptions = self._subscriptions
 	local delta = self._delta
 

@@ -14,6 +14,9 @@ return function(man)
 		ClassName = "Data";
 		new = function(comp)
 			local data = DataEmbedded.new(extension, comp.Schema, comp.Defaults)
+			comp._hooks:OnAlways("Destroying", function()
+				data:Destroy()
+			end)
 
 			-- local base = {prev = data.buffer}
 			-- data.layers.base = setmetatable(base, base)

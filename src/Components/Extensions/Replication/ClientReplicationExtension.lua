@@ -14,7 +14,10 @@ function ReplicationExtension:Init()
 	local layers = setmetatable({}, {__mode = "k"})
 
 	-- Defer in case remotes are already queued. This should run first out of all Defer's this frame.
-	self.man.Binding.Defer:ConnectAtPriority(0, function()
+	local con
+	con = self.man.Binding.Defer:ConnectAtPriority(0, function()
+		con:Disconnect()
+		
 		self.remotes.ComponentAdded.OnClientEvent:Connect(function(ref, className, data)
 			if ref == nil then
 				return self.man:Warn("Ref came back as nil. Component: " .. className)

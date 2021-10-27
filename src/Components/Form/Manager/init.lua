@@ -5,6 +5,7 @@ local ComponentCollection = require(script.Parent.ComponentCollection)
 local Hooks = require(script.Parent.Hooks)
 local Data = require(script.Parent.Parent.Extensions.Data)
 local Binding = require(script.Parent.Parent.Extensions.Binding)
+local Serializers = require(script.Parent.Serializers)
 
 local Manager = {
 	DEBUG = true;
@@ -28,11 +29,13 @@ function Manager.new(name)
 		Classes = {};
 		Embedded = {};
 		Name = name;
+		Serializers = nil;
 		
 		_hooks = Hooks.new();
 		_collection = nil;
 	}, Manager)
-	
+	self.Serializers = Serializers.new(self)
+
 	if Manager.IsRunning then
 		self.Folder.Name = name
 		self.Folder.Parent = ReplicatedStorage

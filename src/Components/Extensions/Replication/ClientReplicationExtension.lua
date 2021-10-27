@@ -3,10 +3,10 @@ local ReplicationUtils = require(script.Parent.ReplicationUtils)
 local ReplicationExtension = {}
 ReplicationExtension.__index = ReplicationExtension
 
-function ReplicationExtension.new(man)
+function ReplicationExtension.new(man, overrides)
 	return setmetatable({
 		man = man;
-		remotes = ReplicationUtils.getRemotes(man);
+		remotes = overrides and overrides or ReplicationUtils.getRemotes(man);
 	}, ReplicationExtension)
 end
 
@@ -18,17 +18,15 @@ function ReplicationExtension:Init()
 	con = self.man.Binding.Defer:ConnectAtPriority(0, function()
 		con:Disconnect()
 		
-		self.remotes.ComponentAdded.OnClientEvent:Connect(function(ref, className, data)
-			if ref == nil then
-				return self.man:Warn("Ref came back as nil. Component: " .. className)
-			end
+		self.remotes.ComponentAdded.OnClientEvent:Connect(function(serializedComp, data)
+			local comp = self.man.Serializers:Deserialize(serializedComp, "Error")
 
-			local comp = self.man:GetComponent(ref, className)
 			if comp and layers[comp] then
-				return self.man:Warn("Already added component " .. className)
+				return self.man:Warn("Already added component " .. comp.ClassName)
 			end
 
-			local newComp, id = self.man:GetOrAddComponent(ref, className, {
+			local extracted = self.man.Serializers:Extract(serializedComp)
+			local newComp, id = self.man:GetOrAddComponent(extracted.ref, extracted.name, {
 				key = "remote";
 				data = data;
 			})
@@ -36,29 +34,17 @@ function ReplicationExtension:Init()
 			layers[newComp] = id
 		end)
 
-		self.remotes.ComponentRemoved.OnClientEvent:Connect(function(ref, className)
-			if ref == nil then
-				return self.man:Warn("Ref came back as nil. Component: " .. className)
-			end
+		self.remotes.ComponentRemoved.OnClientEvent:Connect(function(serializedComp)
+			local comp = self.man.Serializers:Deserialize(serializedComp, "Error")
 
-			local comp = self.man:GetComponent(ref, className)
-			if comp then
-				local layer = layers[comp]
-				layers[comp] = nil
-				comp.root:RemoveLayer(comp, layer)
-			end
+			local layer = layers[comp]
+			layers[comp] = nil
+			comp.root:RemoveLayer(comp, layer)
 		end)
 
-		self.remotes.StateChanged.OnClientEvent:Connect(function(ref, className, delta)
-			if ref == nil then
-				return self.man:Warn("Ref came back as nil. Component: " .. className)
-			end
-
-			local comp = self.man:GetComponent(ref, className)
-			if comp == nil then
-				return self.man:Warn(("StateChanged: No component for ref %s with class %s!"):format(ref:GetFullName(), className))
-			end
-
+		self.remotes.StateChanged.OnClientEvent:Connect(function(serializedComp, delta)
+			local comp = self.man.Serializers:Deserialize(serializedComp, "Error")
+			
 			comp.Data:MergeLayer("remote", delta)
 		end)
 	end)

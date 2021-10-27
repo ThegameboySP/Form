@@ -39,6 +39,7 @@ function BaseComponent:extend(name, class)
 	end
 	
 	class.ClassName = name
+	class.Inherits = self
 	class.__index = class
 
 	function class.new(...)
@@ -126,6 +127,10 @@ end
 
 function BaseComponent:Get(key)
 	return self.Data:Get(key)
+end
+
+function BaseComponent:__tostring()
+	return string.format("Component (%s %s)", self.ref:GetFullName(), self.ClassName)
 end
 
 return BaseComponent

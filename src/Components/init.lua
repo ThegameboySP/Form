@@ -7,6 +7,7 @@ return {
 	BaseComponent = require(script.Form.BaseComponent);
 	withMaid = require(script.Form.withMaidTrait);
 	Utils = require(script.Shared.ComponentsUtils);
+	Serializers = require(script.Form.Serializers);
 
 	-- Prototypes = require(script.Extensions.Prototypes);
 	-- Groups = require(script.Extensions.Groups);

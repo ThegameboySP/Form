@@ -23,18 +23,17 @@ function RemoteExtension:Init()
 			end
 		end)
 
-		self._event.OnServerEvent:Connect(function(player, ref, className, eventName, ...)
+		self._event.OnServerEvent:Connect(function(player, serializedComp, eventName, ...)
 			if type(eventName) ~= "string" then return end
-			local comp = self.man:GetComponent(ref, className)
-			if comp == nil then return end
 
+			local comp = self.man.Serializers:Deserialize(serializedComp)
 			comp:Fire("Client" .. eventName, player, ...)
 		end)
 
-		self._function.OnServerInvoke = function(player, ref, className, funcName, ...)
+		self._function.OnServerInvoke = function(player, serializedComp, funcName, ...)
 			if type(funcName) ~= "string" then return end
-			local comp = self.man:GetComponent(ref, className)
-			if comp == nil then return end
+
+			local comp = self.man.Serializers:Deserialize(serializedComp)
 			
 			local functions = self._compFunctions[comp]
 			if functions == nil then return end
@@ -49,11 +48,10 @@ function RemoteExtension:Init()
 		con = self.man.Binding.Defer:ConnectAtPriority(1, function()
 			con:Disconnect()
 			
-			self._event.OnClientEvent:Connect(function(ref, className, eventName, ...)
+			self._event.OnClientEvent:Connect(function(serializedComp, eventName, ...)
 				if type(eventName) ~= "string" then return end
-				local comp = self.man:GetComponent(ref, className)
-				if comp == nil then return end
-	
+
+				local comp = self.man.Serializers:Deserialize(serializedComp)
 				comp:Fire("Server" .. eventName, ...)
 			end)
 		end)
@@ -62,17 +60,17 @@ end
 
 function RemoteExtension:FireServer(comp, eventName, ...)
 	assert(not self.man.IsServer, "FireServer can only be used on the client!")
-	self._event:FireServer(comp.ref, comp.ClassName, eventName, ...)
+	self._event:FireServer(self.man.Serializers:Serialize(comp), eventName, ...)
 end
 
 function RemoteExtension:FireAllClients(comp, eventName, ...)
 	assert(self.man.IsServer, "FireAllClients can only be called on the server!")
-	self._event:FireAllClients(comp.ref, comp.ClassName, eventName, ...)
+	self._event:FireAllClients(self.man.Serializers:Serialize(comp), eventName, ...)
 end
 
 function RemoteExtension:FireClient(comp, eventName, client, ...)
 	assert(self.man.IsServer, "FireClient can only be called on the server!")
-	self._event:FireClient(client, comp.ref, comp.ClassName, eventName, ...)
+	self._event:FireClient(client, self.man.Serializers:Serialize(comp), eventName, ...)
 end
 
 function RemoteExtension:_setFunctionInvoke(comp, funcName, handler)
@@ -104,7 +102,7 @@ end
 
 function RemoteExtension:Invoke(comp, funcName, ...)
 	assert(not self.man.IsServer, "Invoke can only be called on the client!")
-	return self._function:InvokeServer(comp.ref, comp.ClassName, funcName, ...)
+	return self._function:InvokeServer(self.man.Serializers:Serialize(comp), funcName, ...)
 end
 
 return RemoteExtension

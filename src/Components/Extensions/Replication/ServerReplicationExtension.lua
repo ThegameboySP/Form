@@ -28,8 +28,10 @@ local COMPONENT_ADDED = function(self, comp)
 
 	local destruct = ReplicationUtils.onReplicatedOnce(comp.ref, function()
 		didReplicate = true
+		self._replicatedComponents[comp] = true
+
 		self.remotes.ComponentAdded:FireAllClients(
-			comp.ref, comp.ClassName, getCondensedData(comp.Data, comp.Data.set)
+			self.man.Serializers:Serialize(comp), getCondensedData(comp.Data, comp.Data.set)
 		)
 	end)
 
@@ -40,43 +42,49 @@ local COMPONENT_ADDED = function(self, comp)
 	comp.Data:OnAll(function(delta)
 		if didReplicate then
 			self.remotes.StateChanged:FireAllClients(
-				comp.ref, comp.ClassName, getCondensedData(comp.Data, delta)
+				self.man.Serializers:Serialize(comp), getCondensedData(comp.Data, delta)
 			)
 		end
 	end)
 end;
 
 local COMPONENT_REMOVED = function(self, comp)
-	if comp.root.isDestroying then
-		return
-	end
-
-	self.remotes.ComponentRemoved:FireAllClients(comp.ref, comp.ClassName)
+	self._replicatedComponents[comp] = nil
+	self.remotes.ComponentRemoved:FireAllClients(self.man.Serializers:Serialize(comp))
 end
 
-function ReplicationExtension.new(man)
+local FIRE_CLIENT = function(self, client, comp, data)
+	self.remotes.ComponentAdded:FireClient(
+		client, self.man.Serializers:Serialize(comp), data
+	)
+end
+
+function ReplicationExtension.new(man, overrides)
 	return setmetatable({
 		man = man;
-		remotes = ReplicationUtils.makeRemotes(man);
+		remotes = overrides and overrides or ReplicationUtils.makeRemotes(man);
+		_replicatedComponents = setmetatable({}, {__mode = "k"});
 	}, ReplicationExtension)
 end
 
 function ReplicationExtension:Init(callbacks)
 	callbacks = callbacks or {}
 
+	local fireClient = callbacks.FireInitialClient or FIRE_CLIENT
+
 	local function onPlayerAdded(player)
-		for _, root in pairs(self.man._collection._rootByRef) do
-			for class, comp in pairs(root.added) do
-				self.remotes.ComponentAdded:FireClient(
-					player, comp.ref, class.ClassName, getCondensedData(comp.Data, comp.Data.set)
-				)
-			end
+		for comp in pairs(self._replicatedComponents) do
+			fireClient(self, player, comp, getCondensedData(comp.Data, comp.Data.set))
 		end
 	end
 
-	Players.PlayerAdded:Connect(onPlayerAdded)
-	for _, player in pairs(Players:GetPlayers()) do
-		onPlayerAdded(player)
+	if callbacks.SubscribePlayerAdded then
+		callbacks.SubscribePlayerAdded(onPlayerAdded)
+	else	
+		Players.PlayerAdded:Connect(onPlayerAdded)
+		for _, player in pairs(Players:GetPlayers()) do
+			onPlayerAdded(player)
+		end
 	end
 
 	local added = callbacks.ComponentAdded or COMPONENT_ADDED

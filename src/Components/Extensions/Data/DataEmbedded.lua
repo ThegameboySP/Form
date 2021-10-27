@@ -354,11 +354,12 @@ function Data:Set(layerKey, key, value)
 end
 
 function Data:MergeLayer(layerKey, delta)
+	self:_checkOrError(delta)
+	
 	for key, value in pairs(delta) do
 		if value == NONE then
 			self:_set(layerKey, key, nil)
 		else
-			checkOrError(self._checkers[key], key, value)
 			self:_set(layerKey, key, value)
 		end
 	end

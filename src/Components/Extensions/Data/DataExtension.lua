@@ -1,18 +1,25 @@
+local inlinedError = require(script.Parent.Parent.Parent.Shared.inlinedError)
+
 local ExtensionPrototype = {}
 ExtensionPrototype.__index = ExtensionPrototype
 
 function ExtensionPrototype.new(man)
-	if man.Data then return end
-	
 	local self = setmetatable({}, ExtensionPrototype)
-	man.Data = self
-
+	
 	man.Binding.Defer:ConnectAtPriority(10, function()
-		for data in pairs(self) do
+		local data = next(self)
+
+		local i = 0
+		while data and i < 1000 do
+			i += 1
+			self[data] = nil
 			data:onUpdate()
+			data = next(self)
 		end
 
-		table.clear(self)
+		if i >= 1000 then
+			inlinedError("Reached subscriber update limit. This probably means you have a circular update loop in your code!")
+		end
 	end)
 
 	return self

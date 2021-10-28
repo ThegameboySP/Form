@@ -12,8 +12,8 @@ return {
 		ClassName = t.string;
 
 		-- For component-specific initalization and accessing external things.
-		Init = t.optional(t.callback);
+		OnInit = t.optional(t.callback);
 		-- For firing events and setting into motion internal processes.
-		Start = t.optional(t.callback);
+		OnStart = t.optional(t.callback);
 	})
 }

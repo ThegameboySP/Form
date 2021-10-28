@@ -9,9 +9,6 @@ local BaseComponent = {
 BaseComponent.__index = BaseComponent
 
 local RAN = Symbol.named("ran")
-local DESTROYED_ERROR = function()
-	error("Cannot run a component that is destroyed!")
-end
 
 function BaseComponent.new(ref, man, root)
 	return setmetatable({
@@ -54,10 +51,6 @@ function BaseComponent:Destroy()
 	self.isDestroying = true
 
 	self:Fire("Destroying")
-	
-	self.Init = DESTROYED_ERROR
-	self.Start = DESTROYED_ERROR
-
 	self:Fire("Destroyed")
 	self._hooks:DisconnectAll()
 

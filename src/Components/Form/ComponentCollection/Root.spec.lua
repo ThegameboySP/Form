@@ -13,7 +13,7 @@ local function run(class, ref)
 end
 
 return function()
-	it("should invoke :Init and :Start in order, once", function()
+	it("should invoke :OnInit and :OnStart in order, once", function()
 		local ExpectationComponent = BaseComponent:extend("Test")
 
 		local t1 = {}

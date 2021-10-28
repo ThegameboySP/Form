@@ -57,7 +57,7 @@ function Serializers:Deserialize(serializedTarget, failMode)
 		error(("No deserializer found for type: %s"):format(serializedTarget.type))
 	end
 
-	local ok, r2, extracted = deserializer(serializedTarget, self.man)
+	local ok, r2 = deserializer(serializedTarget, self.man)
 	if not ok then
 		if failMode == FailMode.Error then
 			error(("Deserializer failed for type %s: %s"):format(serializedTarget.type, r2))
@@ -66,7 +66,7 @@ function Serializers:Deserialize(serializedTarget, failMode)
 		end
 	end
 	
-	return r2, extracted
+	return r2
 end
 
 function Serializers:Extract(serializedTarget)

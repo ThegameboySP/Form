@@ -36,6 +36,7 @@ function ReplicationExtension:Init()
 
 		self.remotes.ComponentRemoved.OnClientEvent:Connect(function(serializedComp)
 			local comp = self.man.Serializers:Deserialize(serializedComp, "Error")
+			if comp == nil then return end
 
 			local layer = layers[comp]
 			layers[comp] = nil
@@ -44,6 +45,7 @@ function ReplicationExtension:Init()
 
 		self.remotes.StateChanged.OnClientEvent:Connect(function(serializedComp, delta)
 			local comp = self.man.Serializers:Deserialize(serializedComp, "Error")
+			if comp == nil then return end
 			
 			comp.Data:MergeLayer("remote", delta)
 		end)

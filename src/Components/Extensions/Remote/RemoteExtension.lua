@@ -26,14 +26,17 @@ function RemoteExtension:Init()
 		self._event.OnServerEvent:Connect(function(player, serializedComp, eventName, ...)
 			if type(eventName) ~= "string" then return end
 
-			local comp = self.man.Serializers:Deserialize(serializedComp)
+			local comp = self:_getOrWarn(serializedComp)
+			if comp == nil then return end
+
 			comp:Fire("Client" .. eventName, player, ...)
 		end)
 
 		self._function.OnServerInvoke = function(player, serializedComp, funcName, ...)
 			if type(funcName) ~= "string" then return end
 
-			local comp = self.man.Serializers:Deserialize(serializedComp)
+			local comp = self:_getOrWarn(serializedComp)
+			if comp == nil then return end
 			
 			local functions = self._compFunctions[comp]
 			if functions == nil then return end
@@ -51,11 +54,29 @@ function RemoteExtension:Init()
 			self._event.OnClientEvent:Connect(function(serializedComp, eventName, ...)
 				if type(eventName) ~= "string" then return end
 
-				local comp = self.man.Serializers:Deserialize(serializedComp)
+				local comp = self:_getOrWarn(serializedComp)
+				if comp == nil then return end
+
 				comp:Fire("Server" .. eventName, ...)
 			end)
 		end)
 	end
+end
+
+function RemoteExtension:_getOrWarn(serializedComp)
+	local comp = self.man.Serializers:Deserialize(serializedComp)
+	if comp == nil then
+		local extracted = self.man.Serializers:Extract(serializedComp)
+		self.man:DebugPrint("Component %s of %s does not exist on %s"):format(
+			extracted.name,
+			extracted.ref:GetFullName(),
+			self.man.IsServer and "server" or "client"
+		)
+		
+		return
+	end
+
+	return comp
 end
 
 function RemoteExtension:FireServer(comp, eventName, ...)

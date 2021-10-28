@@ -25,7 +25,7 @@ function Manager.new(name)
 	assert(type(name) == "string", "Expected 'string'")
 
 	local self = setmetatable({
-		Folder = Instance.new("Folder");
+		Folder = nil;
 		Classes = {};
 		Embedded = {};
 		Name = name;
@@ -36,9 +36,12 @@ function Manager.new(name)
 	}, Manager)
 	self.Serializers = Serializers.new(self)
 
-	if Manager.IsRunning then
+	if Manager.IsRunning and Manager.IsServer then
+		self.Folder = Instance.new("Folder")
 		self.Folder.Name = name
 		self.Folder.Parent = ReplicatedStorage
+	elseif Manager.IsRunning and not Manager.IsServer then
+		self.Folder = ReplicatedStorage:WaitForChild(name)
 	end
 
 	local hooks = self._hooks

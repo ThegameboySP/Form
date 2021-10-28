@@ -24,9 +24,9 @@ function Symbol.named(name)
 	return nameToSymbol[name]
 end
 
-function Symbol.new(name)
+function Symbol.unique(name)
 	local symbol = newproxy(true)
-	local fullName = "New_Symbol_" .. name
+	local fullName = "Unique_Symbol_" .. name
 	getmetatable(symbol).__tostring = function()
 		return fullName
 	end

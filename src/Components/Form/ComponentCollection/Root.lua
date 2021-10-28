@@ -12,7 +12,7 @@ Root.__index = Root
 ]]
 
 local RAN = Symbol.named("ran")
-local NO_KEY = Symbol.new("noKey")
+local NO_KEY = Symbol.unique("noKey")
 
 function Root.new(man, ref, callbacks)
 	return setmetatable({

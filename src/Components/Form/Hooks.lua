@@ -42,6 +42,10 @@ function Hooks.new()
 	return setmetatable({}, Hooks)
 end
 
+function Hooks.wrap(tbl)
+	return setmetatable(tbl, Hooks)
+end
+
 function Hooks:On(name, handler)
 	local first = rawget(self, name)
 	if first then

@@ -5,6 +5,7 @@ return {
 	Manager = require(script.Form.Manager);
 
 	BaseComponent = require(script.Form.BaseComponent);
+	Hooks = require(script.Form.Hooks);
 	withMaid = require(script.Form.withMaidTrait);
 	Utils = require(script.Shared.ComponentsUtils);
 	Serializers = require(script.Form.Serializers);

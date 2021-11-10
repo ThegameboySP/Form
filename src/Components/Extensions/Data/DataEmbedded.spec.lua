@@ -32,10 +32,10 @@ return function()
 		data:Set("layer2", "key", "2")
 		data:Set("layer1", "key", "1")
 
-		data:Remove("layer2")
+		data:RemoveLayer("layer2")
 		expect(data.buffer.key).to.equal("3")
 
-		data:Remove("layer3")
+		data:RemoveLayer("layer3")
 		expect(data.buffer.key).to.equal("1")
 
 		data:Set("layer1", "key", "yes")
@@ -81,7 +81,7 @@ return function()
 
 	it("should set a layer right after the key's layer", function()
 		betweenLayer(function(data, keyToSet, layerToSet)
-			data:CreateLayerAt("layer1", keyToSet, layerToSet)
+			data:CreateLayerAfter("layer1", keyToSet, layerToSet)
 		end)
 	end)
 

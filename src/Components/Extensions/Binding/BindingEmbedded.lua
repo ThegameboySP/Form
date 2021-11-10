@@ -18,7 +18,7 @@ function BindingEmbedded.new(base)
 		_isPaused = false;
 	}, BindingEmbedded)
 
-	base:On("Destroying", function()
+	base:OnAlways("Destroying", function()
 		self:Destroy()
 	end)
 

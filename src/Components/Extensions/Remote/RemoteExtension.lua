@@ -67,11 +67,11 @@ function RemoteExtension:_getOrWarn(serializedComp)
 	local comp = self.man.Serializers:Deserialize(serializedComp)
 	if comp == nil then
 		local extracted = self.man.Serializers:Extract(serializedComp)
-		self.man:DebugPrint("Component %s of %s does not exist on %s"):format(
+		self.man:DebugPrint(("Component %s of %s does not exist on %s"):format(
 			extracted.name,
 			extracted.ref:GetFullName(),
 			self.man.IsServer and "server" or "client"
-		)
+		))
 		
 		return
 	end

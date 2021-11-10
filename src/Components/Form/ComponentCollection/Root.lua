@@ -48,29 +48,36 @@ function Root:GetComponent(resolvable)
 	return self.man:GetComponent(self.ref, resolvable)
 end
 
+local function applyLayerToData(layer, Data)
+	local key
+	if layer then
+		key = layer.key or Data:NewId()
+
+		if Data.layers[key] then
+			Data:SetLayer(key, layer.data)
+		elseif layer.priority then
+			Data:CreateLayerAtPriority(key, layer.priority, layer.data)
+		else
+			Data:CreateLayerBefore("base", key, layer.data)
+		end
+	end
+
+	return key
+end
+
 function Root:PreStartComponent(class, layer)
 	if class.CheckRef then
 		assert(class.CheckRef(self.ref))
 	end
 
 	local comp = class.new(self.ref, self.man, self)
+	comp.Data = self.man.Embedded.Data.new(comp)
+
+	local key = applyLayerToData(layer, comp.Data)
 
 	self._callbacks.ComponentAdding(comp)
 	self._hooks:Fire("ComponentAdding", comp)
 	self.added[class] = comp
-
-	local key
-	if layer then
-		key = layer.key or comp.Data:NewId()
-
-		if comp.Data.layers[key] then
-			comp.Data:SetLayer(key, layer.data)
-		elseif layer.priority then
-			comp.Data:CreateLayerAtPriority(key, layer.priority, layer.data)
-		else
-			comp.Data:CreateLayerBefore("base", key, layer.data)
-		end
-	end
 
 	return comp, self:_newId(comp, key)
 end
@@ -80,7 +87,7 @@ function Root:GetOrAddComponentLoadless(resolvable, layer)
 	local comp = self.added[class]
 	if comp == nil then
 		local newComponent, id = self:PreStartComponent(class, layer)
-		newComponent._hooks:OnAlways(RAN, function()
+		newComponent:OnAlways(RAN, function()
 			self._callbacks.ComponentAdded(newComponent)
 			self._hooks:Fire("ComponentAdded", newComponent)
 		end)
@@ -88,18 +95,7 @@ function Root:GetOrAddComponentLoadless(resolvable, layer)
 		return newComponent, id
 	end
 
-	local key
-	if layer then
-		key = layer.key or comp.Data:NewId()
-		
-		if comp.Data.layers[key] then
-			comp.Data:SetLayer(key, layer.data)
-		elseif layer.priority then
-			comp.Data:CreateLayerAtPriority(key, layer.priority, layer.data)
-		else
-			comp.Data:CreateLayerBefore("base", key, layer.data)
-		end
-	end
+	local key = applyLayerToData(layer, comp.Data)
 
 	return comp, self:_newId(comp, key)
 end
@@ -121,7 +117,7 @@ end
 function Root:RemoveLayer(comp, id)
 	local key = comp._rootIds[id]
 	if key ~= NO_KEY then
-		comp.Data:Remove(key)
+		comp.Data:RemoveLayer(key)
 	end
 
 	comp._rootIds[id] = nil

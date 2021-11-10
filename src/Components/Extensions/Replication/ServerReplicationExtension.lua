@@ -36,7 +36,7 @@ local COMPONENT_ADDED = function(self, comp)
 	end)
 
 	if destruct then
-		comp:On("Destroying", destruct)
+		comp:OnAlways("Destroying", destruct)
 	end
 
 	comp.Data:OnAll(function(delta)

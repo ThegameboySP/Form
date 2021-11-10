@@ -96,6 +96,11 @@ function Manager:GetOrAddComponent(ref, classResolvable, keywords)
 end
 
 
+function Manager:GetOrAddComponentLoadless(ref, classResolvable, keywords)
+	return self._collection:GetOrAddComponentLoadless(ref, classResolvable, keywords)
+end
+
+
 function Manager:GetComponent(ref, classResolvable)
 	return self._collection:GetComponent(ref, classResolvable)
 end

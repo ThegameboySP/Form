@@ -3,6 +3,8 @@ local Symbol = require(script.Parent.Parent.Modules.Symbol)
 
 local BaseComponent = {
 	Ops = require(script.Parent.Parent.Extensions.Data).Ops;
+	Utils = require(script.Parent.Parent.Shared.ComponentsUtils);
+	t = require(script.Parent.Parent.Modules.t);
 	ClassName = "BaseComponent";
 	IsComponent = true;
 }
@@ -84,10 +86,16 @@ function BaseComponent:Run()
 	self:FireWithMethodName("Init", "OnInit")
 	self:FireWithMethodName("Init", "OnStart")
 
-	self.isInitialized = true
-	self:Fire(RAN)
+	self:SetInitialized()
 
 	return self
+end
+
+function BaseComponent:SetInitialized()
+	if self.isInitialized then return end
+
+	self.isInitialized = true
+	self:Fire(RAN)
 end
 
 function BaseComponent:Fire(key, ...)
@@ -114,12 +122,20 @@ function BaseComponent:On(key, handler)
 	return self._hooks:On(key, handler)
 end
 
+function BaseComponent:OnAlways(key, handler)
+	return self._hooks:OnAlways(key, handler)
+end
+
 function BaseComponent:Set(key, value)
 	self.Data:Set("base", key, value)
 end
 
 function BaseComponent:Get(key)
 	return self.Data:Get(key)
+end
+
+function BaseComponent:RawGet(key)
+	return self.Data:RawGet(key)
 end
 
 function BaseComponent:__tostring()

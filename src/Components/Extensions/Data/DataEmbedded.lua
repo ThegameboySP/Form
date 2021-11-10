@@ -123,7 +123,7 @@ end
 
 local function checkOrError(checker, k, v)
 	if checker == nil then
-		error(("No checker for key %q!"):format(k))
+		error(("No checker for key %s"):format(k))
 	end
 
 	if type(v) == "function" then
@@ -132,7 +132,7 @@ local function checkOrError(checker, k, v)
 	
 	local ok, err = checker(v)
 	if not ok then
-		error(err)
+		error(("Could not set %s: %s"):format(k, err))
 	end
 end
 
@@ -213,7 +213,7 @@ function Data:_remove(layer)
 	end
 end
 
-function Data:Remove(layerKey)
+function Data:RemoveLayer(layerKey)
 	local layer = self.layers[layerKey]
 	if layer == nil then return end
 
@@ -251,7 +251,7 @@ function Data:SetLayer(layerKey, layerToSet)
 	end
 end
 
-function Data:_createLayerAt(at, keyToSet, layerToSet)
+function Data:_createLayerAfter(at, keyToSet, layerToSet)
 	layerToSet.__index = at
 	layerToSet.prev = at.prev
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
@@ -265,7 +265,7 @@ function Data:_createLayerAt(at, keyToSet, layerToSet)
 	end
 end
 
-function Data:CreateLayerAt(layerKey, keyToSet, layerToSet)
+function Data:CreateLayerAfter(layerKey, keyToSet, layerToSet)
 	if self.layers[keyToSet] then
 		error(("Already inserted layer %q!"):format(keyToSet))
 	end
@@ -276,7 +276,7 @@ function Data:CreateLayerAt(layerKey, keyToSet, layerToSet)
 		self:_setDirty(k)
 	end
 
-	self:_createLayerAt(layer, keyToSet, layerToSet)
+	self:_createLayerAfter(layer, keyToSet, layerToSet)
 end
 
 function Data:_createLayerBefore(layer, keyToSet, layerToSet)
@@ -331,7 +331,7 @@ function Data:CreateLayerAtPriority(layerKey, priority, layerToSet)
 	end
 
 	if selected then
-		self:_createLayerAt(selected, layerKey, layerToSet)
+		self:_createLayerAfter(selected, layerKey, layerToSet)
 	elseif self.bottom then
 		self:_createLayerBefore(self.bottom, layerKey, layerToSet)
 	else
@@ -341,8 +341,11 @@ end
 
 function Data:_set(layerKey, key, value)
 	local layer = self.layers[layerKey]
-	layer[key] = value
-	self:_setDirty(key)
+
+	if rawget(layer, key) ~= value then
+		layer[key] = value
+		self:_setDirty(key)
+	end
 end
 
 function Data:Set(layerKey, key, value)
@@ -411,6 +414,14 @@ function Data:Get(key)
 	end
 	
 	return value
+end
+
+function Data:RawGet(key)
+	local value = self.buffer[key]
+
+	return if value ~= nil
+		then value
+		else self._defaults and self._defaults[key]
 end
 
 return Data

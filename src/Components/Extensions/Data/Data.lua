@@ -13,25 +13,14 @@ return function(man)
 	man:RegisterEmbedded({
 		ClassName = "Data";
 		new = function(comp)
+			if comp.Data then
+				return comp.Data
+			end
+			
 			local data = DataEmbedded.new(extension, comp.Schema, comp.Defaults)
-			comp._hooks:OnAlways("Destroying", function()
+			comp:OnAlways("Destroying", function()
 				data:Destroy()
 			end)
-
-			-- local base = {prev = data.buffer}
-			-- data.layers.base = setmetatable(base, base)
-			-- data.top = base
-			-- data.buffer.__index = base
-
-			-- if not man.IsServer and comp.NetworkMode == "ServerClient" then
-			-- 	local remote = {prev = base}
-			-- 	data.layers.remote = setmetatable(remote, remote)
-			-- 	base.__index = remote
-
-			-- 	data.bottom = remote
-			-- else
-			-- 	data.bottom = base
-			-- end
 			
 			if not man.IsServer then
 				data:_rawInsert("remote", {[PRIORITY] = 0})

@@ -103,9 +103,7 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, layersColl
 		addedComps[comp] = true
 		table.insert(initializedComps, comp)
 
-		comp.isInitialized = true
-		self._rootByRef[comp.ref]:Fire("ComponentAdded", comp)
-		self._callbacks.ComponentAdded(comp)
+		comp:SetInitialized()
 	end
 
 	return initializedComps, ids

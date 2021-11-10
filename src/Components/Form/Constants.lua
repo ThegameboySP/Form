@@ -8,10 +8,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local None
 if RunService:IsServer() then
-	None = Instance.new("Folder")
-	None.Name = "Form_None"
-	if RunService:IsRunning() then
-		None.Parent = ReplicatedStorage
+	None = ReplicatedStorage:FindFirstChild("Form_None")
+
+	if None == nil then
+		None = Instance.new("Folder")
+		None.Name = "Form_None"
+		None.Parent = RunService:IsRunning() and ReplicatedStorage or nil
 	end
 else
 	None = ReplicatedStorage:WaitForChild("Form_None")

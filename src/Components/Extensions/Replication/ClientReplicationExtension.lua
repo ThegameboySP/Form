@@ -11,6 +11,7 @@ function ReplicationExtension.new(man, overrides)
 end
 
 function ReplicationExtension:Init()
+	local Serializers = self.man.Serializers
 	local layers = setmetatable({}, {__mode = "k"})
 
 	-- Defer in case remotes are already queued. This should run first out of all Defer's this frame.
@@ -18,6 +19,18 @@ function ReplicationExtension:Init()
 	con = self.man.Binding.Defer:ConnectAtPriority(0, function()
 		con:Disconnect()
 		
+		self.remotes.InitPlayer.OnClientEvent:Connect(function(serializedRefs, resolvables, dataObjects)
+			local refs = {}
+			local bulkLayers = {}
+
+			for i, serializedRef in ipairs(serializedRefs) do
+				refs[i] = Serializers:Deserialize(serializedRef)
+				layers[i] = {data = dataObjects[i]}
+			end
+
+			self.man:BulkAddComponent(refs, resolvables, bulkLayers)
+		end)
+
 		self.remotes.ComponentAdded.OnClientEvent:Connect(function(serializedComp, data)
 			local comp = self.man.Serializers:Deserialize(serializedComp, "Error")
 

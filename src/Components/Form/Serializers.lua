@@ -26,15 +26,15 @@ function Serializers.new(man)
 end
 
 function Serializers:Serialize(object)
-	if type(object) ~= "table" then
-		return object
-	end
-
 	local serializer = self:FindSerializer(object)
 		or error(("No serializer found for object: %s"):format(tostring(object)))
 
 	local serialized = serializer(object, self.man)
-	if serialized == nil or type(serialized.type) ~= "string" then
+
+	if
+		serialized == nil
+		or (type(serialized) == "table" and type(serialized.type) ~= "string")
+	then
 		error(("Could not serialize for component %s"):format(tostring(object)))
 	end
 
@@ -96,8 +96,12 @@ local function find(object, map)
 		return map[object]
 	end
 
-	local metatable = getmetatable(object)
+	local typeOfEntry = map[typeof(object)]
+	if typeOfEntry then
+		return typeOfEntry
+	end
 
+	local metatable = getmetatable(object)
 	if metatable then
 		return find(metatable, map)
 	end

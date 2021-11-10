@@ -53,10 +53,8 @@ local COMPONENT_REMOVED = function(self, comp)
 	self.remotes.ComponentRemoved:FireAllClients(self.man.Serializers:Serialize(comp))
 end
 
-local FIRE_CLIENT = function(self, client, comp, data)
-	self.remotes.ComponentAdded:FireClient(
-		client, self.man.Serializers:Serialize(comp), data
-	)
+local FIRE_CLIENT = function(self, client, serializedRefs, resolvables, dataObjects)
+	self.remotes.InitPlayer:FireClient(client, serializedRefs, resolvables, dataObjects)
 end
 
 function ReplicationExtension.new(man, overrides)
@@ -73,9 +71,21 @@ function ReplicationExtension:Init(callbacks)
 	local fireClient = callbacks.FireInitialClient or FIRE_CLIENT
 
 	local function onPlayerAdded(player)
+		local Serializers = self.man.Serializers
+
+		local serializedRefs = {}
+		local resolvables = {}
+		local dataObjects = {}
+
+		local i = 1
 		for comp in pairs(self._replicatedComponents) do
-			fireClient(self, player, comp, getCondensedData(comp.Data, comp.Data.set))
+			serializedRefs[i] = Serializers:Serialize(comp.ref)
+			resolvables[i] = comp.ClassName
+			dataObjects[i] = getCondensedData(comp.Data, comp.Data.set)
+			i += 1
 		end
+
+		fireClient(self, player, serializedRefs, resolvables, dataObjects)
 	end
 
 	if callbacks.SubscribePlayerAdded then

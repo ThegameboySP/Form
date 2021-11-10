@@ -6,6 +6,7 @@ local Replication = require(script.Parent)
 
 local function makeOverrides()
 	return {
+		InitPlayer = Instance.new("RemoteEvent");
 		ComponentAdded = Instance.new("RemoteEvent");
 		ComponentRemoved = Instance.new("RemoteEvent");
 		StateChanged = Instance.new("RemoteEvent");
@@ -61,10 +62,8 @@ return function()
 
 		local firePlayerAdded
 		local server = makeServer({
-			FireInitialClient = function(self, _, comp, data)
-				self.remotes.ComponentAdded:FireAllClients(
-					self.man.Serializers:Serialize(comp), data
-				)
+			FireInitialClient = function(self, _, serializedRefs, resolvables, dataObjects)
+				self.remotes.InitPlayer:FireAllClients(serializedRefs, resolvables, dataObjects)
 			end;
 
 			SubscribePlayerAdded = function(onPlayerAdded)

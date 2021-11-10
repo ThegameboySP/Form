@@ -37,6 +37,7 @@ function ReplicationUtils.getRemotes(man)
 	local remotes = folder:WaitForChild("Remotes")
 
 	return {
+		InitPlayer = remotes:WaitForChild("InitPlayer");
 		ComponentAdded = remotes:WaitForChild("ComponentAdded");
 		ComponentRemoved = remotes:WaitForChild("ComponentRemoved");
 		StateChanged = remotes:WaitForChild("StateChanged");
@@ -47,6 +48,7 @@ function ReplicationUtils.makeRemotes(man)
 	local remotes = getOrMake(man.Folder, "Remotes", "Folder")
 
 	return {
+		InitPlayer = getOrMake(remotes, "InitPlayer", "RemoteEvent");
 		ComponentAdded = getOrMake(remotes, "ComponentAdded", "RemoteEvent");
 		ComponentRemoved = getOrMake(remotes, "ComponentRemoved", "RemoteEvent");
 		StateChanged = getOrMake(remotes, "StateChanged", "RemoteEvent");

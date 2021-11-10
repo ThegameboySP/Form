@@ -2,11 +2,15 @@ local BaseComponent = require(script.Parent.BaseComponent)
 
 return {
 	Serializers = {
-		[BaseComponent] = function(comp)
+		Instance = function(instance)
+			return instance
+		end;
+
+		[BaseComponent] = function(comp, man)
 			return {
 				type = "_component";
 				name = comp.ClassName;
-				ref = comp.ref;
+				ref = man.Serializers:Serialize(comp.ref);
 			}
 		end;
 	};

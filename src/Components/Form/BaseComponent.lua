@@ -52,14 +52,16 @@ function BaseComponent:Destroy()
 	if self.isDestroying then return end
 	self.isDestroying = true
 
-	self:Fire("Destroying")
-	self:Fire("Destroyed")
-	self._hooks:DisconnectAll()
-
 	local root = self.root
+	root._callbacks.ComponentRemoving(self)
+
+	self:Fire("Destroying")
 	root.added[getmetatable(self)] = nil
 
 	root._callbacks.ComponentRemoved(self)
+	self:Fire("Destroyed")
+	self._hooks:DisconnectAll()
+
 	if not next(root.added) then
 		root:Destroy()
 	end
@@ -83,8 +85,8 @@ end
 function BaseComponent:Run()
 	if self.isInitialized then return end
 
-	self:FireWithMethodName("Init", "OnInit")
-	self:FireWithMethodName("Init", "OnStart")
+	self:FireWithMethod("Init", self.OnInit)
+	self:FireWithMethod("Init", self.OnStart)
 
 	self:SetInitialized()
 
@@ -109,9 +111,8 @@ function BaseComponent:Fire(key, ...)
 	self._hooks:Fire(key, ...)
 end
 
-function BaseComponent:FireWithMethodName(key, methodName, ...)
-	local method = self[methodName]
-	if method then
+function BaseComponent:FireWithMethod(key, method, ...)
+	if type(method) == "function" then
 		method(self, ...)
 	end
 

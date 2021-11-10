@@ -53,6 +53,7 @@ function Manager.new(name)
 			hooks:Fire("ComponentAdding", comp)
 		end;
 		ComponentAdded = forward(hooks, "ComponentAdded");
+		ComponentRemoving = forward(hooks, "ComponentRemoving");
 		ComponentRemoved = forward(hooks, "ComponentRemoved");
 
 		RefAdded = forward(hooks, "RefAdded");

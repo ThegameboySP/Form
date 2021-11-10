@@ -63,6 +63,14 @@ return function()
 			expect(t.Params[1][1]).to.equal(comp)
 		end)
 
+		it("ComponentRemoving", function()
+			local t, comp = makeSignal("ComponentRemoving")
+			comp:Destroy()
+
+			expect(t.Count).to.equal(1)
+			expect(t.Params[1][1]).to.equal(comp)
+		end)
+
 		it("ComponentRemoved", function()
 			local t, comp = makeSignal("ComponentRemoved")
 			comp:Destroy()

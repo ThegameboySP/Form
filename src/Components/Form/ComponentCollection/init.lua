@@ -89,11 +89,11 @@ function ComponentCollection:BulkAddComponent(refs, classResolvables, layersColl
 	end
 
 	for _, comp in ipairs(comps) do
-		comp:FireWithMethodName("Init", "OnInit")
+		comp:FireWithMethod("Init", comp.OnInit)
 	end
 
 	for _, comp in ipairs(comps) do
-		comp:FireWithMethodName("Start", "OnStart")
+		comp:FireWithMethod("Start", comp.OnStart)
 	end
 
 	local initializedComps = {}

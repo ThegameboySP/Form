@@ -48,7 +48,7 @@ local bufferMt = {
 	__index = function(self, key)
 		local resolved = if self.__index == false then nil else self.__index[key]
 
-		if type(resolved) == "function" then
+		if type(resolved) == "table" and resolved.__transform then
 			local toBottom = self.__index
 			local orderIndex = 0
 			resolved = nil
@@ -56,7 +56,7 @@ local bufferMt = {
 			while toBottom do
 				local layerValue = rawget(toBottom, key)
 
-				if type(layerValue) == "function" or layerValue == nil then
+				if layerValue == nil or (type(layerValue) == "table" and layerValue.__transform) then
 					toBottom = toBottom.__index
 					orderIndex += 1
 					bufferOrder[orderIndex] = layerValue
@@ -76,7 +76,7 @@ local bufferMt = {
 				local layerValue = bufferOrder[i]
 				
 				if layerValue ~= nil then
-					resolved = layerValue(resolved)
+					resolved = layerValue.__transform(resolved)
 				end
 			end
 

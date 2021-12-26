@@ -24,8 +24,15 @@ function ReplicationExtension:Init()
 			local bulkLayers = {}
 
 			for i, serializedRef in ipairs(serializedRefs) do
-				refs[i] = Serializers:Deserialize(serializedRef)
-				layers[i] = {data = dataObjects[i]}
+				local ref = Serializers:Deserialize(serializedRef)
+				local comp = self.man:GetComponent(ref, resolvables[i])
+				if comp and layers[comp] then
+					self.man:Warn("Already added component " .. comp.ClassName)
+					continue
+				end
+				
+				refs[i] = ref
+				layers[i] = {key = "remote", data = dataObjects[i]}
 			end
 
 			self.man:BulkAddComponent(refs, resolvables, bulkLayers)

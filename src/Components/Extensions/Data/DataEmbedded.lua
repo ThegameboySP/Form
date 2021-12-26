@@ -72,11 +72,31 @@ local bufferMt = {
 				resolved = self.__defaults[key]
 			end
 
+			-- Copy the table so transforms can safely mutate it.
+			if type(resolved) == "table" then
+				local copy = {}
+				for k, v in pairs(resolved) do
+					copy[k] = v
+				end
+				resolved = copy
+			end
+
 			for i=orderIndex, 1, -1 do
 				local layerValue = bufferOrder[i]
 				
 				if layerValue ~= nil then
-					resolved = layerValue.__transform(resolved)
+					local nextResolved = layerValue.__transform(resolved)
+
+					-- If transform's parameter was nil, it returned its injected table.
+					-- Copy it so other transforms can safely mutate it.
+					if resolved == nil and type(nextResolved) == "table" then
+						resolved = {}
+						for k, v in pairs(nextResolved) do
+							resolved[k] = v
+						end
+					else
+						resolved = nextResolved
+					end
 				end
 			end
 
@@ -184,7 +204,7 @@ local function checkOrError(checker, k, v)
 	end
 
 	if type(v) == "table" and v.__transform then
-		return
+		v = v.__transform(nil)
 	end
 	
 	local ok, err = checker(v)

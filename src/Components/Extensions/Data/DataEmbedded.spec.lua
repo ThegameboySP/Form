@@ -60,7 +60,7 @@ return function()
 		expect(data.buffer.key).to.equal(2)
 	end)
 
-	local function betweenLayer(method)
+	local function betweenLayerTest(method)
 		local data = DataEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
@@ -80,13 +80,13 @@ return function()
 	end
 
 	it("should set a layer right after the key's layer", function()
-		betweenLayer(function(data, keyToSet, layerToSet)
+		betweenLayerTest(function(data, keyToSet, layerToSet)
 			data:CreateLayerAfter("layer1", keyToSet, layerToSet)
 		end)
 	end)
 
 	it("should set a layer right before the key's layer", function()
-		betweenLayer(function(data, keyToSet, layerToSet)
+		betweenLayerTest(function(data, keyToSet, layerToSet)
 			data:CreateLayerBefore("layer2", keyToSet, layerToSet)
 		end)
 	end)
@@ -106,13 +106,17 @@ return function()
 		expect(data.buffer.number).to.equal(nil)
 
 		expect(function()
-			data:Set("string", 1)
+			data:Set("layer1", "string", 1)
 		end).to.throw()
 		expect(data.buffer.string).to.equal(nil)
 
 		data:SetLayer("layer1", {
 			number = 1;
 		})
+
+		expect(function()
+			data:Set("layer1", "number", Ops.wrap(function() return "string" end))
+		end).to.throw()
 	end)
 
 	it("should generate an object representing a key's current value", function()
@@ -150,5 +154,31 @@ return function()
 
 		data:CreateLayerAtPriority("test3", 2, {key = 2})
 		expect(data.buffer.key).to.equal(2)
+	end)
+
+	local function transformTableTest(wrapper)
+		local data = DataEmbedded.new(MockExtension)
+		data:InsertIfNil("layer1")
+		data:InsertIfNil("layer2")
+
+		local injected = {test1 = true}
+		data:Set("layer1", "transform", wrapper(injected))
+		data:Set("layer2", "transform", Ops.merge({test2 = true}))
+
+		expect(injected.test1).to.equal(true)
+		expect(injected.test2).to.equal(nil)
+		
+		local merged = data.buffer.transform
+		expect(merged).to.never.equal(injected)
+		expect(merged.test1).to.equal(true)
+		expect(merged.test2).to.equal(true)
+	end
+
+	it("should copy transform's injected table before passing it to the next transforms", function()
+		transformTableTest(Ops.merge)
+	end)
+
+	it("should copy table before passing it to transforms", function()
+		transformTableTest(function(tbl) return tbl end)
 	end)
 end

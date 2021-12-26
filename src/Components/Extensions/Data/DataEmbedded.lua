@@ -128,11 +128,12 @@ end
 
 function Data:Destroy()
 	self._subscriptions:Destroy()
-	self.layers = nil
 	self.buffer.__index = nil
 	self.buffer = nil
+	self.layers = nil
 	self.set = nil
 	self._delta = nil
+	self._objects = nil
 end
 
 function Data:On(key, handler)
@@ -182,7 +183,7 @@ local function checkOrError(checker, k, v)
 		error(("No checker for key %s"):format(k))
 	end
 
-	if type(v) == "function" then
+	if type(v) == "table" and v.__transform then
 		return
 	end
 	
@@ -283,9 +284,7 @@ function Data:SetLayer(layerKey, layerToSet)
 	
 		for k in pairs(existingLayer) do
 			if k == "__index" then continue end
-			if layerToSet[k] == nil then
-				self:_setDirty(k)
-			end
+			self:_setDirty(k)
 		end
 	else
 		self:_insert(layerKey, layerToSet)
@@ -295,12 +294,7 @@ end
 function Data:_createLayerAfter(at, keyToSet, layerToSet)
 	layerToSet.__index = at
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
-
 	getPrevious(self.buffer, at).__index = layerToSet
-
-	if at == self.buffer.__index then
-		self.buffer.__index = layerToSet
-	end
 end
 
 function Data:CreateLayerAfter(layerKey, keyToSet, layerToSet)
@@ -369,7 +363,7 @@ function Data:CreateLayerAtPriority(layerKey, priority, layerToSet)
 	elseif current then
 		self:_createLayerBefore(current, layerKey, layerToSet)
 	else
-		self:_rawInsert(layerKey, layerToSet)
+		self:_insert(layerKey, layerToSet)
 	end
 end
 

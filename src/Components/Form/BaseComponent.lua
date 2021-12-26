@@ -131,14 +131,6 @@ function BaseComponent:Set(key, value)
 	self.Data:Set("base", key, value)
 end
 
-function BaseComponent:Get(key)
-	return self.Data:Get(key)
-end
-
-function BaseComponent:RawGet(key)
-	return self.Data:RawGet(key)
-end
-
 function BaseComponent:__tostring()
 	return string.format("Component (%s %s)", self.ref:GetFullName(), self.ClassName)
 end

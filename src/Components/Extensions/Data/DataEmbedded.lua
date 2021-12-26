@@ -20,7 +20,7 @@ end
 
 function Object:Get()
 	if self._data then
-		return self._data:Get(self._key)
+		return self._data.buffer[self._key]
 	end
 	
 	return nil
@@ -40,17 +40,83 @@ end
 
 local NONE = Constants.None
 local PRIORITY = Symbol.named("priority")
-local ALL = {}
+local ALL = Symbol.unique("all")
+
+local bufferOrder = {}
+
+local bufferMt = {
+	__index = function(self, key)
+		local resolved = if self.__index == false then nil else self.__index[key]
+
+		if type(resolved) == "function" then
+			local toBottom = self.__index
+			local orderIndex = 0
+			resolved = nil
+
+			while toBottom do
+				local layerValue = rawget(toBottom, key)
+
+				if type(layerValue) == "function" or layerValue == nil then
+					toBottom = toBottom.__index
+					orderIndex += 1
+					bufferOrder[orderIndex] = layerValue
+
+					continue
+				end
+
+				resolved = layerValue
+				break
+			end
+
+			if resolved == nil and self.__defaults then
+				resolved = self.__defaults[key]
+			end
+
+			for i=orderIndex, 1, -1 do
+				local layerValue = bufferOrder[i]
+				
+				if layerValue ~= nil then
+					resolved = layerValue(resolved)
+				end
+			end
+
+			table.clear(bufferOrder)
+		end
+
+		if resolved == nil and self.__defaults then
+			resolved = self.__defaults[key]
+		end
+		
+		self[key] = resolved
+
+		return resolved
+	end
+}
+
+local function getPrevious(top, layer)
+	local current = top
+
+	while true do
+		local nextLayer = current.__index
+		if nextLayer and nextLayer ~= layer then
+			current = nextLayer
+		else
+			return current
+		end
+	end
+
+	return nil
+end
 
 function Data.new(extension, checkers, defaults)
-	local buffer = {}
-
 	return setmetatable({
 		_extension = extension;
 		_checkers = checkers;
-		_defaults = defaults;
 		
-		buffer = setmetatable(buffer, buffer);
+		buffer = setmetatable({
+			__index = false;
+			__defaults = defaults or false;
+		}, bufferMt);
 		layers = {};
 		set = {};
 		_delta = {};
@@ -62,27 +128,15 @@ end
 
 function Data:Destroy()
 	self._subscriptions:Destroy()
-	self.buffer = nil
 	self.layers = nil
-	self.top = nil
-	self.bottom = nil
+	self.buffer.__index = nil
+	self.buffer = nil
 	self.set = nil
 	self._delta = nil
 end
 
-function Data:_subscribe(key, currentValue, handler)
-	return self._subscriptions:On(key, function()
-		local newValue = self:Get(key)
-		if newValue == currentValue then return end
-
-		local oldValue = currentValue
-		currentValue = newValue
-		handler(newValue, oldValue)
-	end)
-end
-
 function Data:On(key, handler)
-	return self:_subscribe(key, self:Get(key), handler)
+	return self._subscriptions:On(key, handler)
 end
 
 function Data:OnAll(handler)
@@ -90,13 +144,13 @@ function Data:OnAll(handler)
 end
 
 function Data:For(key, handler)
-	local currentValue = self:Get(key)
+	local currentValue = self.buffer[key]
 	if currentValue ~= nil then
-		handler(currentValue, nil)
-		return self:_subscribe(key, currentValue, handler)
+		local oldValue = self._delta[key]
+		handler(currentValue, if oldValue == NONE then nil else oldValue)
 	end
 
-	return self:_subscribe(key, currentValue, handler)
+	return self._subscriptions:On(key, handler)
 end
 
 function Data:ForAll(handler)
@@ -109,11 +163,13 @@ end
 
 function Data:onUpdate()
 	if self.buffer == nil then return end
+
 	local subscriptions = self._subscriptions
 	local delta = self._delta
+	local buffer = self.buffer
 
-	for k in pairs(delta) do
-		subscriptions:Fire(k)
+	for k, oldValue in pairs(delta) do
+		subscriptions:Fire(k, buffer[k], if oldValue == NONE then nil else oldValue)
 	end
 
 	subscriptions:Fire(ALL, delta)
@@ -137,8 +193,12 @@ local function checkOrError(checker, k, v)
 end
 
 function Data:_setDirty(k)
+	if self._delta[k] == nil then
+		local value = self.buffer[k]
+		self._delta[k] = if value == nil then NONE else value
+	end
+
 	self.buffer[k] = nil
-	self._delta[k] = true
 	self.set[k] = true
 	self._extension[self] = true
 end
@@ -165,22 +225,13 @@ function Data:NewId()
 end
 
 function Data:_rawInsert(key, layerToSet)
-	local top = self.top
+	local top = self.buffer.__index
 	if top then
 		layerToSet.__index = top
-		layerToSet.prev = self.buffer
-		top.prev = layerToSet
-	else
-		layerToSet.prev = self.buffer
 	end
 
 	self.layers[key] = setmetatable(layerToSet, layerToSet)
-	self.top = layerToSet
 	self.buffer.__index = layerToSet
-
-	if self.bottom == nil then
-		self.bottom = layerToSet
-	end
 
 	return layerToSet
 end
@@ -204,23 +255,14 @@ function Data:InsertIfNil(key)
 	return layer
 end
 
-function Data:_remove(layer)
-	local nextNode = layer.__index
-	layer.prev.__index = nextNode
-
-	if nextNode then
-		nextNode.prev = layer.prev
-	end
-end
-
 function Data:RemoveLayer(layerKey)
 	local layer = self.layers[layerKey]
 	if layer == nil then return end
 
-	self:_remove(layer)
+	getPrevious(self.buffer, layer).__index = layer.__index
 
 	for k in pairs(layer) do
-		if k == "__index" or k == "prev" then continue end
+		if k == "__index" then continue end
 		self:_setDirty(k)
 	end
 end
@@ -236,12 +278,11 @@ function Data:SetLayer(layerKey, layerToSet)
 		end
 
 		layerToSet.__index = existingLayer.__index
-		layerToSet.prev = existingLayer.prev
-		existingLayer.prev.__index = layerToSet
+		getPrevious(self.buffer, existingLayer).__index = layerToSet
 		self.layers[layerKey] = setmetatable(layerToSet, layerToSet)
 	
 		for k in pairs(existingLayer) do
-			if k == "__index" or k == "prev" then continue end
+			if k == "__index" then continue end
 			if layerToSet[k] == nil then
 				self:_setDirty(k)
 			end
@@ -253,14 +294,11 @@ end
 
 function Data:_createLayerAfter(at, keyToSet, layerToSet)
 	layerToSet.__index = at
-	layerToSet.prev = at.prev
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
 
-	at.prev.__index = layerToSet
-	at.prev = layerToSet
+	getPrevious(self.buffer, at).__index = layerToSet
 
-	if at == self.top then
-		self.top = layerToSet
+	if at == self.buffer.__index then
 		self.buffer.__index = layerToSet
 	end
 end
@@ -281,15 +319,7 @@ end
 
 function Data:_createLayerBefore(layer, keyToSet, layerToSet)
 	layerToSet.__index = layer.__index
-	layerToSet.prev = layer
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
-
-	if layer.__index then
-		layer.__index.prev = layerToSet
-	else
-		self.bottom = layerToSet
-	end
-
 	layer.__index = layerToSet
 end
 
@@ -318,22 +348,26 @@ function Data:CreateLayerAtPriority(layerKey, priority, layerToSet)
 	end
 	layerToSet[PRIORITY] = priority
 
-	local current = self.top
-	local buffer = self.buffer
+	local current = self.buffer.__index
 	local selected
-	while current and current ~= buffer do
+	while current do
 		local currentPriority = rawget(current, PRIORITY) or 0
 		if priority >= currentPriority then
 			selected = current
 			break
 		end
-		current = current.__index
+
+		if current.__index then
+			current = current.__index
+		else
+			break
+		end
 	end
 
 	if selected then
 		self:_createLayerAfter(selected, layerKey, layerToSet)
-	elseif self.bottom then
-		self:_createLayerBefore(self.bottom, layerKey, layerToSet)
+	elseif current then
+		self:_createLayerBefore(current, layerKey, layerToSet)
 	else
 		self:_rawInsert(layerKey, layerToSet)
 	end
@@ -378,50 +412,6 @@ function Data:GetObject(key)
 	self._objects[key] = object
 
 	return object
-end
-
-function Data:Get(key)
-	local value = self.buffer[key]
-	if type(value) == "function" then
-		local final
-		if self._defaults then
-			final = self._defaults[key]
-		end
-
-		local current = self.bottom
-		while current ~= self.buffer do
-			local layerValue = rawget(current, key)
-			current = current.prev
-
-			if type(layerValue) == "function" then
-				final = layerValue(final)
-			elseif layerValue ~= nil then
-				final = layerValue
-			end
-		end
-
-		if final == nil and self._defaults then
-			final = self._defaults[key]
-		end
-		
-		self.buffer[key] = final
-
-		return final
-	end
-
-	if value == nil and self._defaults then
-		return self._defaults[key]
-	end
-	
-	return value
-end
-
-function Data:RawGet(key)
-	local value = self.buffer[key]
-
-	return if value ~= nil
-		then value
-		else self._defaults and self._defaults[key]
 end
 
 return Data

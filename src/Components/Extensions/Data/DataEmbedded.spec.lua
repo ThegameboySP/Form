@@ -51,13 +51,13 @@ return function()
 
 		data:Set("layer3", "key", Ops.add(2))
 		data:Set("layer2", "key", 1)
-		expect(data:Get("key")).to.equal(3)
+		expect(data.buffer.key).to.equal(3)
 
 		data:Set("layer2", "key", Ops.add(2))
-		expect(data:Get("key")).to.equal(4)
+		expect(data.buffer.key).to.equal(4)
 
 		data:Set("layer4", "key", 2)
-		expect(data:Get("key")).to.equal(2)
+		expect(data.buffer.key).to.equal(2)
 	end)
 
 	local function betweenLayer(method)
@@ -74,7 +74,7 @@ return function()
 			test = true;
 		})
 
-		expect(data.top.test).to.equal("moo")
+		expect(data.buffer.test).to.equal("moo")
 		expect(data.layers[key].test).to.equal(true)
 		expect(data.layers[key].test2).to.equal(true)
 	end
@@ -103,12 +103,12 @@ return function()
 				string = 2;
 			})
 		end).to.throw()
-		expect(data:Get("number")).to.equal(nil)
+		expect(data.buffer.number).to.equal(nil)
 
 		expect(function()
 			data:Set("string", 1)
 		end).to.throw()
-		expect(data:Get("string")).to.equal(nil)
+		expect(data.buffer.string).to.equal(nil)
 
 		data:SetLayer("layer1", {
 			number = 1;
@@ -143,12 +143,12 @@ return function()
 	it("should set a layer at the proper priority position", function()
 		local data = DataEmbedded.new(MockExtension)
 		data:CreateLayerAtPriority("test", 1, {key = 1})
-		expect(data.top.key).to.equal(1)
+		expect(data.buffer.key).to.equal(1)
 
 		data:CreateLayerAtPriority("test2", 0, {key = 0})
-		expect(data.top.key).to.equal(1)
+		expect(data.buffer.key).to.equal(1)
 
 		data:CreateLayerAtPriority("test3", 2, {key = 2})
-		expect(data.top.key).to.equal(2)
+		expect(data.buffer.key).to.equal(2)
 	end)
 end

@@ -12,7 +12,7 @@ local function getCondensedData(Data, delta)
 	local condensed = {}
 
 	for key in pairs(delta) do
-		local value = Data:Get(key)
+		local value = Data.buffer[key]
 		if value == nil then
 			condensed[key] = NONE
 		else

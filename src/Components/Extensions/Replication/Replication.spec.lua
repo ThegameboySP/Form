@@ -95,7 +95,7 @@ return function()
 		comp.Data:Set("base", "Test", 1)
 
 		wait(0.1)
-		expect(client:GetComponent(ref, BaseComponent).Data:Get("Test")).to.equal(1)
+		expect(client:GetComponent(ref, BaseComponent).Data.buffer.Test).to.equal(1)
 	end)
 
 	it("should fully test a replicated component's lifecycle to existing players", function()

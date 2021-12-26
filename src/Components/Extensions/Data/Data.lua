@@ -18,6 +18,7 @@ return function(man)
 			end
 			
 			local data = DataEmbedded.new(extension, comp.Schema, comp.Defaults)
+			comp.data = data.buffer
 			comp:OnAlways("Destroying", function()
 				data:Destroy()
 			end)

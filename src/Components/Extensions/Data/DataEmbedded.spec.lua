@@ -3,7 +3,7 @@ local DataEmbedded = require(script.Parent.DataEmbedded)
 local Ops = require(script.Parent.Ops)
 
 return function()
-	local MockExtension = {}
+	local MockExtension = {pending = {}}
 	
 	it("should use 1 layer", function()
 		local data = DataEmbedded.new(MockExtension)

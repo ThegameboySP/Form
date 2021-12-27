@@ -190,12 +190,29 @@ function Data:onUpdate()
 	local buffer = self.buffer
 
 	for k, oldValue in pairs(delta) do
-		subscriptions:Fire(k, buffer[k], if oldValue == NONE then nil else oldValue)
+		oldValue = if oldValue == NONE then nil else oldValue
+		if buffer[k] ~= oldValue then
+			subscriptions:Fire(k, buffer[k], oldValue)
+		end
 	end
 
-	subscriptions:Fire(ALL, delta)
+	if subscriptions[ALL] then
+		local current = {}
 
-	table.clear(delta)
+		for key, oldValue in pairs(delta) do
+			if buffer[key] ~= oldValue then
+				current[key] = buffer[key]
+			end
+		end
+
+		if next(current) then
+			subscriptions:Fire(ALL, current, delta)
+		end
+
+		self._delta = {}
+	else
+		table.clear(delta)
+	end
 end
 
 local function checkOrError(checker, k, v)
@@ -221,7 +238,7 @@ function Data:_setDirty(k)
 
 	self.buffer[k] = nil
 	self.set[k] = true
-	self._extension[self] = true
+	self._extension.pending[self] = true
 end
 
 function Data:_checkOrError(toCheck)
@@ -280,12 +297,12 @@ function Data:RemoveLayer(layerKey)
 	local layer = self.layers[layerKey]
 	if layer == nil then return end
 
-	getPrevious(self.buffer, layer).__index = layer.__index
-
 	for k in pairs(layer) do
 		if k == "__index" then continue end
 		self:_setDirty(k)
 	end
+
+	getPrevious(self.buffer, layer).__index = layer.__index
 end
 
 function Data:SetLayer(layerKey, layerToSet)
@@ -298,14 +315,13 @@ function Data:SetLayer(layerKey, layerToSet)
 			self:_setDirty(k)
 		end
 
+		for k in pairs(existingLayer) do
+			self:_setDirty(k)
+		end
+
 		layerToSet.__index = existingLayer.__index
 		getPrevious(self.buffer, existingLayer).__index = layerToSet
 		self.layers[layerKey] = setmetatable(layerToSet, layerToSet)
-	
-		for k in pairs(existingLayer) do
-			if k == "__index" then continue end
-			self:_setDirty(k)
-		end
 	else
 		self:_insert(layerKey, layerToSet)
 	end
@@ -391,8 +407,8 @@ function Data:_set(layerKey, key, value)
 	local layer = self.layers[layerKey]
 
 	if rawget(layer, key) ~= value then
-		layer[key] = value
 		self:_setDirty(key)
+		layer[key] = value
 	end
 end
 

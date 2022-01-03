@@ -67,7 +67,7 @@ function ReplicationExtension:Init()
 			local comp = self.man.Serializers:Deserialize(serializedComp, "Error")
 			if comp == nil then return end
 			
-			comp.Data:MergeLayer("remote", delta)
+			comp.Layers:MergeLayer("remote", delta)
 		end)
 	end)
 end

@@ -3,9 +3,9 @@ local Hooks = require(script.Parent.Parent.Parent.Form.Hooks)
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 local Constants = require(script.Parent.Parent.Parent.Form.Constants)
 
-local Data = {}
-Data.Ops = Ops
-Data.__index = Data
+local Layers = {}
+Layers.Ops = Ops
+Layers.__index = Layers
 
 local Object = {}
 Object.__index = Object
@@ -13,7 +13,7 @@ Object.__mode = "v"
 
 function Object.new(data, key)
 	return setmetatable({
-		_data = data or error("Data required");
+		_data = data or error("Layers required");
 		_key = key or error("Key required");
 	}, Object)
 end
@@ -128,7 +128,7 @@ local function getPrevious(top, layer)
 	return nil
 end
 
-function Data.new(extension, checkers, defaults)
+function Layers.new(extension, checkers, defaults)
 	return setmetatable({
 		_extension = extension;
 		_checkers = checkers;
@@ -143,10 +143,10 @@ function Data.new(extension, checkers, defaults)
 		_objects = {};
 
 		_subscriptions = Hooks.new();
-	}, Data)
+	}, Layers)
 end
 
-function Data:Destroy()
+function Layers:Destroy()
 	self._subscriptions:Destroy()
 	self.buffer.__index = nil
 	self.buffer = nil
@@ -156,15 +156,15 @@ function Data:Destroy()
 	self._objects = nil
 end
 
-function Data:On(key, handler)
+function Layers:On(key, handler)
 	return self._subscriptions:On(key, handler)
 end
 
-function Data:OnAll(handler)
+function Layers:OnAll(handler)
 	return self._subscriptions:On(ALL, handler)
 end
 
-function Data:For(key, handler)
+function Layers:For(key, handler)
 	local currentValue = self.buffer[key]
 	if currentValue ~= nil then
 		local oldValue = self._delta[key]
@@ -174,7 +174,7 @@ function Data:For(key, handler)
 	return self._subscriptions:On(key, handler)
 end
 
-function Data:ForAll(handler)
+function Layers:ForAll(handler)
 	if next(self._delta) then
 		handler(self._delta)
 	end
@@ -182,7 +182,7 @@ function Data:ForAll(handler)
 	return self._subscriptions:On(ALL, handler)
 end
 
-function Data:onUpdate()
+function Layers:onUpdate()
 	if self.buffer == nil then return end
 
 	local subscriptions = self._subscriptions
@@ -230,7 +230,7 @@ local function checkOrError(checker, k, v)
 	end
 end
 
-function Data:_setDirty(k)
+function Layers:_setDirty(k)
 	if self._delta[k] == nil then
 		local value = self.buffer[k]
 		self._delta[k] = if value == nil then NONE else value
@@ -241,7 +241,7 @@ function Data:_setDirty(k)
 	self._extension.pending[self] = true
 end
 
-function Data:_checkOrError(toCheck)
+function Layers:_checkOrError(toCheck)
 	if self._checkers then
 		for k, v in pairs(toCheck) do
 			checkOrError(self._checkers[k], k, v)
@@ -249,7 +249,7 @@ function Data:_checkOrError(toCheck)
 	end
 end
 
-function Data:_getLayerOrError(layerKey)
+function Layers:_getLayerOrError(layerKey)
 	local layer = self.layers[layerKey]
 	if layer == nil then
 		error(("No layer by key %q!"):format(layerKey))
@@ -258,11 +258,11 @@ function Data:_getLayerOrError(layerKey)
 	return layer
 end
 
-function Data:NewId()
+function Layers:NewId()
 	return #self.layers + 1
 end
 
-function Data:_rawInsert(key, layerToSet)
+function Layers:_rawInsert(key, layerToSet)
 	local top = self.buffer.__index
 	if top then
 		layerToSet.__index = top
@@ -274,7 +274,7 @@ function Data:_rawInsert(key, layerToSet)
 	return layerToSet
 end
 
-function Data:_insert(key, layerToSet)
+function Layers:_insert(key, layerToSet)
 	self:_checkOrError(layerToSet)
 
 	for k in pairs(layerToSet) do
@@ -284,7 +284,7 @@ function Data:_insert(key, layerToSet)
 	return self:_rawInsert(key, layerToSet)
 end
 
-function Data:InsertIfNil(key)
+function Layers:InsertIfNil(key)
 	local layer = self.layers[key]
 	if layer == nil then
 		return self:_insert(key, {})
@@ -293,7 +293,7 @@ function Data:InsertIfNil(key)
 	return layer
 end
 
-function Data:RemoveLayer(layerKey)
+function Layers:RemoveLayer(layerKey)
 	local layer = self.layers[layerKey]
 	if layer == nil then return end
 
@@ -305,7 +305,7 @@ function Data:RemoveLayer(layerKey)
 	getPrevious(self.buffer, layer).__index = layer.__index
 end
 
-function Data:SetLayer(layerKey, layerToSet)
+function Layers:SetLayer(layerKey, layerToSet)
 	local existingLayer = self.layers[layerKey]
 
 	if existingLayer then
@@ -327,13 +327,13 @@ function Data:SetLayer(layerKey, layerToSet)
 	end
 end
 
-function Data:_createLayerAfter(at, keyToSet, layerToSet)
+function Layers:_createLayerAfter(at, keyToSet, layerToSet)
 	layerToSet.__index = at
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
 	getPrevious(self.buffer, at).__index = layerToSet
 end
 
-function Data:CreateLayerAfter(layerKey, keyToSet, layerToSet)
+function Layers:CreateLayerAfter(layerKey, keyToSet, layerToSet)
 	if self.layers[keyToSet] then
 		error(("Already inserted layer %q!"):format(keyToSet))
 	end
@@ -347,13 +347,13 @@ function Data:CreateLayerAfter(layerKey, keyToSet, layerToSet)
 	self:_createLayerAfter(layer, keyToSet, layerToSet)
 end
 
-function Data:_createLayerBefore(layer, keyToSet, layerToSet)
+function Layers:_createLayerBefore(layer, keyToSet, layerToSet)
 	layerToSet.__index = layer.__index
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
 	layer.__index = layerToSet
 end
 
-function Data:CreateLayerBefore(layerKey, keyToSet, layerToSet)
+function Layers:CreateLayerBefore(layerKey, keyToSet, layerToSet)
 	if self.layers[keyToSet] then
 		error(("Already inserted layer %q!"):format(keyToSet))
 	end
@@ -367,7 +367,7 @@ function Data:CreateLayerBefore(layerKey, keyToSet, layerToSet)
 	self:_createLayerBefore(layer, keyToSet, layerToSet)
 end
 
-function Data:CreateLayerAtPriority(layerKey, priority, layerToSet)
+function Layers:CreateLayerAtPriority(layerKey, priority, layerToSet)
 	if self.layers[layerKey] then
 		error(("Already inserted layer %q!"):format(layerKey))
 	end
@@ -403,7 +403,7 @@ function Data:CreateLayerAtPriority(layerKey, priority, layerToSet)
 	end
 end
 
-function Data:_set(layerKey, key, value)
+function Layers:_set(layerKey, key, value)
 	local layer = self.layers[layerKey]
 
 	if rawget(layer, key) ~= value then
@@ -412,7 +412,7 @@ function Data:_set(layerKey, key, value)
 	end
 end
 
-function Data:Set(layerKey, key, value)
+function Layers:Set(layerKey, key, value)
 	if self._checkers and value ~= nil then
 		checkOrError(self._checkers[key], key, value)
 	end
@@ -420,7 +420,7 @@ function Data:Set(layerKey, key, value)
 	self:_set(layerKey, key, value)
 end
 
-function Data:MergeLayer(layerKey, delta)
+function Layers:MergeLayer(layerKey, delta)
 	self:_checkOrError(delta)
 	
 	for key, value in pairs(delta) do
@@ -432,7 +432,7 @@ function Data:MergeLayer(layerKey, delta)
 	end
 end
 
-function Data:GetObject(key)
+function Layers:GetObject(key)
 	local object = self._objects[key]
 	if object then
 		return object
@@ -444,4 +444,4 @@ function Data:GetObject(key)
 	return object
 end
 
-return Data
+return Layers

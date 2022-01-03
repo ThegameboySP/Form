@@ -8,11 +8,11 @@ ReplicationExtension.__index = ReplicationExtension
 
 local NONE = Constants.None
 
-local function getCondensedData(Data, delta)
+local function getCondensedData(Layers, delta)
 	local condensed = {}
 
 	for key in pairs(delta) do
-		local value = Data.buffer[key]
+		local value = Layers.buffer[key]
 		if value == nil then
 			condensed[key] = NONE
 		else
@@ -31,7 +31,7 @@ local COMPONENT_ADDED = function(self, comp)
 		self._replicatedComponents[comp] = true
 
 		self.remotes.ComponentAdded:FireAllClients(
-			self.man.Serializers:Serialize(comp), getCondensedData(comp.Data, comp.Data.set)
+			self.man.Serializers:Serialize(comp), getCondensedData(comp.Layers, comp.Layers.set)
 		)
 	end)
 
@@ -39,10 +39,10 @@ local COMPONENT_ADDED = function(self, comp)
 		comp:OnAlways("Destroying", destruct)
 	end
 
-	comp.Data:OnAll(function(delta)
+	comp.Layers:OnAll(function(delta)
 		if didReplicate then
 			self.remotes.StateChanged:FireAllClients(
-				self.man.Serializers:Serialize(comp), getCondensedData(comp.Data, delta)
+				self.man.Serializers:Serialize(comp), getCondensedData(comp.Layers, delta)
 			)
 		end
 	end)
@@ -81,7 +81,7 @@ function ReplicationExtension:Init(callbacks)
 		for comp in pairs(self._replicatedComponents) do
 			serializedRefs[i] = Serializers:Serialize(comp.ref)
 			resolvables[i] = comp.ClassName
-			dataObjects[i] = getCondensedData(comp.Data, comp.Data.set)
+			dataObjects[i] = getCondensedData(comp.Layers, comp.Layers.set)
 			i += 1
 		end
 

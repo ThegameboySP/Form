@@ -12,6 +12,7 @@ return {
 
 	-- Prototypes = require(script.Extensions.Prototypes);
 	-- Groups = require(script.Extensions.Groups);
+	Layers = require(script.Extensions.Layers);
 	Replication = require(script.Extensions.Replication);
 	Remote = require(script.Extensions.Remote);
 	Binding = require(script.Extensions.Binding);

@@ -1,19 +1,19 @@
 local t = require(script.Parent.Parent.Parent.Modules.t)
-local DataEmbedded = require(script.Parent.DataEmbedded)
+local LayersEmbedded = require(script.Parent.LayersEmbedded)
 local Ops = require(script.Parent.Ops)
 
 return function()
 	local MockExtension = {pending = {}}
 	
 	it("should use 1 layer", function()
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:Set("layer1", "key", "value")
 		expect(data.buffer.key).to.equal("value")
 	end)
 
 	it("should use 2 layers, newest overwriting old", function()
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:Set("layer1", "key", "no")
@@ -23,7 +23,7 @@ return function()
 	end)
 
 	it("should remove layers, maintaining the linked list", function()
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:InsertIfNil("layer3")
@@ -43,7 +43,7 @@ return function()
 	end)
 
 	it("should compute transforms on get", function()
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 		data:InsertIfNil("layer3")
@@ -61,7 +61,7 @@ return function()
 	end)
 
 	local function betweenLayerTest(method)
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 
@@ -92,7 +92,7 @@ return function()
 	end)
 
 	it("should throw a type error", function()
-		local data = DataEmbedded.new(MockExtension, {
+		local data = LayersEmbedded.new(MockExtension, {
 			number = t.number;
 			string = t.string;
 		})
@@ -120,7 +120,7 @@ return function()
 	end)
 
 	it("should generate an object representing a key's current value", function()
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:InsertIfNil("base")
 
 		local object = data:GetObject("test")
@@ -145,7 +145,7 @@ return function()
 	end)
 
 	it("should set a layer at the proper priority position", function()
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:CreateLayerAtPriority("test", 1, {key = 1})
 		expect(data.buffer.key).to.equal(1)
 
@@ -157,7 +157,7 @@ return function()
 	end)
 
 	local function transformTableTest(wrapper)
-		local data = DataEmbedded.new(MockExtension)
+		local data = LayersEmbedded.new(MockExtension)
 		data:InsertIfNil("layer1")
 		data:InsertIfNil("layer2")
 

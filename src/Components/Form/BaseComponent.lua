@@ -2,7 +2,7 @@ local Hooks = require(script.Parent.Hooks)
 local Symbol = require(script.Parent.Parent.Modules.Symbol)
 
 local BaseComponent = {
-	Ops = require(script.Parent.Parent.Extensions.Data).Ops;
+	Ops = require(script.Parent.Parent.Extensions.Layers).Ops;
 	Utils = require(script.Parent.Parent.Shared.ComponentsUtils);
 	t = require(script.Parent.Parent.Modules.t);
 	ClassName = "BaseComponent";
@@ -22,7 +22,7 @@ function BaseComponent.new(ref, man, root)
 
 		isDestroying = false;
 		isInitialized = false;
-		Data = nil;
+		Layers = nil;
 	}, BaseComponent)
 end
 
@@ -86,7 +86,7 @@ function BaseComponent:Run()
 	if self.isInitialized then return end
 
 	self:FireWithMethod("Init", self.OnInit)
-	self:FireWithMethod("Init", self.OnStart)
+	self:FireWithMethod("Start", self.OnStart)
 
 	self:SetInitialized()
 
@@ -128,7 +128,7 @@ function BaseComponent:OnAlways(key, handler)
 end
 
 function BaseComponent:Set(key, value)
-	self.Data:Set("base", key, value)
+	self.Layers:Set("base", key, value)
 end
 
 function BaseComponent:__tostring()

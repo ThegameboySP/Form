@@ -1,23 +1,23 @@
-local DataEmbedded = require(script.Parent.DataEmbedded)
-local DataExtension = require(script.Parent.DataExtension)
+local LayersEmbedded = require(script.Parent.LayersEmbedded)
+local LayersExtension = require(script.Parent.LayersExtension)
 local Symbol = require(script.Parent.Parent.Parent.Modules.Symbol)
 
 local PRIORITY = Symbol.named("priority")
 
 return function(man)
-	if man.Data then return end
+	if man.Layers then return end
 	
-	local extension = DataExtension.new(man)
-	man.Data = extension
+	local extension = LayersExtension.new(man)
+	man.Layers = extension
 
 	man:RegisterEmbedded({
-		ClassName = "Data";
+		ClassName = "Layers";
 		new = function(comp)
-			if comp.Data then
-				return comp.Data
+			if comp.Layers then
+				return comp.Layers
 			end
 			
-			local data = DataEmbedded.new(extension, comp.Schema, comp.Defaults)
+			local data = LayersEmbedded.new(extension, comp.Schema, comp.Defaults)
 			comp.data = data.buffer
 			comp:OnAlways("Destroying", function()
 				data:Destroy()

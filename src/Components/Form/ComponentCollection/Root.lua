@@ -48,17 +48,17 @@ function Root:GetComponent(resolvable)
 	return self.man:GetComponent(self.ref, resolvable)
 end
 
-local function applyLayerToData(layer, Data)
+local function applyLayerToData(layer, Layers)
 	local key
 	if layer then
-		key = layer.key or Data:NewId()
+		key = layer.key or Layers:NewId()
 
-		if Data.layers[key] then
-			Data:SetLayer(key, layer.data)
+		if Layers.layers[key] then
+			Layers:SetLayer(key, layer.data)
 		elseif layer.priority then
-			Data:CreateLayerAtPriority(key, layer.priority, layer.data)
+			Layers:CreateLayerAtPriority(key, layer.priority, layer.data)
 		else
-			Data:CreateLayerBefore("base", key, layer.data)
+			Layers:CreateLayerBefore("base", key, layer.data)
 		end
 	end
 
@@ -71,9 +71,9 @@ function Root:PreStartComponent(class, layer)
 	end
 
 	local comp = class.new(self.ref, self.man, self)
-	comp.Data = self.man.Embedded.Data.new(comp)
+	comp.Layers = self.man.Embedded.Layers.new(comp)
 
-	local key = applyLayerToData(layer, comp.Data)
+	local key = applyLayerToData(layer, comp.Layers)
 
 	self._callbacks.ComponentAdding(comp)
 	self._hooks:Fire("ComponentAdding", comp)
@@ -95,7 +95,7 @@ function Root:GetOrAddComponentLoadless(resolvable, layer)
 		return newComponent, id
 	end
 
-	local key = applyLayerToData(layer, comp.Data)
+	local key = applyLayerToData(layer, comp.Layers)
 
 	return comp, self:_newId(comp, key)
 end
@@ -117,7 +117,7 @@ end
 function Root:RemoveLayer(comp, id)
 	local key = comp._rootIds[id]
 	if key ~= NO_KEY then
-		comp.Data:RemoveLayer(key)
+		comp.Layers:RemoveLayer(key)
 	end
 
 	comp._rootIds[id] = nil

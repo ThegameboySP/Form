@@ -3,7 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ComponentCollection = require(script.Parent.ComponentCollection)
 local Hooks = require(script.Parent.Hooks)
-local Data = require(script.Parent.Parent.Extensions.Data)
+local Layers = require(script.Parent.Parent.Extensions.Layers)
 local Binding = require(script.Parent.Parent.Extensions.Binding)
 local Serializers = require(script.Parent.Serializers)
 
@@ -70,7 +70,7 @@ function Manager.new(name)
 	})
 
 	Binding.use(self)
-	Data.use(self)
+	Layers.use(self)
 
 	return self
 end

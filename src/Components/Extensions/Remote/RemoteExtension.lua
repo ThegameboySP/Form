@@ -126,4 +126,21 @@ function RemoteExtension:Invoke(comp, funcName, ...)
 	return self._function:InvokeServer(self.man.Serializers:Serialize(comp), funcName, ...)
 end
 
+function RemoteExtension:Predict(comp, funcName, ...)
+	assert(not self.man.IsServer, "Predict can only be called on the client!")
+
+	local args = table.pack(...)
+	local layer = args[args.n - 1]
+	local callback = args[args.n]
+
+	local id = comp.Layers:NewId()
+	comp.Layers:CreateLayerAfter("base", id, layer)
+
+	task.spawn(function()
+		local results = table.pack(self:Invoke(comp, funcName, unpack(args, 1, args.n - 2)))
+		comp.Layers:RemoveLayer(id)
+		callback(unpack(results, 1, results.n))
+	end)
+end
+
 return RemoteExtension

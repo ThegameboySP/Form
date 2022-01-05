@@ -85,4 +85,28 @@ return function()
 		expect(#serverArgs).to.equal(1)
 		expect(serverArgs[1]).to.equal("test")
 	end)
+
+	it("should predict", function()
+		local ref = newRef()
+		local server, client = serverAndClient()
+
+		local compServer = server:GetOrAddComponent(ref, BaseComponent)
+		server.Remote:OnInvoke(compServer, "Test", function(_, _, arg)
+			if arg == "arg" then
+				return true
+			end
+		end)
+
+		local compClient = client:GetOrAddComponent(ref, BaseComponent)
+
+		local co = coroutine.running()
+		client.Remote:Predict(compClient, "Test", "arg", {test = true}, function(ok)
+			task.spawn(co, ok)
+		end)
+		expect(compClient.data.test).to.equal(true)
+
+		local ok = coroutine.yield()
+		expect(ok).to.equal(true)
+		expect(compClient.data.test).to.equal(nil)
+	end)
 end

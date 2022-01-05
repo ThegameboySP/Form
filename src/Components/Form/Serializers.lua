@@ -19,6 +19,7 @@ Serializers.__index = Serializers
 function Serializers.new(man)
 	return setmetatable({
 		man = man;
+		_cache = setmetatable({}, {__mode = "k"});
 		_serializers = setmetatable({}, {__index = BuiltinSerializers.Serializers});
 		_deserializers = setmetatable({}, {__index = BuiltinSerializers.Deserializers});
 		_extractors = setmetatable({}, {__index = BuiltinSerializers.Extractors});
@@ -26,6 +27,10 @@ function Serializers.new(man)
 end
 
 function Serializers:Serialize(object)
+	if self._cache[object] then
+		return self._cache[object]
+	end
+
 	local serializer = self:FindSerializer(object)
 		or error(("No serializer found for object: %s"):format(tostring(object)))
 
@@ -37,6 +42,8 @@ function Serializers:Serialize(object)
 	then
 		error(("Could not serialize for component %s"):format(tostring(object)))
 	end
+
+	self._cache[object] = serialized
 
 	return serialized
 end
@@ -84,6 +91,7 @@ end
 
 function Serializers:RegisterSerializer(class, serializer)
 	self._serializers[class] = serializer
+	table.clear(self._cache)
 end
 
 function Serializers:RegisterDeserializer(name, deserializer)

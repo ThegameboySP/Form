@@ -1,3 +1,5 @@
+local inlinedError = require(script.Parent.Parent.Shared.inlinedError)
+
 local Hooks = {}
 Hooks.__index = Hooks
 
@@ -67,7 +69,7 @@ end
 function Hooks:Fire(name, ...)
 	local hook = rawget(self, name)
 	while hook do
-		hook._handler(...)
+		xpcall(hook._handler, inlinedError, ...)
 		hook = hook._next
 	end
 end

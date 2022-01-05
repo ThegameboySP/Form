@@ -41,12 +41,13 @@ end
 local NONE = Constants.None
 local PRIORITY = Symbol.named("priority")
 local ALL = Symbol.unique("all")
+local BLANK = table.freeze({})
 
 local bufferOrder = {}
 
 local bufferMt = {
 	__index = function(self, key)
-		local resolved = if self.__index == false then nil else self.__index[key]
+		local resolved = self.__index[key]
 
 		if type(resolved) == "table" and resolved.__transform then
 			local toBottom = self.__index
@@ -66,10 +67,6 @@ local bufferMt = {
 
 				resolved = layerValue
 				break
-			end
-
-			if resolved == nil and self.__defaults then
-				resolved = self.__defaults[key]
 			end
 
 			-- Copy the table so transforms can safely mutate it.
@@ -102,10 +99,6 @@ local bufferMt = {
 
 			table.clear(bufferOrder)
 		end
-
-		if resolved == nil and self.__defaults then
-			resolved = self.__defaults[key]
-		end
 		
 		self[key] = resolved
 
@@ -134,20 +127,23 @@ function Layers.new(extension, checkers, defaults)
 		_checkers = checkers;
 		
 		buffer = setmetatable({
-			__index = false;
-			__defaults = defaults or false;
+			__index = defaults or BLANK;
 		}, bufferMt);
 		layers = {};
 		set = {};
 		_delta = {};
-		_objects = {};
+		_objects = nil;
 
-		_subscriptions = Hooks.new();
+		_subscriptions = nil;
 	}, Layers)
 end
 
 function Layers:Destroy()
-	self._subscriptions:Destroy()
+	if self._subscriptions then
+		self._subscriptions:Destroy()
+		self._subscriptions = nil
+	end
+	
 	self.buffer.__index = nil
 	self.buffer = nil
 	self.layers = nil
@@ -156,14 +152,26 @@ function Layers:Destroy()
 	self._objects = nil
 end
 
+function Layers:_createSubscriptionsIfNil()
+	if self._subscriptions == nil then
+		self._subscriptions = Hooks.new()
+	end
+
+	return self._subscriptions
+end
+
+-- Subscribes to next subscription update for key.
 function Layers:On(key, handler)
-	return self._subscriptions:On(key, handler)
+	return self:_createSubscriptionsIfNil():On(key, handler)
 end
 
+-- Subscribes to next subscription update.
 function Layers:OnAll(handler)
-	return self._subscriptions:On(ALL, handler)
+	return self:_createSubscriptionsIfNil():On(ALL, handler)
 end
 
+-- Subscribes to next subscription update for key.
+-- If the key currently is non-nil, calls it immediately.
 function Layers:For(key, handler)
 	local currentValue = self.buffer[key]
 	if currentValue ~= nil then
@@ -171,47 +179,58 @@ function Layers:For(key, handler)
 		handler(currentValue, if oldValue == NONE then nil else oldValue)
 	end
 
-	return self._subscriptions:On(key, handler)
+	return self:_createSubscriptionsIfNil():On(key, handler)
 end
 
+-- Subscribes to next subscription update.
+-- If current data is not empty, calls it immediately, but the "old" parameter *is nil*.
 function Layers:ForAll(handler)
-	if next(self._delta) then
-		handler(self._delta)
+	local current = {}
+	for k in pairs(self.set) do
+		current[k] = self.buffer[k]
 	end
 
-	return self._subscriptions:On(ALL, handler)
+	if next(current) then
+		handler(current, nil)
+	end
+
+	return self:_createSubscriptionsIfNil():On(ALL, handler)
 end
 
 function Layers:onUpdate()
+	if self._subscriptions == nil then return end
+	-- Destroyed
 	if self.buffer == nil then return end
 
 	local subscriptions = self._subscriptions
-	local delta = self._delta
 	local buffer = self.buffer
 
-	for k, oldValue in pairs(delta) do
+	for k, oldValue in pairs(self._delta) do
+		if subscriptions[k] == nil then continue end
+
+		local current = buffer[k]
+		if current == nil then
+			self.set[k] = nil
+		end
+
 		oldValue = if oldValue == NONE then nil else oldValue
-		if buffer[k] ~= oldValue then
-			subscriptions:Fire(k, buffer[k], oldValue)
+		if current ~= oldValue then
+			subscriptions:Fire(k, current, oldValue)
 		end
 	end
 
 	if subscriptions[ALL] then
 		local current = {}
 
-		for key, oldValue in pairs(delta) do
-			if buffer[key] ~= oldValue then
-				current[key] = buffer[key]
-			end
+		for k in pairs(self._delta) do
+			current[k] = buffer[k]
 		end
 
-		if next(current) then
-			subscriptions:Fire(ALL, current, delta)
-		end
+		subscriptions:Fire(ALL, current, self._delta)
 
 		self._delta = {}
 	else
-		table.clear(delta)
+		table.clear(self._delta)
 	end
 end
 
@@ -316,10 +335,12 @@ function Layers:SetLayer(layerKey, layerToSet)
 		end
 
 		for k in pairs(existingLayer) do
+			if k == "__index" then continue end
 			self:_setDirty(k)
 		end
 
 		layerToSet.__index = existingLayer.__index
+		layerToSet[PRIORITY] = existingLayer[PRIORITY]
 		getPrevious(self.buffer, existingLayer).__index = layerToSet
 		self.layers[layerKey] = setmetatable(layerToSet, layerToSet)
 	else
@@ -345,12 +366,18 @@ function Layers:CreateLayerAfter(layerKey, keyToSet, layerToSet)
 	end
 
 	self:_createLayerAfter(layer, keyToSet, layerToSet)
+	layerToSet[PRIORITY] = layer[PRIORITY]
 end
 
-function Layers:_createLayerBefore(layer, keyToSet, layerToSet)
-	layerToSet.__index = layer.__index
+function Layers:_createLayerBefore(at, keyToSet, layerToSet)
+	-- Hacky way to detect if layer is Defaults.
+	if table.isfrozen(at) then
+		return self:_createLayerAfter(at, keyToSet, layerToSet)
+	end
+
+	layerToSet.__index = at.__index
 	self.layers[keyToSet] = setmetatable(layerToSet, layerToSet)
-	layer.__index = layerToSet
+	at.__index = layerToSet
 end
 
 function Layers:CreateLayerBefore(layerKey, keyToSet, layerToSet)
@@ -365,6 +392,7 @@ function Layers:CreateLayerBefore(layerKey, keyToSet, layerToSet)
 	end
 
 	self:_createLayerBefore(layer, keyToSet, layerToSet)
+	layerToSet[PRIORITY] = layer[PRIORITY]
 end
 
 function Layers:CreateLayerAtPriority(layerKey, priority, layerToSet)
@@ -381,8 +409,7 @@ function Layers:CreateLayerAtPriority(layerKey, priority, layerToSet)
 	local current = self.buffer.__index
 	local selected
 	while current do
-		local currentPriority = rawget(current, PRIORITY) or 0
-		if priority >= currentPriority then
+		if priority >= (rawget(current, PRIORITY) or 0) then
 			selected = current
 			break
 		end
@@ -394,10 +421,13 @@ function Layers:CreateLayerAtPriority(layerKey, priority, layerToSet)
 		end
 	end
 
+	-- Found a layer that has a lower priority:
 	if selected then
 		self:_createLayerAfter(selected, layerKey, layerToSet)
+	-- All layers were higher priority:
 	elseif current then
 		self:_createLayerBefore(current, layerKey, layerToSet)
+	-- No layers:
 	else
 		self:_insert(layerKey, layerToSet)
 	end
@@ -433,12 +463,13 @@ function Layers:MergeLayer(layerKey, delta)
 end
 
 function Layers:GetObject(key)
-	local object = self._objects[key]
-	if object then
-		return object
+	if self._objects == nil then
+		self._objects = {}
+	elseif self._objects[key] then
+		return self._objects[key]
 	end
 
-	object = Object.new(self, key)
+	local object = Object.new(self, key)
 	self._objects[key] = object
 
 	return object

@@ -1,28 +1,20 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local Manager = require(script.Parent.Parent.Parent.Form.Manager)
 local BaseComponent = require(script.Parent.Parent.Parent.Form.BaseComponent)
 local Replication = require(script.Parent)
 
-local function makeOverrides()
-	return {
-		InitPlayer = Instance.new("RemoteEvent");
-		ComponentAdded = Instance.new("RemoteEvent");
-		ComponentRemoved = Instance.new("RemoteEvent");
-		StateChanged = Instance.new("RemoteEvent");
-	}
-end
-
 local function makeServer(callbacks)
-	local overrides = makeOverrides()
-
+	callbacks = callbacks or {}
 	local server = Manager.new("server")
 	server.IsServer = true
 	server.IsTesting = true
 	server:RegisterComponent(BaseComponent)
-	Replication.use(server, callbacks, overrides)
 
-	return server, overrides
+	callbacks.onReplicatedOnce = callbacks.onReplicatedOnce or function(comp, onReplicated)
+		onReplicated(comp)
+	end
+	Replication.use(server, callbacks)
+
+	return server
 end
 
 local function makeClient(overrides)
@@ -35,87 +27,77 @@ local function makeClient(overrides)
 	return client
 end
 
-local function serverAndClient()
-	local server, overrides = makeServer()
-	return server, makeClient(overrides)
+local function makeServerAndClient(callbacks)
+	local server = makeServer(callbacks)
+	return server, makeClient(server.Replication.remotes)
 end
 
-local function replicate(ref, timeout)
-	ref.Parent = ReplicatedStorage
-	task.delay(timeout or 0, function()
-		ref.Parent = nil
-	end)
+local function connect(server, client)
+	server.Replication._fire = function(_, eventName, _, ...)
+		client.Replication["_on" .. eventName](client.Replication, ...)
+	end
+	server.Replication._fireAll = function(_, eventName, ...)
+		client.Replication["_on" .. eventName](client.Replication, ...)
+	end
 
-	return ref
+	return server, client
 end
 
 local function newRef()
-	local ref = Instance.new("Folder")
-	ref.Name = "FormReplicationTestRef (should not see this)"
-
-	return ref
+	return Instance.new("Folder")
 end
 
 return function()
 	it("should replicate existing components to connecting player", function()
-		local ref = replicate(newRef(), 1)
+		local ref = newRef()
 
 		local firePlayerAdded
 		local server = makeServer({
-			FireInitialClient = function(self, _, serializedRefs, resolvables, dataObjects)
-				self.remotes.InitPlayer:FireAllClients(serializedRefs, resolvables, dataObjects)
-			end;
-
-			SubscribePlayerAdded = function(onPlayerAdded)
+			subscribePlayerAdded = function(onPlayerAdded)
 				firePlayerAdded = onPlayerAdded
 			end;
 		})
 		
 		server:GetOrAddComponent(ref, BaseComponent)
-		wait(0.1)
 
-		-- Make new remote events so that we clear the queue.
-		local newOverrides = makeOverrides()
-		server.Replication.remotes = newOverrides
-
-		local client = makeClient(newOverrides)
+		local client = makeClient(server.Replication.remotes)
+		connect(server, client)
 		firePlayerAdded()
-		wait(0.1)
 
 		expect(client:GetComponent(ref, BaseComponent)).to.be.ok()
 	end)
 
 	it("should replicate state changes to existing players", function()
-		local ref = replicate(newRef())
-		local server, client = serverAndClient()
+		local ref = newRef()
+		local server, client = connect(makeServerAndClient())
 
 		local comp = server:GetOrAddComponent(ref, BaseComponent)
 
-		wait(0.1)
 		comp.Layers:Set("base", "Test", 1)
-
-		wait(0.1)
+		comp.Layers:onUpdate()
 		expect(client:GetComponent(ref, BaseComponent).Layers.buffer.Test).to.equal(1)
 	end)
 
 	it("should fully test a replicated component's lifecycle to existing players", function()
 		local ref = newRef()
-		local server, client = serverAndClient()
 
-		server:GetOrAddComponent(ref, BaseComponent)
-		wait(0.1)
+		local fireReplicated
+		local server, client = connect(makeServerAndClient({
+			onReplicatedOnce = function(_, onReplicated)
+				fireReplicated = onReplicated
+			end;
+		}))
+
+		local comp = server:GetOrAddComponent(ref, BaseComponent)
 		expect(client:GetComponent(ref, BaseComponent)).to.never.be.ok()
 
-		replicate(ref)
-		wait(0.1)
+		fireReplicated(comp)
 		expect(client:GetComponent(ref, BaseComponent)).to.be.ok()
 
 		ref.Parent = nil
-		wait(0.1)
 		expect(client:GetComponent(ref, BaseComponent)).to.be.ok()
 
 		server:RemoveComponent(ref, BaseComponent)
-		wait(0.1)
 		expect(client:GetComponent(ref, BaseComponent)).to.never.be.ok()
 	end)
 end

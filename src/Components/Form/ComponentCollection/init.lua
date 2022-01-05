@@ -30,6 +30,14 @@ function ComponentCollection:Register(class)
 	self._classesByName[name] = class
 	self._classesByRef[class] = class
 	
+	if class.Defaults and not table.isfrozen(class.Defaults) then
+		table.freeze(class.Defaults)
+	end
+
+	if class.Schema and not table.isfrozen(class.Schema) then
+		table.freeze(class.Schema)
+	end
+
 	self._callbacks.ClassRegistered(class)
 end
 

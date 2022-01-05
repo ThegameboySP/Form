@@ -36,9 +36,9 @@ function Manager.new(name)
 	}, Manager)
 	self.Serializers = Serializers.new(self)
 
+	self.Folder = Instance.new("Folder")
+	self.Folder.Name = name
 	if Manager.IsRunning and Manager.IsServer then
-		self.Folder = Instance.new("Folder")
-		self.Folder.Name = name
 		self.Folder.Parent = ReplicatedStorage
 	elseif Manager.IsRunning and not Manager.IsServer then
 		self.Folder = ReplicatedStorage:WaitForChild(name)

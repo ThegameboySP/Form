@@ -23,53 +23,29 @@ local function getCondensedData(Layers, delta)
 	return condensed
 end
 
-local COMPONENT_ADDED = function(self, comp)
-	local didReplicate = false
-
-	local destruct = ReplicationUtils.onReplicatedOnce(comp.ref, function()
-		didReplicate = true
-		self._replicatedComponents[comp] = true
-
-		self.remotes.ComponentAdded:FireAllClients(
-			self.man.Serializers:Serialize(comp), getCondensedData(comp.Layers, comp.Layers.set)
-		)
-	end)
-
-	if destruct then
-		comp:OnAlways("Destroying", destruct)
-	end
-
-	comp.Layers:OnAll(function(delta)
-		if didReplicate then
-			self.remotes.StateChanged:FireAllClients(
-				self.man.Serializers:Serialize(comp), getCondensedData(comp.Layers, delta)
-			)
-		end
-	end)
-end;
-
-local COMPONENT_REMOVED = function(self, comp)
-	self._replicatedComponents[comp] = nil
-	self.remotes.ComponentRemoved:FireAllClients(self.man.Serializers:Serialize(comp))
-end
-
-local FIRE_CLIENT = function(self, client, serializedRefs, resolvables, dataObjects)
-	self.remotes.InitPlayer:FireClient(client, serializedRefs, resolvables, dataObjects)
-end
-
-function ReplicationExtension.new(man, overrides)
-	return setmetatable({
+function ReplicationExtension.new(man, callbacks, overrides)
+	local self = setmetatable({
 		man = man;
-		remotes = overrides and overrides or ReplicationUtils.makeRemotes(man);
+		remotes = overrides or ReplicationUtils.makeRemotes(man);
+		callbacks = {
+			subscribePlayerAdded = callbacks and callbacks.subscribePlayerAdded;
+			onReplicatedOnce = callbacks and callbacks.onReplicatedOnce or ReplicationUtils.onReplicatedOnce;
+		};
 		_replicatedComponents = setmetatable({}, {__mode = "k"});
 	}, ReplicationExtension)
+
+	self._onReplicated = function(comp)
+		self._replicatedComponents[comp] = true
+
+		self:_fireAll("ComponentAdded",
+			self.man.Serializers:Serialize(comp), getCondensedData(comp.Layers, comp.Layers.set)
+		)
+	end
+
+	return self
 end
 
-function ReplicationExtension:Init(callbacks)
-	callbacks = callbacks or {}
-
-	local fireClient = callbacks.FireInitialClient or FIRE_CLIENT
-
+function ReplicationExtension:Init()
 	local function onPlayerAdded(player)
 		local Serializers = self.man.Serializers
 
@@ -85,11 +61,11 @@ function ReplicationExtension:Init(callbacks)
 			i += 1
 		end
 
-		fireClient(self, player, serializedRefs, resolvables, dataObjects)
+		self:_fire("InitPlayer", player, serializedRefs, resolvables, dataObjects)
 	end
 
-	if callbacks.SubscribePlayerAdded then
-		callbacks.SubscribePlayerAdded(onPlayerAdded)
+	if self.callbacks.subscribePlayerAdded then
+		self.callbacks.subscribePlayerAdded(onPlayerAdded)
 	else	
 		Players.PlayerAdded:Connect(onPlayerAdded)
 		for _, player in pairs(Players:GetPlayers()) do
@@ -97,15 +73,42 @@ function ReplicationExtension:Init(callbacks)
 		end
 	end
 
-	local added = callbacks.ComponentAdded or COMPONENT_ADDED
-	local removed = callbacks.ComponentRemoved or COMPONENT_REMOVED
 	self.man:On("ComponentAdded", function(comp)
-		added(self, comp, COMPONENT_ADDED)
+		self:_onComponentAdded(comp)
 	end)
 	
 	self.man:On("ComponentRemoved", function(comp)
-		removed(self, comp, COMPONENT_REMOVED)
+		self:_onComponentRemoved(comp)
 	end)
+end
+
+function ReplicationExtension:_onComponentAdded(comp)
+	local destruct = self.callbacks.onReplicatedOnce(comp, self._onReplicated)
+
+	if destruct then
+		comp:OnAlways("Destroying", destruct)
+	end
+
+	comp.Layers:OnAll(function(delta)
+		if self._replicatedComponents[comp] then
+			self:_fireAll("StateChanged",
+				self.man.Serializers:Serialize(comp), getCondensedData(comp.Layers, delta)
+			)
+		end
+	end)
+end
+
+function ReplicationExtension:_onComponentRemoved(comp)
+	self._replicatedComponents[comp] = nil
+	self:_fireAll("ComponentRemoved", self.man.Serializers:Serialize(comp))
+end
+
+function ReplicationExtension:_fireAll(eventName, ...)
+	self.remotes[eventName]:FireAllClients(...)
+end
+
+function ReplicationExtension:_fire(eventName, client, ...)
+	self.remotes[eventName]:FireClient(client, ...)
 end
 
 return ReplicationExtension

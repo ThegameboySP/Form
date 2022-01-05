@@ -181,4 +181,19 @@ return function()
 	it("should copy table before passing it to transforms", function()
 		transformTableTest(function(tbl) return tbl end)
 	end)
+
+	it("should use defaults", function()
+		local data = LayersEmbedded.new(MockExtension, nil, table.freeze({
+			test = "default";
+		}))
+		expect(data.buffer.test).to.equal("default")
+		
+		data:CreateLayerAtPriority("test", -5, {
+			test = "priority";
+		})
+		expect(data.buffer.test).to.equal("priority")
+
+		data:RemoveLayer("test")
+		expect(data.buffer.test).to.equal("default")
+	end)
 end

@@ -6,21 +6,22 @@ local getOrMake = require(script.Parent.Parent.Parent.Form.getOrMake)
 
 local ReplicationUtils = {}
 
-function ReplicationUtils.onReplicatedOnce(ref, callback)
+function ReplicationUtils.onReplicatedOnce(comp, callback)
+	local ref = comp.ref
 	if
 		ref:IsDescendantOf(ReplicatedStorage)
 		or ref:IsDescendantOf(workspace)
 		or ref:IsDescendantOf(ReplicatedFirst)
 		or ref:IsDescendantOf(Players)
 	then
-		callback()
+		callback(comp)
 		return
 	end
 
 	local con
 	con = ref.AncestryChanged:Connect(function(_, parent)
 		if parent == ReplicatedStorage or parent == workspace or parent == ReplicatedFirst or parent == Players then
-			callback()
+			callback(comp)
 			con:Disconnect()
 		elseif (parent == nil or parent.Parent == game) and con then
 			con:Disconnect()

@@ -5,10 +5,10 @@ return function(man, callbacks, overrides)
 	if man.Replication then return end
 
 	if man.IsServer then
-		man.Replication = ServerReplicationExtension.new(man, overrides)
-		man.Replication:Init(callbacks)
+		man.Replication = ServerReplicationExtension.new(man, callbacks, overrides)
+		man.Replication:Init()
 	else
-		man.Replication = ClientReplicationExtension.new(man, overrides)
+		man.Replication = ClientReplicationExtension.new(man, callbacks, overrides)
 		man.Replication:Init()
 	end
 end

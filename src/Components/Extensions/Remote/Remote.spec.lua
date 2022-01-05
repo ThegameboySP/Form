@@ -67,18 +67,13 @@ return function()
 		local serverArgs = {}
 		local ref = newRef()
 
-		local TestComponent = BaseComponent:extend("Test", {
-			Remote = {
-				Callback = function(_, _, arg)
-					table.insert(serverArgs, arg)
-					return true
-				end;
-			};
-		})
-
-		local server, client = serverAndClient(TestComponent)
-		server:GetOrAddComponent(ref, TestComponent)
-		local clientComp = client:GetOrAddComponent(ref, TestComponent)
+		local server, client = serverAndClient()
+		local serverComp = server:GetOrAddComponent(ref, BaseComponent)
+		server.Remote:OnInvoke(serverComp, "Callback", function(_, arg)
+			table.insert(serverArgs, arg)
+			return true
+		end)
+		local clientComp = client:GetOrAddComponent(ref, BaseComponent)
 
 		local ret = clientComp.Remote:Invoke("Callback", "test")
 		expect(ret).to.equal(true)
@@ -91,7 +86,7 @@ return function()
 		local server, client = serverAndClient()
 
 		local compServer = server:GetOrAddComponent(ref, BaseComponent)
-		server.Remote:OnInvoke(compServer, "Test", function(_, _, arg)
+		server.Remote:OnInvoke(compServer, "Test", function(_, arg)
 			if arg == "arg" then
 				return true
 			end

@@ -14,15 +14,6 @@ end
 
 function RemoteExtension:Init()
 	if self.man.IsServer then
-		self.man:On("ComponentAdding", function(comp)
-			local remoteFunctions = comp:GetClass().Remote
-			if remoteFunctions == nil then return end
-			
-			for name, handler in pairs(remoteFunctions) do
-				self:OnInvoke(comp, name, handler)
-			end
-		end)
-
 		self._event.OnServerEvent:Connect(function(player, serializedComp, eventName, ...)
 			if type(eventName) ~= "string" then return end
 
@@ -43,7 +34,7 @@ function RemoteExtension:Init()
 			local func = functions[funcName]
 			if func == nil then return end
 
-			return func(comp, player, ...)
+			return func(player, ...)
 		end
 	else
 		-- Defer in case remotes are already queued. This runs after Replication's Defer does.

@@ -69,13 +69,23 @@ end
 
 function ComponentCollection:GetOrAddComponent(ref, classResolvable, layer)
 	assert(typeof(ref) == "Instance", "Expected 'Instance'")
-	return self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, layer)
+
+	debug.profilebegin("Form_GetOrAddComponent")
+	local comp, id = self:_getOrAddWrapper(ref):GetOrAddComponent(classResolvable, layer)
+	debug.profileend()
+	
+	return comp, id
 end
 
 
 function ComponentCollection:GetOrAddComponentLoadless(ref, classResolvable, layer)
 	assert(typeof(ref) == "Instance", "Expected 'Instance'")
-	return self:_getOrAddWrapper(ref):GetOrAddComponentLoadless(classResolvable, layer)
+
+	debug.profilebegin("Form_GetOrAddComponentLoadless")
+	local comp, id = self:_getOrAddWrapper(ref):GetOrAddComponentLoadless(classResolvable, layer)
+	debug.profileend()
+
+	return comp, id
 end
 
 

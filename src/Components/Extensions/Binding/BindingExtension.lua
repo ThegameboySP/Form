@@ -56,20 +56,34 @@ end
 function BindingExtension:Init()
 	if not self._ref.IsTesting then
 		table.insert(self._cons, RunService.Heartbeat:Connect(function(...)
+			debug.profilebegin("Form_PostSimulation")
 			self.PostSimulation:Fire(...)
-			task.defer(self.Defer.Fire, self.Defer)
+
+			task.defer(self._onDefer, self)
+
+			debug.profileend()
 		end))
 
 		if not RunService:IsServer() then
 			table.insert(self._cons, RunService.RenderStepped:Connect(function(...)
+				debug.profilebegin("Form_PreRender")
 				self.PreRender:Fire(...)
+				debug.profileend()
 			end))
 		end
 
 		table.insert(self._cons, RunService.Stepped:Connect(function(...)
+			debug.profilebegin("Form_PreSimulation")
 			self.PreSimulation:Fire(...)
+			debug.profileend()
 		end))
 	end
+end
+
+function BindingExtension:_onDefer()
+	debug.profilebegin("Form_Defer")
+	self.Defer:Fire()
+	debug.profileend()
 end
 
 function BindingExtension:_connectAtPriority(binding, priority, handler)
